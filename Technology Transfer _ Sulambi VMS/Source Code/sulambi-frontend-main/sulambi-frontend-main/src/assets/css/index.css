@@ -1,0 +1,1303 @@
+@import url("https://fonts.googleapis.com/css?family=Poppins&display=swap");
+@import url("https://fonts.googleapis.com/css?family=Inter&display=swap");
+@import url("./animation.css");
+@import url("./tableData.css");
+
+:root {
+  --text-landing: #475443;
+  --text-landing-light: #7c8a78;
+  --button-red: #6c2525;
+  --divider-color: #d7d7d7f7;
+  --body-color: #fffbf2;
+  --text-default: #333333;
+}
+
+* {
+  font-family: Poppins, "Courier New", Courier, monospace;
+  text-transform: none;
+  scrollbar-width: thin;
+}
+
+/* Note: Roman numeral list overrides moved to a more scoped stylesheet */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--body-color);
+  margin: 0;
+  scrollbar-gutter: stable both-edges;
+}
+
+header {
+  position: absolute;
+  background: linear-gradient(180deg, #c07f00 0%, #ffdf75 100%);
+  padding: 15px 10px;
+  width: calc(100% - 20px);
+  color: white;
+  display: flex;
+  gap: 20px;
+  justify-content: flex-end;
+  align-items: center;
+  z-index: 3;
+}
+
+.headerMobile {
+  padding: 10px 10px;
+}
+
+footer {
+  border-top: 1px solid gray;
+  margin: 0 auto;
+  width: 98%;
+  text-align: center;
+  padding: 3px 0;
+}
+
+.lineButton {
+  cursor: pointer;
+  position: relative;
+}
+
+.lineButton::after {
+  content: "";
+  position: absolute;
+  height: 2px;
+  width: 0;
+  left: 0;
+  bottom: 0;
+  background-color: white;
+  transition: 0.2s;
+}
+
+.lineButtonActive::after {
+  width: 100%;
+}
+
+.lineButton:hover:after {
+  width: 100%;
+}
+
+/* Table alignment helper for Roman-numbered sections */
+.tableWrapperAligned {
+  width: 75%;
+  max-width: 900px;
+  margin: 0 auto;
+  margin-left: 3.6em;
+  margin-right: 0.3em;
+  box-sizing: border-box;
+}
+
+/* 
+  Table CSS Designs
+*/
+
+table.bsuForm {
+  font-family: "Times New Roman", Times, serif;
+  border: 1px solid black;
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 10pt;
+  table-layout: fixed;
+  margin: 10px 0;
+}
+
+/* Override margin when bsuForm is followed by bsuFormChild */
+table.bsuForm:has(+ table.bsuFormChild),
+table.bsuForm:has(~ table.bsuFormChild) {
+  margin-bottom: 0 !important;
+}
+
+table.bsuForm > tbody > tr > td {
+  border: 1px solid black;
+  padding: 8px 10px;
+}
+
+table.bsuForm > tbody > tr > td.hasSmallPadding {
+  padding: 15px 5px;
+}
+
+table.bsuFormChild {
+  font-family: "Times New Roman", Times, serif;
+  border: 1px solid black;
+  border-top: none;
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  font-size: 9pt;
+  table-layout: fixed !important;
+  text-wrap: wrap;
+  margin: 0 0 10px 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box !important;
+}
+
+
+/* Override margin when bsuFormChild follows bsuForm */
+table.bsuForm + table.bsuFormChild,
+table.bsuForm ~ table.bsuFormChild {
+  margin-top: 0 !important;
+}
+
+/* Merge header and body tables with no gap */
+/* Remove gaps from wrapper - CRITICAL for connection */
+.bsu-form-wrapper {
+  gap: 0 !important;
+  row-gap: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.header-content-group {
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+
+/* Remove ALL spacing between tables in wrapper */
+.bsu-form-wrapper > table.bsuForm {
+  margin-bottom: 0 !important;
+  margin-top: 5px !important;
+}
+
+.bsu-form-wrapper > table.bsuForm:first-child {
+  margin-top: 5px !important;
+}
+
+@media print {
+  .bsu-form-wrapper > table.bsuForm:first-child {
+    margin-top: 0 !important;
+    margin-bottom: 2px !important;
+  }
+}
+
+.bsu-form-wrapper > table.bsuForm + table.bsuFormChild,
+.bsu-form-wrapper > table.bsuForm ~ table.bsuFormChild {
+  margin-top: 0 !important;
+  margin-bottom: 10px !important;
+  padding-top: 0 !important;
+  border-top: none !important;
+  border-spacing: 0 !important;
+}
+
+/* Remove padding from first row of bsuFormChild when in wrapper */
+.bsu-form-wrapper > table.bsuForm + table.bsuFormChild > tbody > tr:first-child > td,
+.bsu-form-wrapper > table.bsuForm ~ table.bsuFormChild > tbody > tr:first-child > td {
+  padding-top: 6px !important;
+  margin-top: 0 !important;
+}
+
+/* Ensure last row of bsuForm has no extra bottom spacing */
+.bsu-form-wrapper > table.bsuForm:has(+ table.bsuFormChild) > tbody > tr:last-child > td,
+.bsu-form-wrapper > table.bsuForm:has(~ table.bsuFormChild) > tbody > tr:last-child > td {
+  margin-bottom: 0 !important;
+  padding-bottom: 8px !important;
+}
+
+/* Reduce padding on hasSmallPadding when followed by bsuFormChild */
+.bsu-form-wrapper > table.bsuForm:has(+ table.bsuFormChild) > tbody > tr:last-child > td.hasSmallPadding,
+.bsu-form-wrapper > table.bsuForm:has(~ table.bsuFormChild) > tbody > tr:last-child > td.hasSmallPadding {
+  padding-bottom: 5px !important;
+  margin-bottom: 0 !important;
+}
+
+/* Force connection - override all margins for direct siblings */
+table.bsuForm {
+  border-bottom: none !important;
+}
+
+table.bsuForm:has(+ table.bsuFormChild),
+table.bsuForm:has(~ table.bsuFormChild) {
+  margin-bottom: 0 !important;
+}
+
+table.bsuForm + table.bsuFormChild,
+table.bsuForm ~ table.bsuFormChild {
+  margin-top: 0 !important;
+  margin-bottom: 10px !important;
+  border-top: none !important;
+  padding-top: 0 !important;
+}
+
+/* Remove any spacing from last row of bsuForm */
+table.bsuForm:has(+ table.bsuFormChild) > tbody > tr:last-child > td,
+table.bsuForm:has(~ table.bsuFormChild) > tbody > tr:last-child > td {
+  padding-bottom: 8px !important;
+  margin-bottom: 0 !important;
+}
+
+/* Remove any spacing from first row of bsuFormChild when following bsuForm */
+table.bsuForm + table.bsuFormChild > tbody > tr:first-child,
+table.bsuForm ~ table.bsuFormChild > tbody > tr:first-child {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+/* Remove top border from first row cells when bsuFormChild follows bsuForm */
+table.bsuForm + table.bsuFormChild > tbody > tr:first-child > td,
+table.bsuForm ~ table.bsuFormChild > tbody > tr:first-child > td,
+table.bsuForm + table.bsuFormChild > thead > tr:first-child > th,
+table.bsuForm ~ table.bsuFormChild > thead > tr:first-child > th {
+  border-top: none !important;
+}
+
+table.bsuFormChild > thead > tr > th,
+table.bsuFormChild > tbody > tr > td {
+  border: 1px solid black !important;
+  border-top: none;
+  padding: 6px 8px !important;
+  overflow-wrap: break-word !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  hyphens: auto;
+  line-height: 1.4;
+  vertical-align: top !important;
+  min-width: 50px;
+  white-space: normal !important;
+  overflow: hidden;
+  box-sizing: border-box !important;
+  page-break-inside: avoid !important;
+}
+
+/* CRITICAL: Override bsuFormChild borders for eval-compact tables - must come after the rule above */
+table.bsuFormChild.eval-compact > thead > tr > th,
+table.bsuFormChild.eval-compact > tbody > tr > td,
+table.eval-compact.bsuFormChild > thead > tr > th,
+table.eval-compact.bsuFormChild > tbody > tr > td,
+table.bsuFormChild.compact.eval-compact > thead > tr > th,
+table.bsuFormChild.compact.eval-compact > tbody > tr > td,
+table.bsuFormChild.eval-compact.internal-event-table-with-top-border > thead > tr > th,
+table.bsuFormChild.eval-compact.internal-event-table-with-top-border > tbody > tr > td,
+table.bsuFormChild.compact.eval-compact.internal-event-table-with-top-border > thead > tr > th,
+table.bsuFormChild.compact.eval-compact.internal-event-table-with-top-border > tbody > tr > td {
+  border: 0.5px solid #000 !important;
+  border-top: 0.5px solid #000 !important;
+  border-bottom: 0.5px solid #000 !important;
+  border-left: 0.5px solid #000 !important;
+  border-right: 0.5px solid #000 !important;
+}
+
+/* CRITICAL: Override bsuFormChild borders for financial-plan tables - must come after the rule above */
+table.bsuFormChild.financial-plan > thead > tr > th,
+table.bsuFormChild.financial-plan > tbody > tr > td,
+table.financial-plan.bsuFormChild > thead > tr > th,
+table.financial-plan.bsuFormChild > tbody > tr > td,
+table.bsuFormChild.financial-plan.internal-event-table-with-top-border > thead > tr > th,
+table.bsuFormChild.financial-plan.internal-event-table-with-top-border > tbody > tr > td {
+  border: 0.5px solid #000 !important;
+  border-top: 0.5px solid #000 !important;
+  border-bottom: 0.5px solid #000 !important;
+  border-left: 0.5px solid #000 !important;
+  border-right: 0.5px solid #000 !important;
+}
+
+/* Ensure eval-compact and financial-plan tables have proper border collapsing */
+table.eval-compact,
+table.financial-plan {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+}
+
+/* Make outer border of eval-compact table match internal border thinness */
+table.bsuFormChild.eval-compact {
+  border: 0.5px solid #000 !important;
+  border-top: 0.5px solid #000 !important;
+  border-bottom: 0.5px solid #000 !important;
+  border-left: 0.5px solid #000 !important;
+  border-right: 0.5px solid #000 !important;
+  outline: none !important;
+}
+
+/* Make outer border of financial-plan table match internal border thinness */
+table.bsuFormChild.financial-plan {
+  border: 0.5px solid #000 !important;
+  border-top: 0.5px solid #000 !important;
+  border-bottom: 0.5px solid #000 !important;
+  border-left: 0.5px solid #000 !important;
+  border-right: 0.5px solid #000 !important;
+  outline: none !important;
+}
+
+table.eval-compact th,
+table.eval-compact td,
+table.financial-plan th,
+table.financial-plan td,
+table.bsuFormChild.eval-compact th,
+table.bsuFormChild.eval-compact td,
+table.bsuFormChild.compact.eval-compact th,
+table.bsuFormChild.compact.eval-compact td,
+table.bsuFormChild.eval-compact.internal-event-table-with-top-border th,
+table.bsuFormChild.eval-compact.internal-event-table-with-top-border td,
+table.bsuFormChild.compact.eval-compact.internal-event-table-with-top-border th,
+table.bsuFormChild.compact.eval-compact.internal-event-table-with-top-border td {
+  border: 0.5px solid #000 !important; /* Ultra thin black borders */
+  padding: 6px 8px !important;
+  box-sizing: border-box !important;
+}
+
+/* Override bsuFormChild border rules for eval-compact tables - MUST be more specific */
+table.bsuFormChild.eval-compact > thead > tr > th,
+table.bsuFormChild.eval-compact > tbody > tr > td,
+table.eval-compact.bsuFormChild > thead > tr > th,
+table.eval-compact.bsuFormChild > tbody > tr > td {
+  border: 0.01px solid #000 !important;
+  border-top: 0.01px solid #000 !important;
+  border-bottom: 0.01px solid #000 !important;
+  border-left: 0.01px solid #000 !important;
+  border-right: 0.01px solid #000 !important;
+}
+
+/* Ensure all fontSet cells in tables wrap properly */
+table.bsuFormChild .fontSet,
+table.bsuFormChild td.fontSet {
+  overflow-wrap: break-word !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  white-space: normal !important;
+  overflow: hidden;
+}
+
+/* Force full rectangle borders on the participant table */
+table.participant-table.bsuFormChild,
+table.participant-table.bsuFormChild td {
+  border-collapse: collapse !important;
+  border: 1px solid #000 !important;
+  box-sizing: border-box !important;
+}
+
+table.participant-table.bsuFormChild td {
+  padding: 4px 6px !important;
+}
+
+/* Ensure participant table with top border class has visible top border */
+table.participant-table.bsuFormChild.internal-event-table-with-top-border {
+  border-top: 1px solid black !important;
+}
+
+/* Prevent outer parent table from clipping inner table borders */
+.bsuFormChild table.participant-table {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}
+
+/* Keep it minimal so .bsuFormChild doesn't break this table */
+.participant-table {
+  background: #fff;
+  border-collapse: collapse;
+  box-sizing: border-box;
+}
+
+.participant-table td {
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+table.bsuFormChild > tbody > tr > td.top {
+  border-top: 1px solid black;
+}
+
+.bsuFormChild > * {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 10pt;
+}
+
+.bsuFormChild > * > * {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 10pt;
+}
+
+/* Paragraph formatting: justified text WITHOUT first-line indentation */
+.bsuFormChild td p,
+.fontSet p,
+.bsuFormChild td div:not(table div):not(ol div),
+.fontSet div:not(table div):not(ol div) {
+  text-align: justify;
+  text-indent: 0;
+  margin: 0;
+  padding: 0;
+  line-height: 1.6;
+}
+
+/* Paragraph content in RomanListValues should be justified but NOT indented */
+ol[type="I"] > li {
+  text-align: justify !important;
+  text-indent: 0 !important;
+}
+
+/* Ensure all content in list items is justified */
+ol[type="I"] > li > div,
+ol[type="I"] > li > span:not(:first-child) {
+  text-align: justify !important;
+}
+
+ol[type="I"] > li > span:not(b),
+ol[type="I"] > li > div:not(b) {
+  text-indent: 0;
+  display: inline;
+}
+
+/* Ensure paragraphs in rich text content are justified but NOT indented */
+.ql-editor p,
+.ql-editor div:not(.ql-clipboard):not(.ql-tooltip) {
+  text-align: justify !important;
+  text-indent: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.6 !important;
+}
+
+/* Tables should be aligned with section titles (not indented) */
+.bsuFormChild td > table,
+.bsuFormChild td table.bsuFormChild {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  margin-top: 10px !important;
+  margin-bottom: 10px !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+  border: 1px solid #000 !important;
+}
+
+/* Allow eval-compact tables to have custom margins - centered with spacing */
+.bsuFormChild td > table.eval-compact,
+.bsuFormChild td table.eval-compact {
+  margin-left: auto !important;
+  margin-right: auto !important; /* Center the table with equal spacing on both sides */
+  width: 90% !important; /* Make table smaller to create more spacing */
+  max-width: 90% !important;
+}
+
+/* Ensure tables after RomanListValues are properly aligned */
+ol[type="I"] + table,
+ol[type="I"] + div > table {
+  margin-left: 0 !important;
+}
+
+/* Allow Financial Plan to opt-out of the 100% nested width */
+.bsuFormChild td > table.financial-plan,
+table.bsuFormChild.financial-plan {
+  /* width and max-width can be set via inline styles */
+  table-layout: auto !important;
+}
+
+/* Narrow, fixed Monitoring & Evaluation table */
+.bsuFormChild td > table.eval-compact,
+table.bsuFormChild.eval-compact {
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: fixed !important; /* Fixed layout to prevent column expansion */
+  /* margin-left and margin-right can be set via inline styles */
+}
+.bsuFormChild.eval-compact th,
+.bsuFormChild.eval-compact td,
+table.bsuFormChild.eval-compact th,
+table.bsuFormChild.eval-compact td,
+table.bsuFormChild.compact.eval-compact th,
+table.bsuFormChild.compact.eval-compact td {
+  padding: 1px 2px !important; /* Reduced padding for more compact cells */
+  font-size: 10pt !important; /* Updated to match standardized font size */
+  line-height: 1.2 !important; /* Increased for better readability */
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  white-space: normal !important;
+  overflow: visible !important; /* Allow content to wrap and expand vertically */
+  min-width: 0 !important; /* Allow columns to shrink below content width */
+  border: 0.5px solid #000 !important; /* Ultra thin black borders - override bsuFormChild */
+  border-top: 0.5px solid #000 !important;
+  border-bottom: 0.5px solid #000 !important;
+  border-left: 0.5px solid #000 !important;
+  border-right: 0.5px solid #000 !important;
+}
+
+/* Override inline overflow styles to allow text wrapping */
+table.eval-compact td[style*="overflow"],
+table.eval-compact th[style*="overflow"] {
+  overflow: visible !important;
+}
+
+/* Compact variant for smaller rows/columns */
+.bsuFormChild.compact th,
+.bsuFormChild.compact td {
+  padding: 3px 4px !important;
+  font-size: 8.5pt !important;
+  line-height: 1.2 !important;
+}
+
+/* Restore top borders for nested tables inside cells (e.g., Work Plan, Financial Plan) */
+.bsuFormChild td .bsuFormChild > thead > tr:first-child > th,
+.bsuFormChild td .bsuFormChild > tbody > tr:first-child > td {
+  border-top: 1px solid #000 !important;
+}
+
+/* Section titles (Roman numerals) should align with left margin and be visible - OVERRIDE ALL */
+ol[type="I"],
+ol[type="I"].fontSet,
+.fontSet ol[type="I"],
+.bsuFormChild ol[type="I"],
+.bsuFormChild td ol[type="I"],
+td ol[type="I"],
+td.fontSet ol[type="I"] {
+  margin-left: 0 !important;
+  padding-left: 2.5em !important;
+  list-style-position: outside !important;
+  list-style-type: upper-roman !important;
+  counter-reset: none !important;
+  display: block !important;
+  -webkit-padding-start: 2.5em !important;
+  padding-inline-start: 2.5em !important;
+  list-style: upper-roman outside !important;
+  visibility: visible !important;
+}
+
+ol[type="I"] > li,
+ol[type="I"].fontSet > li,
+.fontSet ol[type="I"] > li,
+.bsuFormChild ol[type="I"] > li,
+.bsuFormChild td ol[type="I"] > li,
+td ol[type="I"] > li,
+td.fontSet ol[type="I"] > li {
+  padding-left: 0.5em !important;
+  margin-left: 0 !important;
+  display: list-item !important;
+  list-style-type: upper-roman !important;
+  list-style-position: outside !important;
+  margin-bottom: 10px !important;
+  margin-top: 10px !important;
+  -webkit-padding-start: 0.5em !important;
+  padding-inline-start: 0.5em !important;
+  list-style: upper-roman outside !important;
+  visibility: visible !important;
+  line-height: 1.5 !important;
+}
+
+/* Ensure Roman numerals are always visible - use multiple approaches */
+ol[type="I"] li::marker,
+ol[type="I"] > li::marker,
+ol[type="I"].fontSet li::marker,
+ol[type="I"].fontSet > li::marker,
+.fontSet ol[type="I"] li::marker,
+.fontSet ol[type="I"] > li::marker,
+.bsuFormChild ol[type="I"] li::marker,
+.bsuFormChild ol[type="I"] > li::marker,
+.bsuFormChild td ol[type="I"] li::marker,
+.bsuFormChild td ol[type="I"] > li::marker,
+td ol[type="I"] li::marker,
+td ol[type="I"] > li::marker {
+  content: counter(list-item, upper-roman) "." !important;
+  font-weight: normal !important;
+  color: black !important;
+  display: list-item !important;
+  font-family: "Times New Roman", Times, serif !important;
+  visibility: visible !important;
+}
+
+/* Ensure section title text (bold part) is not indented and inline with Roman numeral */
+ol[type="I"] > li > b,
+ol[type="I"] > li > span > b {
+  text-indent: 0 !important;
+  display: inline !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: inherit !important;
+}
+
+/* Ensure list item content flows inline with marker */
+ol[type="I"] > li {
+  white-space: normal !important;
+}
+
+ol[type="I"] > li > span {
+  display: inline !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Paragraph content after section titles should NOT be indented */
+ol[type="I"] > li > div {
+  text-indent: 0;
+}
+
+.fontSet {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 10pt;
+}
+
+.nobreak {
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+.gad-proposal-page {
+  font-family: "Times New Roman", Times, serif;
+  padding: 0.75in;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
+.gad-proposal-page * {
+  font-family: "Times New Roman", Times, serif !important;
+}
+
+.gad-proposal-container {
+  width: 100%;
+}
+
+.gad-body {
+  width: 100%;
+}
+
+.gad-section {
+  margin-bottom: 12pt;
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+.gad-section-heading {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-weight: 700;
+  font-size: 12.5pt;
+  margin: 6pt 0 2pt;
+}
+
+.gad-roman {
+  min-width: 22px;
+}
+
+.gad-heading-text {
+  font-weight: 700;
+}
+
+.gad-section-content {
+  font-size: 11pt;
+  line-height: 1.5;
+  text-align: justify;
+}
+
+.gad-paragraph-group p {
+  margin: 0 0 4pt;
+  text-align: justify;
+}
+
+table.bsuFormChild.gad-table,
+table.bsuFormChild.gad-table > * > tr > * {
+  font-size: 10pt;
+}
+
+table.bsuFormChild.gad-table {
+  border: 1px solid black;
+  margin: 8pt 0;
+}
+
+table.bsuFormChild.gad-table > thead > tr > th,
+table.bsuFormChild.gad-table > tbody > tr > td,
+table.bsuFormChild.gad-table > tfoot > tr > td {
+  border: 1px solid black !important;
+  padding: 4pt 6pt !important;
+  vertical-align: top;
+  text-align: left;
+  line-height: 1.4;
+}
+
+table.bsuFormChild.gad-table > thead > tr > th {
+  font-weight: 700;
+  text-align: center;
+}
+
+.gad-work-plan-table .month-cell {
+  text-align: center;
+}
+
+.gad-activities-col {
+  width: 32%;
+}
+
+.gad-empty-cell {
+  text-align: center;
+  font-style: italic;
+}
+
+/* Work Plan Checklist Table Styles */
+.work-plan-checklist-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.work-plan-checklist-table td {
+  border: 1px solid #000;
+}
+
+.work-plan-checklist-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.work-plan-checklist-box {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  color: #000;
+  font-family: Arial, sans-serif;
+}
+
+.work-plan-checklist-box.checked {
+  color: #000;
+}
+
+.work-plan-checklist-box:not(.checked) {
+  color: #000;
+  opacity: 0.3;
+}
+
+/* Print-safe styles */
+@media print {
+  .work-plan-checklist-table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  .work-plan-checklist-table td {
+    border: 1px solid #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .work-plan-checklist-cell {
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
+  .work-plan-checklist-box {
+    display: inline-block !important;
+    width: 20px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    text-align: center !important;
+    font-size: 18px !important;
+    font-weight: bold !important;
+    color: #000 !important;
+    font-family: Arial, sans-serif !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .work-plan-checklist-box.checked {
+    color: #000 !important;
+    opacity: 1 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .work-plan-checklist-box:not(.checked) {
+    color: #000 !important;
+    opacity: 0.3 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Ensure borders print */
+  .work-plan-checklist-table,
+  .work-plan-checklist-table * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+.gad-responsibilities {
+  margin: 0;
+  padding-left: 1.6em;
+  list-style-position: outside;
+}
+
+.gad-responsibilities li {
+  margin-bottom: 3pt;
+  text-align: justify;
+  text-indent: -0.6em;
+  padding-left: 0.6em;
+}
+
+.gad-participant-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6pt;
+}
+
+.gad-financial-grand-total {
+  text-align: left;
+}
+
+.gad-signatories-wrapper {
+  margin-top: 14pt;
+}
+
+.gad-signatories {
+  border-width: 1.25px !important;
+}
+
+.gad-signatories td {
+  padding: 8pt 10pt !important;
+}
+
+.gad-signatory-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3pt;
+  min-height: 80px;
+}
+
+.gad-signatory-name {
+  font-weight: 700;
+  text-align: center;
+}
+
+.gad-signatory-title,
+.gad-signatory-date {
+  text-align: center;
+}
+
+.gad-checkbox-row {
+  gap: 20px;
+}
+
+.gad-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11pt;
+}
+
+.gad-checkbox input {
+  width: 12px;
+  height: 12px;
+  accent-color: #000000;
+}
+
+.gad-header-table {
+  border-width: 1.25px !important;
+}
+
+.gad-header-meta {
+  font-size: 11pt;
+}
+
+.gad-header-title {
+  font-size: 13pt !important;
+}
+
+.gad-project-team-label {
+  width: 30%;
+  font-weight: 700;
+}
+
+/* Internal Event Form tables - ensure top border is visible */
+/* Override all the rules that remove top borders for standalone tables */
+table.bsuFormChild.internal-event-table-with-top-border,
+table.bsuFormChild.financial-plan.internal-event-table-with-top-border,
+table.bsuFormChild.eval-compact.internal-event-table-with-top-border {
+  border-top: 0.5px solid #000 !important; /* Ultra thin black border */
+}
+
+/* Also ensure the first row cells have top border */
+table.bsuFormChild.internal-event-table-with-top-border > tbody > tr:first-child > td,
+table.bsuFormChild.internal-event-table-with-top-border > thead > tr:first-child > th,
+table.bsuFormChild.financial-plan.internal-event-table-with-top-border > thead > tr:first-child > th {
+  border-top: 0.5px solid #000 !important; /* Ultra thin black border */
+}
+
+/* Override the cell-level border-top: none rule */
+table.bsuFormChild.internal-event-table-with-top-border > tbody > tr > td,
+table.bsuFormChild.internal-event-table-with-top-border > thead > tr > th {
+  border-top: 1px solid black !important;
+}
+
+/* Exception: eval-compact tables should use ultra thin borders */
+table.bsuFormChild.eval-compact.internal-event-table-with-top-border > tbody > tr > td,
+table.bsuFormChild.eval-compact.internal-event-table-with-top-border > thead > tr > th {
+  border-top: 0.5px solid #000 !important;
+}
+
+/* External Event Form page break - force Monitoring & Evaluation to start on new page */
+.external-event-page-break {
+  page-break-before: always !important;
+  break-before: page !important;
+}
+
+/* External Event Form - ensure main content starts on page 1 and can break across pages */
+table.bsuFormChild.external-event-main-content {
+  page-break-inside: auto !important;
+  break-inside: auto !important;
+  page-break-before: auto !important;
+  break-before: auto !important;
+}
+
+table.bsuFormChild.external-event-main-content > tbody > tr > td {
+  page-break-inside: auto !important;
+  break-inside: auto !important;
+}
+
+/* Override the page-break-inside: avoid rule for External Event Form content cell */
+table.bsuFormChild.external-event-main-content > tbody > tr:last-child > td {
+  page-break-inside: auto !important;
+  break-inside: auto !important;
+}
+
+/* Minimal safe print fallback - does not force page-breaks */
+@media print {
+  /* Print styles for eval-compact tables - must override bsuFormChild */
+  /* Print styles for eval-compact tables - ultra thin black borders */
+  table.bsuFormChild.eval-compact > thead > tr > th,
+  table.bsuFormChild.eval-compact > tbody > tr > td,
+  table.bsuFormChild.compact.eval-compact > thead > tr > th,
+  table.bsuFormChild.compact.eval-compact > tbody > tr > td,
+  table.bsuFormChild.eval-compact.internal-event-table-with-top-border > thead > tr > th,
+  table.bsuFormChild.eval-compact.internal-event-table-with-top-border > tbody > tr > td,
+  table.bsuFormChild.compact.eval-compact.internal-event-table-with-top-border > thead > tr > th,
+  table.bsuFormChild.compact.eval-compact.internal-event-table-with-top-border > tbody > tr > td {
+    border: 0.5px solid #000 !important;
+    border-top: 0.5px solid #000 !important;
+    border-bottom: 0.5px solid #000 !important;
+    border-left: 0.5px solid #000 !important;
+    border-right: 0.5px solid #000 !important;
+    outline: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  table.bsuFormChild.eval-compact,
+  table.bsuFormChild.compact.eval-compact,
+  table.bsuFormChild.financial-plan {
+    border: 0.5px solid #000 !important;
+    outline: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Print styles for financial-plan tables - must override bsuFormChild */
+  table.bsuFormChild.financial-plan > thead > tr > th,
+  table.bsuFormChild.financial-plan > tbody > tr > td,
+  table.bsuFormChild.financial-plan.internal-event-table-with-top-border > thead > tr > th,
+  table.bsuFormChild.financial-plan.internal-event-table-with-top-border > tbody > tr > td {
+    border: 0.5px solid #000 !important;
+    border-top: 0.5px solid #000 !important;
+    border-bottom: 0.5px solid #000 !important;
+    border-left: 0.5px solid #000 !important;
+    border-right: 0.5px solid #000 !important;
+    outline: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Ensure images print but don't force layout changes */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide UI chrome */
+  .no-print,
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Ensure table headers repeat when tables break */
+  thead { display: table-header-group !important; }
+  tfoot { display: table-footer-group !important; }
+
+  /* CRITICAL: Override page-break-inside: avoid from line 267 - Allow tables to break across pages */
+  /* Must override the rule that sets page-break-inside: avoid !important on table cells */
+  table.bsuFormChild {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    orphans: 1 !important;
+    widows: 1 !important;
+  }
+  
+  table.bsuFormChild > tbody {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    display: table-row-group !important;
+    orphans: 1 !important;
+    widows: 1 !important;
+  }
+  
+  table.bsuFormChild > tbody > tr {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    orphans: 1 !important;
+    widows: 1 !important;
+  }
+  
+  table.bsuFormChild > tbody > tr > td,
+  table.bsuFormChild > tbody > tr > th,
+  table.bsuFormChild > thead > tr > th {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    orphans: 1 !important;
+    widows: 1 !important;
+  }
+
+  /* Keep default margins — don't override @page here */
+  body { background: #fff !important; color: #000 !important; }
+
+  /* Page break for Internal Event Form - allow natural flow on first page */
+  .internal-event-page-break {
+    page-break-before: auto !important;
+    break-before: auto !important;
+  }
+  
+  /* Ensure Internal Event Form content starts on first page */
+  .bsu-form-wrapper > table.bsuForm:first-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+    margin-bottom: 2px !important;
+  }
+  
+  .bsu-form-wrapper > table.bsuFormChild:first-of-type {
+    page-break-before: auto !important;
+    break-before: auto !important;
+    margin-top: 0 !important;
+  }
+  
+  /* Page break for External Event Form - force Monitoring & Evaluation to start on new page */
+  .external-event-page-break {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+  
+  /* External Event Form - ensure main content starts on page 1 */
+  table.bsuFormChild.external-event-main-content {
+    page-break-before: auto !important;
+    break-before: auto !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  
+  table.bsuFormChild.external-event-main-content > tbody > tr > td {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  
+  /* Override the page-break-inside: avoid rule for External Event Form content cell */
+  table.bsuFormChild.external-event-main-content > tbody > tr:last-child > td {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  /* Do not set page-break rules here; leave those to the print injection code */
+}
+
+/* Ensure ordered lists with Roman numerals are NOT reset - HIGHEST PRIORITY */
+ol[type="I"],
+ol[type="I"].fontSet,
+.fontSet ol[type="I"],
+.bsuFormChild ol[type="I"],
+.bsuFormChild td ol[type="I"],
+table.bsuFormChild ol[type="I"],
+table.bsuFormChild td ol[type="I"],
+td ol[type="I"],
+td.fontSet ol[type="I"] {
+  list-style-type: upper-roman !important;
+  list-style-position: outside !important;
+  list-style: upper-roman outside !important;
+  margin: 0 !important;
+  padding-left: 3.2em !important; /* extra gutter so titles look like section headers */
+  -webkit-padding-start: 3.2em !important;
+  padding-inline-start: 3.2em !important;
+}
+
+/* Force list items to show markers */
+ol[type="I"] li,
+ol[type="I"] > li,
+ol[type="I"].fontSet li,
+ol[type="I"].fontSet > li,
+.fontSet ol[type="I"] li,
+.fontSet ol[type="I"] > li,
+.bsuFormChild ol[type="I"] li,
+.bsuFormChild ol[type="I"] > li,
+.bsuFormChild td ol[type="I"] li,
+.bsuFormChild td ol[type="I"] > li,
+table.bsuFormChild ol[type="I"] li,
+table.bsuFormChild ol[type="I"] > li,
+td ol[type="I"] li,
+td ol[type="I"] > li,
+td.fontSet ol[type="I"] li,
+td.fontSet ol[type="I"] > li {
+  list-style-type: upper-roman !important;
+  list-style-position: outside !important;
+  list-style: upper-roman outside !important;
+  display: list-item !important;
+  margin-left: 0 !important;
+  padding-left: 0.8em !important; /* hanging indent for multi-line items */
+  margin-bottom: 6px !important;   /* section-like spacing between items */
+}
+
+.preview-checkbox {
+  width: 12px;
+  height: 12px;
+  border: 1.2px solid #000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 3px;
+  margin-right: 4px;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.preview-checkbox.preview-checkbox--checked::before,
+.preview-checkbox.preview-checkbox--checked::after {
+  content: "";
+  position: absolute;
+  width: calc(100% - 2px);
+  height: 1.2px;
+  background-color: #000;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+}
+
+.preview-checkbox.preview-checkbox--checked::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.preview-checkbox.preview-checkbox--checked::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* consistent font styling for form preview */
+table.bsuForm,
+table.bsuForm td,
+table.bsuForm th,
+table.bsuFormChild,
+table.bsuFormChild td,
+table.bsuFormChild th,
+table.bsuFormChild .fontSet,
+table.bsuFormChild span,
+table.bsuFormChild div {
+  font-family: "Times New Roman", Times, serif !important;
+  font-size: 10pt !important;
+}
+
+/* Ensure Material-UI Select dropdown menus appear above modals */
+.MuiPopover-root[role="presentation"] {
+  z-index: 10002 !important;
+}
+
+.MuiPopover-root[role="presentation"] .MuiPaper-root {
+  z-index: 10002 !important;
+}
+ol[type="I"],
+ol[type="I"].fontSet,
+.fontSet ol[type="I"],
+.bsuFormChild ol[type="I"],
+.bsuFormChild td ol[type="I"],
+table.bsuFormChild ol[type="I"],
+table.bsuFormChild td ol[type="I"],
+td ol[type="I"],
+td.fontSet ol[type="I"] {
+  list-style-type: upper-roman !important;
+  list-style-position: outside !important;
+  list-style: upper-roman outside !important;
+  margin: 0 !important;
+  padding-left: 3.2em !important; /* extra gutter so titles look like section headers */
+  -webkit-padding-start: 3.2em !important;
+  padding-inline-start: 3.2em !important;
+}
+
+/* Force list items to show markers */
+ol[type="I"] li,
+ol[type="I"] > li,
+ol[type="I"].fontSet li,
+ol[type="I"].fontSet > li,
+.fontSet ol[type="I"] li,
+.fontSet ol[type="I"] > li,
+.bsuFormChild ol[type="I"] li,
+.bsuFormChild ol[type="I"] > li,
+.bsuFormChild td ol[type="I"] li,
+.bsuFormChild td ol[type="I"] > li,
+td ol[type="I"] li,
+td ol[type="I"] > li,
+td.fontSet ol[type="I"] li,
+td.fontSet ol[type="I"] > li {
+  list-style-type: upper-roman !important;
+  list-style-position: outside !important;
+  list-style: upper-roman outside !important;
+  display: list-item !important;
+  margin-left: 0 !important;
+  padding-left: 0.8em !important; /* hanging indent for multi-line items */
+  margin-bottom: 6px !important;   /* section-like spacing between items */
+}
+
+.preview-checkbox {
+  width: 12px;
+  height: 12px;
+  border: 1.2px solid #000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 3px;
+  margin-right: 4px;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.preview-checkbox.preview-checkbox--checked::before,
+.preview-checkbox.preview-checkbox--checked::after {
+  content: "";
+  position: absolute;
+  width: calc(100% - 2px);
+  height: 1.2px;
+  background-color: #000;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+}
+
+.preview-checkbox.preview-checkbox--checked::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.preview-checkbox.preview-checkbox--checked::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* consistent font styling for form preview */
+table.bsuForm,
+table.bsuForm td,
+table.bsuForm th,
+table.bsuFormChild,
+table.bsuFormChild td,
+table.bsuFormChild th,
+table.bsuFormChild .fontSet,
+table.bsuFormChild span,
+table.bsuFormChild div {
+  font-family: "Times New Roman", Times, serif !important;
+  font-size: 10pt !important;
+}
+
+/* Ensure Material-UI Select dropdown menus appear above modals */
+.MuiPopover-root[role="presentation"] {
+  z-index: 10002 !important;
+}
+
+.MuiPopover-root[role="presentation"] .MuiPaper-root {
+  z-index: 10002 !important;
+}

@@ -1,0 +1,22 @@
+table.tableData {
+  border-collapse: collapse;
+  font-size: 11pt;
+  table-layout: fixed;
+}
+
+table.tableData > tbody > tr:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+table.tableData > thead > tr > th {
+  color: var(--text-default);
+  text-align: center;
+  font-weight: bold;
+  border-bottom: 1px solid #d1d1d1;
+  padding: 10px 0px;
+}
+
+table.tableData > tbody > tr > td {
+  text-align: center;
+  padding: 10px 0px;
+}

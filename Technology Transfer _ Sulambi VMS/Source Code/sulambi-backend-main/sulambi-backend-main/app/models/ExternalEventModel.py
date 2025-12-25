@@ -1,0 +1,108 @@
+from .Model import Model
+from datetime import datetime
+
+class ExternalEventModel(Model):
+  def __init__(self):
+    super().__init__()
+
+    self.table = "externalEvents"
+    self.primaryKey = "id"
+    self.createdAtCol = "createdAt"
+    self.columns = [
+      "extensionServiceType",
+      "title",
+      "location",
+      "durationStart",
+      "durationEnd",
+      "sdg",
+      "orgInvolved",
+      "programInvolved",
+      "projectLeader",
+      "partners",
+      "beneficiaries",
+      "totalCost",
+      "sourceOfFund",
+      "rationale",
+      "objectives",
+      "expectedOutput",
+      "description",
+      "financialPlan",
+      "dutiesOfPartner",
+      "evaluationMechanicsPlan",
+      "sustainabilityPlan",
+      "createdBy",
+      "status",
+      "evaluationSendTime",
+      "toPublic",
+      "signatoriesId",
+      "createdAt",
+      "feedback_id",
+      "externalServiceType",
+      "eventProposalType"
+    ]
+
+  
+  def create(self,
+    extensionServiceType: str,
+    title: str,
+    location: str,
+    durationStart: int,
+    durationEnd: int,
+    sdg: str,
+    orgInvolved: str,
+    programInvolved: str,
+    projectLeader: str,
+    partners: str,
+    beneficiaries: str,
+    totalCost: float,
+    sourceOfFund: str,
+    rationale: str,
+    objectives: str,
+    expectedOutput: str,
+    description: str,
+    financialPlan: str,
+    dutiesOfPartner: str,
+    evaluationMechanicsPlan: str,
+    sustainabilityPlan: str,
+    createdBy: int,
+    status: str,
+    evaluationSendTime: int,
+    toPublic: bool=False,
+    signatoriesId: int | None = None,
+    createdAt: datetime=datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S"),
+    feedback_id: int | None = None,
+    externalServiceType: str = "[]",
+    eventProposalType: str = "[]"):
+
+    return super().create((
+      extensionServiceType,
+      title,
+      location,
+      durationStart,
+      durationEnd,
+      sdg,
+      orgInvolved,
+      programInvolved,
+      projectLeader,
+      partners,
+      beneficiaries,
+      totalCost,
+      sourceOfFund,
+      rationale,
+      objectives,
+      expectedOutput,
+      description,
+      financialPlan,
+      dutiesOfPartner,
+      evaluationMechanicsPlan,
+      sustainabilityPlan,
+      createdBy,
+      status,
+      evaluationSendTime,
+      toPublic,
+      signatoriesId,
+      createdAt,
+      feedback_id,
+      externalServiceType,
+      eventProposalType
+    ))
