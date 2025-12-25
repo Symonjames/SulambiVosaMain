@@ -1,0 +1,23 @@
+# Files and directories to ignore during Render builds
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.env
+*.db
+*.sqlite
+*.sqlite3
+uploads/*
+!.gitkeep
+dist/
+*.log
+.DS_Store
+*.bak
+*.swp
+*.swo
+*~
+
