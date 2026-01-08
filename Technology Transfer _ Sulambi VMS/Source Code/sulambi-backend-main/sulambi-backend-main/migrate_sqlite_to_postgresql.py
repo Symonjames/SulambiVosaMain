@@ -364,7 +364,29 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                                 # Unknown type or not an integer column, pass through
                                 values.append(val)
                         else:
-                            values.append(val)
+                            # Handle string values - check for VARCHAR length limits
+                            if isinstance(val, str):
+                                # Check if column is VARCHAR with length limit
+                                if pg_col_type.startswith('CHARACTER VARYING') or pg_col_type.startswith('VARCHAR'):
+                                    # Extract length from VARCHAR(255) -> 255
+                                    import re
+                                    match = re.search(r'\((\d+)\)', pg_col_type)
+                                    if match:
+                                        max_length = int(match.group(1))
+                                        if len(val) > max_length:
+                                            # Value exceeds VARCHAR length
+                                            print(f"      Warning: Value for column '{col_name}' ({len(val)} chars) exceeds VARCHAR({max_length}) limit", flush=True)
+                                            print(f"      Truncating to {max_length} characters...", flush=True)
+                                            values.append(val[:max_length])
+                                        else:
+                                            values.append(val)
+                                    else:
+                                        values.append(val)
+                                else:
+                                    # TEXT or other types - no length limit
+                                    values.append(val)
+                            else:
+                                values.append(val)
                 
                 pg_cursor.execute(
                     f'INSERT INTO "{actual_table_name}" ({column_names_str}) VALUES ({placeholders})',
