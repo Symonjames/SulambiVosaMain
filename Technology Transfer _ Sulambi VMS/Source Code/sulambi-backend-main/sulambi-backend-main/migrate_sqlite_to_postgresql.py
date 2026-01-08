@@ -221,16 +221,31 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
         # Note: PostgreSQL column names are case-insensitive unless quoted
         print(f"  Getting PostgreSQL column types...", flush=True)
         try:
+            # Try with exact table name first (case-sensitive)
             pg_cursor.execute("""
                 SELECT LOWER(column_name), data_type 
                 FROM information_schema.columns 
-                WHERE LOWER(table_name) = LOWER(%s)
+                WHERE table_name = %s
                 ORDER BY ordinal_position
             """, (table_name,))
-            pg_columns = {row[0]: row[1] for row in pg_cursor.fetchall()}
+            results = pg_cursor.fetchall()
+            
+            # If no results, try case-insensitive
+            if not results:
+                pg_cursor.execute("""
+                    SELECT LOWER(column_name), data_type 
+                    FROM information_schema.columns 
+                    WHERE LOWER(table_name) = LOWER(%s)
+                    ORDER BY ordinal_position
+                """, (table_name,))
+                results = pg_cursor.fetchall()
+            
+            pg_columns = {row[0]: row[1] for row in results}
             print(f"  ✓ Found {len(pg_columns)} PostgreSQL columns", flush=True)
         except Exception as e:
             print(f"  ⚠️  Error getting column types: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             pg_columns = {}
         
         # Also check for createdat/createdAt variations
