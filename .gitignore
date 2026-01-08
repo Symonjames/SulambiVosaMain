@@ -51,6 +51,11 @@ ENV/
 *.sqlite
 *.sqlite3
 
+# --- EXCEPTION: commit selected local DB snapshots (requested) ---
+!Technology Transfer _ Sulambi VMS/Source Code/sulambi-backend-main/sulambi-backend-main/app/database/database.db
+!Technology Transfer _ Sulambi VMS/Source Code/sulambi-backend-main/sulambi-backend-main/data/sulambi.db
+!Technology Transfer _ Sulambi VMS/Source Code/sulambi-backend-main/sulambi-backend-main/sulambi.db
+
 # --- Uploads / generated assets (keep out of git) ---
 **/uploads/
 **/upload/
