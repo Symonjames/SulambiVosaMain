@@ -484,6 +484,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             from ..database.connection import quote_identifier
             requirements_table = quote_identifier('requirements')
             evaluation_table = quote_identifier('evaluation')
+            from ..database.connection import convert_placeholders, convert_boolean_condition
             joined_query = f"""
                 SELECT COUNT(DISTINCT COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)) as joined_count
                 FROM {requirements_table} r
@@ -506,10 +507,13 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             else:
                 continue
             
+            joined_query = convert_boolean_condition(joined_query)
+            joined_query = convert_placeholders(joined_query)
             cursor.execute(joined_query, joined_params)
             joined_count = cursor.fetchone()[0] or 0
             
             # Count volunteers who ATTENDED (participated) in this semester
+            from ..database.connection import convert_placeholders, convert_boolean_condition
             attended_query = f"""
                 SELECT COUNT(DISTINCT COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)) as attended_count
                 FROM {requirements_table} r
@@ -534,6 +538,8 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 attended_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
                 attended_params = event_ids_external
             
+            attended_query = convert_boolean_condition(attended_query)
+            attended_query = convert_placeholders(attended_query)
             cursor.execute(attended_query, attended_params)
             attended_count = cursor.fetchone()[0] or 0
             
@@ -543,6 +549,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             # Calculate average events per volunteer
             events_per_volunteer = 0
             if attended_count > 0:
+                from ..database.connection import convert_placeholders, convert_boolean_condition
                 total_attendances_query = f"""
                     SELECT COUNT(*) as total_attendances
                     FROM {requirements_table} r
@@ -567,6 +574,8 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                     total_attendances_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
                     total_attendances_params = event_ids_external
                 
+                total_attendances_query = convert_boolean_condition(total_attendances_query)
+                total_attendances_query = convert_placeholders(total_attendances_query)
                 cursor.execute(total_attendances_query, total_attendances_params)
                 total_attendances = cursor.fetchone()[0] or 0
                 events_per_volunteer = round(total_attendances / attended_count, 1) if attended_count > 0 else 0
