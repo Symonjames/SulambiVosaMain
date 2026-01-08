@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: 'sulambi.local',
+    host: 'localhost',
     port: 5173,
   },
 })

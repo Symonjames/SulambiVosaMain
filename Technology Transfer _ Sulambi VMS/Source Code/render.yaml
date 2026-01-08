@@ -1,3 +1,16 @@
+# Render Blueprint for Sulambi VMS
+# This Blueprint deploys:
+# 1. PostgreSQL Database
+# 2. Backend Flask API Service
+# 3. Frontend React Static Site
+#
+# To deploy:
+# 1. Push this file to your GitHub repository
+# 2. In Render Dashboard: New + → Blueprint
+# 3. Connect your repository
+# 4. Render will automatically create all services
+# 5. Set VITE_API_URI in frontend service (see instructions below)
+
 services:
   # Backend Flask API Service
   - type: web
@@ -39,9 +52,9 @@ services:
     buildCommand: cd sulambi-frontend-main/sulambi-frontend-main && chmod +x build.sh && ./build.sh
     staticPublishPath: sulambi-frontend-main/sulambi-frontend-main/dist
     envVars:
-      # IMPORTANT: Set VITE_API_URI in Render dashboard before first build
-      # Format: https://your-backend-service-name.onrender.com/api
-      # Example: https://sulambi-backend.onrender.com/api
+      # IMPORTANT: After backend deploys, set this to: https://sulambi-backend.onrender.com/api
+      # Go to frontend service → Environment → Add VITE_API_URI
+      # Replace 'sulambi-backend' with your actual backend service name
       - key: VITE_API_URI
         sync: false
 
