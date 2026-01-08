@@ -238,15 +238,6 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                   }
                   onClick={() => navigate("/officer/requirement-evaluation")}
                 />
-                <CustomButton
-                  fullWidth
-                  label="Share QrCode"
-                  startIcon={<QrCodeIcon />}
-                  style={style}
-                  hoverSx={hoverSx}
-                  sx={page === "qr" ? { ...sx, ...activeSx } : sx}
-                  onClick={() => navigate("/officer/qr-code-share")}
-                />
               </FlexBox>
             )}
             {accountDetails.accountType === "member" && (
@@ -281,6 +272,15 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                       : sx
                   }
                   onClick={() => navigate("/member/participation")}
+                />
+                <CustomButton
+                  fullWidth
+                  label="Share QrCode"
+                  startIcon={<QrCodeIcon />}
+                  style={style}
+                  hoverSx={hoverSx}
+                  sx={page === "qr" ? { ...sx, ...activeSx } : sx}
+                  onClick={() => navigate("/member/qr-code-share")}
                 />
                 {/* <CustomButton
                   fullWidth

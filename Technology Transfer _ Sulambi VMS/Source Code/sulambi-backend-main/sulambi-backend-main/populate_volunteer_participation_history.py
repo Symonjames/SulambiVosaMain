@@ -66,13 +66,13 @@ def populate_volunteer_participation_history():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_semester ON volunteerParticipationHistory(semester)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_last_event_date ON volunteerParticipationHistory(lastEventDate)")
     conn.commit()
-    print("   ✓ Table created/verified")
+    print("   [OK] Table created/verified")
     
     # Clear existing history (optional - comment out if you want to keep existing)
     print("\n2. Clearing existing participation history...")
     cursor.execute("DELETE FROM volunteerParticipationHistory")
     conn.commit()
-    print("   ✓ Cleared existing history")
+    print("   [OK] Cleared existing history")
     
     # Get all events with their dates
     print("\n3. Getting events and grouping by semester...")
@@ -106,7 +106,7 @@ def populate_volunteer_participation_history():
                 semester_events[semester_key] = []
             semester_events[semester_key].append((event_id, event_type, event_start, event_end))
     
-    print(f"   ✓ Found {len(semester_events)} semesters: {list(semester_events.keys())}")
+    print(f"   [OK] Found {len(semester_events)} semesters: {list(semester_events.keys())}")
     
     # Process each semester
     print("\n4. Processing participation data by semester...")
@@ -261,7 +261,7 @@ def populate_volunteer_participation_history():
             
             total_records += 1
         
-        print(f"   ✓ Processed {len(volunteers)} volunteers for {semester}")
+        print(f"   [OK] Processed {len(volunteers)} volunteers for {semester}")
     
     conn.commit()
     conn.close()
@@ -269,9 +269,9 @@ def populate_volunteer_participation_history():
     print("\n" + "=" * 70)
     print("PARTICIPATION HISTORY POPULATED")
     print("=" * 70)
-    print(f"✓ Total records created: {total_records}")
-    print(f"✓ Semesters processed: {len(semester_events)}")
-    print("\n✓ Data is now ready for Dropout Risk Assessment analytics!")
+    print(f"[OK] Total records created: {total_records}")
+    print(f"[OK] Semesters processed: {len(semester_events)}")
+    print("\n[OK] Data is now ready for Dropout Risk Assessment analytics!")
     print("=" * 70)
 
 if __name__ == "__main__":

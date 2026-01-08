@@ -78,7 +78,6 @@ function App() {
                     <Route path="officer">
                       <Route index element={<DashboardPage />} />
                       <Route path="dashboard" element={<DashboardPage />} />
-                      <Route path="qr-code-share" element={<QrOfficerPage />} />
                       <Route
                         path="event-proposal"
                         element={<EventProposal />}
@@ -101,6 +100,7 @@ function App() {
                     <Route path="member">
                       <Route index element={<EventsPage />} />
                       <Route path="events" element={<EventsPage />} />
+                      <Route path="qr-code-share" element={<QrOfficerPage />} />
                       <Route path="helpdesk" element={<HelpdeskMemberPage />} />
                       <Route
                         path="participation"

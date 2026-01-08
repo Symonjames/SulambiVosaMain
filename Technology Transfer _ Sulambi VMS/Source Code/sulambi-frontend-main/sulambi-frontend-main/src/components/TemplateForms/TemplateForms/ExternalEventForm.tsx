@@ -37,6 +37,18 @@ interface FormProps {
   data: ExternalEventProposalType;
 }
 
+const safeParseJsonObject = (raw: any): any => {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw;
+  if (typeof raw !== "string") return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 type FinancialPlanRow = {
   item?: string;
   qty?: string | number;
@@ -1431,7 +1443,7 @@ const ExternalEventForm: React.FC<FormProps> = ({ data }) => {
                   <div className="monitoring-evaluation-section">
                     <div className="inner-form-table" style={{ marginTop: "6px" }}>
                       <EvaluationMechanicsTable
-                        data={JSON.parse(data.evaluationMechanicsPlan ?? "{}")}
+                        data={safeParseJsonObject(data.evaluationMechanicsPlan)}
                       />
                     </div>
                   </div>
@@ -1499,7 +1511,7 @@ const ExternalEventForm: React.FC<FormProps> = ({ data }) => {
           </tr>
         </tbody>
       </table>
-      <div className="fontSet" style={{ marginTop: "10px", fontSize: "10pt", fontFamily: "'Times New Roman', serif" }}>
+      <div className="fontSet" style={{ marginTop: "10px", fontSize: "10pt", fontFamily: "'Times New Roman', serif", fontStyle: "italic" }}>
         Cc: GAD Central
       </div>
     </BSUTemplateHeader>

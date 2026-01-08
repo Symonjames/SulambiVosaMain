@@ -504,6 +504,12 @@ const MembershipAppForm: React.FC<MembershipAppFormProps> = ({
                     required: true,
                     type: "number",
                     message: "Age",
+                    onUse: (event: any) => {
+                      // Enforce max 2 digits (0-99) and digits only
+                      const raw = String(event?.target?.value ?? "");
+                      const digitsOnly = raw.replace(/\D+/g, "").slice(0, 2);
+                      setFormData({ ...formData, age: digitsOnly });
+                    },
                   },
                   {
                     id: "sex",

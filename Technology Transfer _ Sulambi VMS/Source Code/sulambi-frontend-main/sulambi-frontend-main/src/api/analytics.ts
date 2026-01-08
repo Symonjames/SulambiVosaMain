@@ -383,7 +383,9 @@ const processDropoutData = (
   // Generate at-risk volunteers list using real inactivity when provided
   const atRiskVolunteers = (apiData.members || [])
     .map(m => {
-      const inactivityDays = typeof m.inactivityDays === 'number' ? m.inactivityDays : Math.floor(Math.random() * 60) + 20;
+      const rawInactivityDays = typeof m.inactivityDays === 'number' ? m.inactivityDays : Math.floor(Math.random() * 60) + 20;
+      // UI requirement: cap days at 40 max
+      const inactivityDays = Math.min(rawInactivityDays, 40);
       const participationCount = m.participationCount ?? 0;
       const riskScore = Math.min(100, Math.max(20, 100 - participationCount * 20 + inactivityDays));
       return {

@@ -26,25 +26,25 @@ const InternalReport: React.FC<Props> = ({ data, textAlign }) => {
   const [financialRequirement, setFinancialRequirement] = useState<any>({});
   const [evaluationMechanicsPlan, setEvaluationMechanicsPlan] = useState<any>({});
 
+  const safeParseJsonObject = (raw: any): any => {
+    if (!raw) return {};
+    if (typeof raw === "object") return raw;
+    if (typeof raw !== "string") return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+
   useEffect(() => {
     if (data && data.eventId && data.eventId.id)
       getReportAnalytics(data.eventId.id, "internal").then((response) => {
         setReportAnalytics(response.data.data);
       });
-    setFinancialRequirement(
-      data?.eventId?.financialRequirement
-        ? typeof data.eventId.financialRequirement === "string"
-          ? JSON.parse(data.eventId.financialRequirement)
-          : data.eventId.financialRequirement
-        : {}
-    );
-    setEvaluationMechanicsPlan(
-      data?.eventId?.evaluationMechanicsPlan
-        ? typeof data.eventId.evaluationMechanicsPlan === "string"
-          ? JSON.parse(data.eventId.evaluationMechanicsPlan)
-          : data.eventId.evaluationMechanicsPlan
-        : {}
-    );
+    setFinancialRequirement(safeParseJsonObject(data?.eventId?.financialRequirement));
+    setEvaluationMechanicsPlan(safeParseJsonObject(data?.eventId?.evaluationMechanicsPlan));
   }, [data]);
 
   return (
@@ -346,12 +346,15 @@ const InternalReport: React.FC<Props> = ({ data, textAlign }) => {
                 list={[
                   {
                     title: "Narrative of the Project/Activity: ",
+                    newlineAfterValue: true,
+                    value: (
+                      <SafeHtmlRenderer
+                        htmlContent={data?.narrative || ""}
+                        style={{ textAlign }}
+                      />
+                    ),
                   },
                 ]}
-              />
-              <SafeHtmlRenderer
-                htmlContent={data?.narrative || ""}
-                style={{ textAlign }}
               />
               <br />
               <RomanListValues
@@ -469,7 +472,7 @@ const InternalReport: React.FC<Props> = ({ data, textAlign }) => {
           </tr>
         </tbody>
       </table>
-      <div className="fontSet" style={{ marginTop: "10px", fontSize: "10pt", fontFamily: "'Times New Roman', serif" }}>
+      <div className="fontSet" style={{ marginTop: "10px", fontSize: "10pt", fontFamily: "'Times New Roman', serif", fontStyle: "italic" }}>
         Cc: GAD Central
       </div>
     </BSUTemplateHeader>

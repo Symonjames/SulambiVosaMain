@@ -58,15 +58,30 @@ const OfficerLogin = () => {
   }, []);
 
   const loginButtonAction = async () => {
+    console.log('[FRONTEND_LOGIN] ========================================');
+    console.log('[FRONTEND_LOGIN] Login attempt started');
+    console.log('[FRONTEND_LOGIN] Username:', username);
+    console.log('[FRONTEND_LOGIN] Password:', '*'.repeat(password.length));
+    
     try {
+      console.log('[FRONTEND_LOGIN] Making API request to /auth/login...');
       const loginResponse = await login(username, password);
+      console.log('[FRONTEND_LOGIN] ✅ API response received');
+      console.log('[FRONTEND_LOGIN] Status:', loginResponse.status);
+      console.log('[FRONTEND_LOGIN] Response data:', loginResponse.data);
+      
       const loginResponseData: LoginResponse = loginResponse.data;
 
       // save session token
       if (loginResponseData.session) {
+        console.log('[FRONTEND_LOGIN] ✅ Session data received');
+        console.log('[FRONTEND_LOGIN] Account Type:', loginResponseData.session.accountType);
         const token = loginResponseData.session.token;
+        console.log('[FRONTEND_LOGIN] Token:', token ? `${token.substring(0, 20)}...` : 'None');
+        
         localStorage.setItem("token", token ?? "");
         localStorage.setItem("username", username);
+        console.log('[FRONTEND_LOGIN] Token saved to localStorage');
 
         // redirect after saving
         switch (loginResponseData.session.accountType) {
@@ -103,9 +118,26 @@ const OfficerLogin = () => {
             redirectLoggedIn("/officer");
             break;
         }
+      } else {
+        console.log('[FRONTEND_LOGIN] ❌ No session data in response');
       }
-    } catch (err) {
-      showLoginError();
+      console.log('[FRONTEND_LOGIN] ========================================');
+    } catch (err: any) {
+      console.log('[FRONTEND_LOGIN] ❌ ERROR: Login failed');
+      console.log('[FRONTEND_LOGIN] Error type:', err?.constructor?.name);
+      console.log('[FRONTEND_LOGIN] Error message:', err?.message);
+      console.log('[FRONTEND_LOGIN] Error response:', err?.response?.data);
+      console.log('[FRONTEND_LOGIN] Error status:', err?.response?.status);
+      console.log('[FRONTEND_LOGIN] Full error:', err);
+      console.log('[FRONTEND_LOGIN] ========================================');
+      
+      // Check if it's a network error (server might be off)
+      if (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')) {
+        console.error('[FRONTEND_LOGIN] 🚨 NETWORK ERROR: Backend server might be offline!');
+        showSnackbarMessage("Cannot connect to server. Please check if the backend is running.", "error");
+      } else {
+        showLoginError();
+      }
     }
   };
 

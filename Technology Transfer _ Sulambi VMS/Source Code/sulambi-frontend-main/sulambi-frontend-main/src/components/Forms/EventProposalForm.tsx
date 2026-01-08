@@ -371,12 +371,24 @@ const EventProposalForm: React.FC<Props> = ({
         type: "number",
         required: true,
         message: "Total Male",
+        onUse: (event) => {
+          // Enforce max 2 digits (0-99) and digits only
+          const raw = String(event?.target?.value ?? "");
+          const digitsOnly = raw.replace(/\D+/g, "").slice(0, 2);
+          immutableSetFormData({ maleTotal: digitsOnly });
+        },
       },
       {
         id: "femaleTotal",
         type: "number",
         required: true,
         message: "Total Female",
+        onUse: (event) => {
+          // Enforce max 2 digits (0-99) and digits only
+          const raw = String(event?.target?.value ?? "");
+          const digitsOnly = raw.replace(/\D+/g, "").slice(0, 2);
+          immutableSetFormData({ femaleTotal: digitsOnly });
+        },
       },
     ],
     [

@@ -24,6 +24,12 @@ const BASE_API_URL = import.meta.env.VITE_API_URI ?? "http://localhost:8000/api"
 
 export interface FormGenTemplateProps {
   id?: string;
+  /**
+   * Internal flag used by FieldRepeater so FormGeneratorTemplate won't bind
+   * the input to top-level formData[value.id]. FieldRepeater manages its own
+   * nested state under formData[fieldKey].
+   */
+  fromFieldRepeater?: boolean;
   type:
     | "dropdown"
     | "text"
@@ -252,6 +258,7 @@ const FieldRepeater = ({ field, fieldKey }: FieldRepeaterProps) => {
       const initialValue = localValues[index]?.[indivField.id ?? "_"] ?? "";
       return {
         ...indivField,
+        fromFieldRepeater: true,
         value: initialValue,
         onUse: (event: any) => {
           onUseCallback(event, index, indivField.id ?? "_");
@@ -285,8 +292,9 @@ const FieldRepeater = ({ field, fieldKey }: FieldRepeaterProps) => {
   return (
     <>
       {localFields.length > 0 &&
-        localFields.map((fld) => (
+        localFields.map((fld, idx) => (
           <FormGeneratorTemplate
+            key={`${fieldKeyRef.current}-${idx}`}
             fieldErrors={[]}
             template={[
               ...fld,
@@ -540,13 +548,23 @@ const FormGeneratorTemplate = ({
                   startIcon={<RemoveRedEyeIcon />}
                   onClick={() => {
                     if (value.id && formData[value.id]) {
-                      const rootUri = (BASE_API_URL as string).replace(
-                        "/api",
-                        ""
-                      ) + "/uploads/";
+                      const base = (BASE_API_URL as string).replace("/api", "");
+                      const rootUri = `${base}/uploads`;
+
+                      // Backend may store paths like "uploads/<file>" or "uploads\\<file>".
+                      // Normalize into a URL path relative to /uploads/<path>
+                      const raw = String(formData[value.id]);
+                      const normalized = raw.replace(/\\/g, "/");
+                      const relative = normalized.startsWith("uploads/")
+                        ? normalized.slice("uploads/".length)
+                        : normalized;
+
+                      const lower = relative.toLowerCase();
+                      const isPdf = lower.endsWith(".pdf");
+
                       setFileDetails({
-                        source: `${rootUri}/${formData[value.id]}`,
-                        type: "image",
+                        source: `${rootUri}/${relative}`,
+                        type: isPdf ? "pdf" : "image",
                       });
                       setOpenViewer(true);
                     }
@@ -561,7 +579,9 @@ const FormGeneratorTemplate = ({
           if (value.type === "text") {
             // Compute the current value - use formData[id] if id exists, otherwise use value.value
             // But value.value might be a function or computed value, so we need to handle it
-            let currentValue = value.id ? formData[value.id] : value.value;
+            let currentValue = value.fromFieldRepeater
+              ? value.value
+              : (value.id ? formData[value.id] : value.value);
             
             // If value.value is undefined or null, and we have an onUse callback that reads from formData,
             // we should compute it from the callback context (but we can't do that here)
@@ -586,7 +606,8 @@ const FormGeneratorTemplate = ({
                   value={currentValue ?? ""}
                   error={value.id ? fieldErrors.includes(value.id) : false}
                   onChange={(event: any) => {
-                    if (enableAutoFieldCheck && value.id) {
+                    // For FieldRepeater children, the repeater manages nested formData updates.
+                    if (enableAutoFieldCheck && value.id && !value.fromFieldRepeater) {
                       immutableSetFormData({ [value.id]: event.target.value });
                       return value.onUse && value.onUse(event);
                     }
@@ -744,10 +765,14 @@ const FormGeneratorTemplate = ({
                   endIcon={value.endIcon}
                   disabled={viewOnly ?? value.disabled}
                   type="number"
-                  value={formData[value.id ?? ""] ?? value.value}
+                  value={
+                    value.fromFieldRepeater
+                      ? (value.value ?? "")
+                      : (formData[value.id ?? ""] ?? value.value ?? "")
+                  }
                   error={value.id ? fieldErrors.includes(value.id) : false}
                   onChange={(event: any) => {
-                    if (enableAutoFieldCheck && value.id) {
+                    if (enableAutoFieldCheck && value.id && !value.fromFieldRepeater) {
                       immutableSetFormData({ [value.id]: event.target.value });
                       value.onUse && value.onUse(event);
                       return;

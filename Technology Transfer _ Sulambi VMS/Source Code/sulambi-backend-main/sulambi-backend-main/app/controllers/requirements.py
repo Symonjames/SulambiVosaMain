@@ -3,6 +3,7 @@ from ..models.RequirementsModel import RequirementsModel
 from ..models.ExternalEventModel import ExternalEventModel
 from ..models.InternalEventModel import InternalEventModel
 from ..models.EvaluationModel import EvaluationModel
+from ..models.MembershipModel import MembershipModel
 from ..utils.multipartFileWriter import basicFileWriter
 from ..modules.CallbackTimer import executeDelayedAction
 from ..modules.Mailer import threadedHtmlMailer, htmlMailer
@@ -18,12 +19,38 @@ RequirementsDb = RequirementsModel()
 ExternalEventDb = ExternalEventModel()
 InternalEventDb = InternalEventModel()
 EvaluationDb = EvaluationModel()
+MembershipDb = MembershipModel()
 
 def getAllRequirements():
   requirements = RequirementsDb.getAll()
 
   # manual joining of data (this implementation is just restarted, my bad...)
   for index, requirement in enumerate(requirements):
+    # Backfill participant details if missing (common when older uploads only sent files)
+    try:
+      if (not requirements[index].get("fullname")):
+        email = requirements[index].get("email")
+        srcode = requirements[index].get("srcode")
+
+        member = None
+        if (email != None and str(email).strip() != ""):
+          matches = MembershipDb.getAndSearch(["email"], (str(email).strip(),))
+          if (len(matches) > 0):
+            member = matches[0]
+        if (member == None and srcode != None and str(srcode).strip() != ""):
+          matches = MembershipDb.getAndSearch(["srcode"], (str(srcode).strip(),))
+          if (len(matches) > 0):
+            member = matches[0]
+
+        if (member != None):
+          requirements[index]["fullname"] = member.get("fullname") or requirements[index].get("fullname")
+          requirements[index]["email"] = member.get("email") or requirements[index].get("email")
+          requirements[index]["srcode"] = member.get("srcode") or requirements[index].get("srcode")
+          requirements[index]["collegeDept"] = member.get("collegeDept") or requirements[index].get("collegeDept")
+    except Exception as e:
+      # Non-fatal: still return requirements list
+      print("[requirements] Warning: failed to backfill member details:", e)
+
     eventType = requirements[index].get("type", "external")
     eventIdValue = requirements[index]["eventId"]
     

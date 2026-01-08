@@ -86,8 +86,10 @@ const BSUTemplateHeader: React.FC<BsuTemplateHeaderProps> = ({
             ) : (
               <></>
             )}
+
           </tbody>
         </table>
+
         {children}
       </div>
     </FlexBox>

@@ -1,3 +1,61 @@
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Node / Frontend (Vite/React) ---
+node_modules/
+dist/
+build/
+.vite/
+.turbo/
+.next/
+coverage/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+pip-wheel-metadata/
+
+# Virtual envs
+.venv/
+venv/
+env/
+ENV/
+
+# --- Environment / secrets ---
+.env
+.env.*
+
+# --- Databases / local state ---
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# --- Uploads / generated assets (keep out of git) ---
+**/uploads/
+**/upload/
+**/uploaded/
+
 # System files
 .DS_Store
 Thumbs.db
@@ -62,4 +120,20 @@ uploads/*
 *.temp
 *.bak
 *.backup
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import FlexBox from '../FlexBox';
 import { Typography, Box, Chip, LinearProgress, Select, MenuItem, FormControl, InputLabel, CircularProgress, Alert, Button } from '@mui/material';
-import { LineChart } from '@mui/x-charts';
 import { TrendingUp, TrendingDown, TrendingFlat, Visibility } from '@mui/icons-material';
 import { getSatisfactionAnalytics, getEventSatisfactionAnalytics } from '../../api/analytics';
 import { getAllEvents } from '../../api/events';
@@ -378,72 +377,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           </FlexBox>
         </Box>
 
-        {/* Mini Chart Preview */}
-        <Box height={130} mb={1.5}>
-          <LineChart
-            height={130}
-            margin={{ top: 6, right: 10, bottom: 28, left: 32 }}
-            dataset={filteredData.map((item: any) => {
-              // short label to avoid overflow; keep semester primary
-              const shortEvents = (item.eventNames || "")
-                .split(", ")
-                .slice(0, 2)
-                .map((s: string) => (s.length > 18 ? s.slice(0, 18) + "…" : s))
-                .join(", ");
-              return {
-                ...item,
-                label: item.semester, // stable x label
-                subtitle: shortEvents,
-              };
-            })}
-            xAxis={[{ 
-              scaleType: "band", 
-              dataKey: "label",
-              label: "Semester",
-              tickLabelStyle: { fontSize: 11 },
-            }]}
-            yAxis={[{ 
-              label: "Score",
-              min: 0,
-              max: 5,
-              tickLabelStyle: { fontSize: 11 },
-            }]}
-            series={[
-              { 
-                dataKey: "score", 
-                label: "Overall",
-                color: "#2f4858",
-                showMark: true,
-                curve: "monotoneX",
-              },
-              {
-                dataKey: "volunteers",
-                label: "Volunteers",
-                color: "#1976d2",
-                showMark: true,
-                curve: "monotoneX",
-              },
-              {
-                dataKey: "beneficiaries",
-                label: "Beneficiaries",
-                color: "#9c27b0",
-                showMark: true,
-                curve: "monotoneX",
-              }
-            ]}
-            grid={{ vertical: true, horizontal: true }}
-            slotProps={{
-              legend: { position: { vertical: 'bottom', horizontal: 'middle' }, labelStyle: { fontSize: 12 } },
-              tooltip: {
-                trigger: 'item',
-                formatter: (item: any) => {
-                  const d = item?.datum;
-                  return `${d?.label}: ${d?.score?.toFixed?.(1) ?? d?.score}/5<br/>Events: ${d?.subtitle || '—'}`;
-                }
-              }
-            }}
-          />
-        </Box>
+        {/* Mini Chart Preview removed per request */}
         
         {/* Event Names Display */}
         {filteredData.length > 0 && (
@@ -527,26 +461,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           {/* Admin badge removed */}
         </FlexBox>
         <FlexBox gap={1}>
-          {isAdmin && (
-            <Button
-              variant="contained"
-              size="small"
-              onClick={async () => {
-                try {
-                  const { rebuildSatisfactionAnalytics } = await import('../../api/analytics');
-                  await rebuildSatisfactionAnalytics(selectedYear || undefined);
-                  // Reload data after rebuild
-                  // Trigger by resetting selectedYear to itself to re-run effect
-                  setSelectedYear(prev => prev ? `${prev}` : '');
-                } catch (e) {
-                  console.error('Rebuild failed:', e);
-                }
-              }}
-              sx={{ minWidth: '110px' }}
-            >
-              Rebuild
-            </Button>
-          )}
+          {/* Rebuild button removed */}
           <Button
             variant="outlined"
             size="small"
@@ -918,63 +833,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                 </Box>
               </Box>
 
-              {/* Satisfaction Trend Line */}
-              <Box>
-                <FlexBox alignItems="center" gap={1} mb={1}>
-                  <Typography variant="subtitle2">
-                    Satisfaction Trend:
-                  </Typography>
-                  {getTrendIcon(currentTrend)}
-                  <Chip 
-                    label={currentTrend} 
-                    size="small" 
-                    sx={{ 
-                      backgroundColor: getTrendColor(currentTrend), 
-                      color: 'white',
-                      fontSize: '0.75rem'
-                    }} 
-                  />
-                </FlexBox>
-                <Box height={200}>
-                  <LineChart
-                    height={200}
-                    dataset={filteredData.map((item: any) => ({
-                      ...item,
-                      label: item.eventNames || item.semester
-                    }))}
-                    xAxis={[{ 
-                      scaleType: "band", 
-                      dataKey: "label", 
-                      label: "Events" 
-                    }]}
-                    yAxis={[{ 
-                      label: "Score", 
-                      min: 0, 
-                      max: 5 
-                    }]}
-                    series={[
-                      { 
-                        dataKey: "score", 
-                        label: "Overall",
-                        color: "#333333",
-                        curve: "monotoneX"
-                      },
-                      { 
-                        dataKey: "volunteers", 
-                        label: "Volunteers",
-                        color: "#2196f3",
-                        curve: "monotoneX"
-                      },
-                      { 
-                        dataKey: "beneficiaries", 
-                        label: "Beneficiaries",
-                        color: "#9c27b0",
-                        curve: "monotoneX"
-                      }
-                    ]}
-                  />
-                </Box>
-              </Box>
+              {/* Satisfaction Trend chart removed per request */}
               
               {/* Event Names List */}
               <Box>

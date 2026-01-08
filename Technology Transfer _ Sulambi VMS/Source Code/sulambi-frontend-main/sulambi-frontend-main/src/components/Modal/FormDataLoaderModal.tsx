@@ -161,6 +161,8 @@ const FormDataLoaderModal: React.FC<Props> = ({
 
     const preparePrint = () => {
       if (!printContainer) return;
+      const readyStart = Date.now();
+      const MAX_READY_WAIT_MS = 2500; // don't block print forever if images are slow
         
       // Wait for images and other resources to load
       const checkReady = () => {
@@ -174,8 +176,26 @@ const FormDataLoaderModal: React.FC<Props> = ({
           });
         }
         if (!imagesLoaded) {
-          setTimeout(checkReady, 100);
-          return;
+          // If some images are slow/hung, proceed anyway after a short timeout
+          if (Date.now() - readyStart > MAX_READY_WAIT_MS) {
+            console.warn("Print: proceeding without waiting for all images (timeout).");
+            // Hide any images that still aren't loaded to avoid browser decode/paint stalls during print
+            try {
+              images?.forEach((img) => {
+                const htmlImg = img as HTMLImageElement;
+                // Hint to browser: decode asynchronously
+                (htmlImg as any).decoding = "async";
+                if (!htmlImg.complete) {
+                  htmlImg.style.setProperty("display", "none", "important");
+                }
+              });
+            } catch {
+              // ignore
+            }
+          } else {
+            setTimeout(checkReady, 100);
+            return;
+          }
         }
 
         // Move container to visible position for print
@@ -206,7 +226,7 @@ const FormDataLoaderModal: React.FC<Props> = ({
       style.textContent = `
           @page {
             margin-top: 0.6in;
-            margin-bottom: 0.3in;
+            margin-bottom: 0.7in;
             margin-left: 0.7in;
             margin-right: 0.8in;
             size: letter;
@@ -214,7 +234,7 @@ const FormDataLoaderModal: React.FC<Props> = ({
           
           @page:first {
             margin-top: 0.6in;
-            margin-bottom: 0.3in;
+            margin-bottom: 0.7in;
             margin-left: 0.7in;
             margin-right: 0.8in;
           }
@@ -226,14 +246,16 @@ const FormDataLoaderModal: React.FC<Props> = ({
             }
             
             /* Print container - preserve exact preview appearance */
-            #print-container-temp {
+              #print-container-temp {
               display: block !important;
               position: static !important;
               margin: 0 !important;
-              padding: 0 !important;
+                padding: 0 !important;
               width: 100% !important;
               background: white !important;
             }
+
+            /* (Footer removed by request) */
             
             /* CRITICAL: Ensure content starts on first page - no page break before */
             #print-container-temp,
@@ -667,10 +689,10 @@ const FormDataLoaderModal: React.FC<Props> = ({
               height: auto !important;
             }
             
-            /* Allow natural flow for Internal Event Form section XI (no forced page break) */
+            /* Internal Event Form: force page 2 to start at the marker so page-1 footer text stays on page 1 */
             #print-container-temp .internal-event-page-break {
-              page-break-before: auto !important;
-              break-before: auto !important;
+              page-break-before: always !important;
+              break-before: page !important;
             }
             
             /* Force page break for External Event Form Monitoring & Evaluation */
@@ -714,6 +736,33 @@ const FormDataLoaderModal: React.FC<Props> = ({
       `;
       document.head.appendChild(style);
 
+      // Add a small UI control so the user can exit the print overlay if the browser fails to fire afterprint.
+      const uiStyle = document.createElement("style");
+      uiStyle.id = "print-ui-controls";
+      uiStyle.textContent = `
+        @media print {
+          .print-exit-button { display: none !important; }
+        }
+        @media screen {
+          .print-exit-button {
+            position: fixed !important;
+            top: 10px !important;
+            right: 10px !important;
+            z-index: 1000000 !important;
+            padding: 8px 12px !important;
+            border-radius: 8px !important;
+            border: 1px solid #999 !important;
+            background: #fff !important;
+            color: #111 !important;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif !important;
+            font-size: 12px !important;
+            cursor: pointer !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25) !important;
+          }
+        }
+      `;
+      document.head.appendChild(uiStyle);
+
       // After printing, restore and clean up
       const cleanup = () => {
           // Cleanup external report print fix
@@ -736,15 +785,107 @@ const FormDataLoaderModal: React.FC<Props> = ({
         if (earlyStyle) {
           earlyStyle.remove();
         }
+        // Remove dynamic footer elements (if present)
+        try {
+          document.querySelectorAll("#footer-page-style").forEach((el) => el.remove());
+          document.querySelectorAll("#print-container-temp .print-footer, #print-container-temp .print-footer-left, #print-container-temp .print-footer-right").forEach((el) => el.remove());
+          document.querySelectorAll("#print-container-temp .print-margin-footer-left, #print-container-temp .print-margin-footer-right").forEach((el) => el.remove());
+        } catch {
+          // ignore
+        }
+        const controlsStyle = document.getElementById("print-ui-controls");
+        if (controlsStyle) {
+          controlsStyle.remove();
+        }
         };
 
-        // Use both events for better browser compatibility
-        const handleAfterPrint = () => {
-          cleanup();
-          window.removeEventListener("afterprint", handleAfterPrint);
+        // Cleanup must be reliable even when the print dialog is cancelled.
+        // Some browsers don't always fire `afterprint`, so we also use `focus` + `matchMedia('print')` + a failsafe timer.
+        let cleanedUp = false;
+        let failSafeTimer: number | undefined;
+        let mediaQuery: MediaQueryList | null = null;
+        let exitButton: HTMLButtonElement | null = null;
+        const handleKeyDown = (e: KeyboardEvent) => {
+          if (e.key === "Escape") cleanupOnce();
         };
+        const handleMediaChange = (e: MediaQueryListEvent) => {
+          // when leaving print mode, e.matches becomes false
+          if (!e.matches) {
+            cleanupOnce();
+          }
+        };
+        const handleFocus = () => {
+          // focus comes back when the dialog is closed/cancelled
+          setTimeout(() => cleanupOnce(), 150);
+        };
+        const handleAfterPrint = () => cleanupOnce();
+
+        const cleanupOnce = () => {
+          if (cleanedUp) return;
+          cleanedUp = true;
+
+          try {
+            cleanup();
+          } finally {
+            window.removeEventListener("afterprint", handleAfterPrint);
+            window.removeEventListener("focus", handleFocus);
+            window.removeEventListener("keydown", handleKeyDown);
+            if (window.onafterprint === handleAfterPrint) {
+              window.onafterprint = null;
+            }
+            if (mediaQuery) {
+              try {
+                // modern browsers
+                // @ts-ignore - older TS DOM lib can miss this signature
+                mediaQuery.removeEventListener?.("change", handleMediaChange);
+                // legacy safari
+                // @ts-ignore
+                mediaQuery.removeListener?.(handleMediaChange);
+              } catch {
+                // ignore
+              }
+            }
+            if (failSafeTimer) {
+              window.clearTimeout(failSafeTimer);
+            }
+            if (exitButton) {
+              try {
+                exitButton.remove();
+              } catch {
+                // ignore
+              }
+              exitButton = null;
+            }
+          }
+        };
+
         window.addEventListener("afterprint", handleAfterPrint);
+        window.addEventListener("focus", handleFocus);
+        window.addEventListener("keydown", handleKeyDown);
         window.onafterprint = handleAfterPrint;
+        try {
+          mediaQuery = window.matchMedia("print");
+          // @ts-ignore - older TS DOM lib can miss this signature
+          mediaQuery.addEventListener?.("change", handleMediaChange);
+          // @ts-ignore
+          mediaQuery.addListener?.(handleMediaChange);
+        } catch {
+          mediaQuery = null;
+        }
+        // failsafe cleanup in case no events fire
+        failSafeTimer = window.setTimeout(() => cleanupOnce(), 15000);
+
+        // Manual exit button in case print dialog doesn't open or afterprint never fires.
+        try {
+          exitButton = document.createElement("button");
+          exitButton.type = "button";
+          exitButton.className = "print-exit-button";
+          exitButton.textContent = "Close Preview (Esc)";
+          exitButton.addEventListener("click", () => cleanupOnce());
+          printContainer?.appendChild(exitButton);
+        } catch {
+          exitButton = null;
+        }
 
         // Small delay to ensure styles are applied and DOM is ready
         // For external reports, wait a bit longer to ensure print fix is applied
@@ -879,6 +1020,8 @@ const FormDataLoaderModal: React.FC<Props> = ({
             console.error("Error in final print fix application:", error);
             // Continue with print even if fix fails
           }
+
+          // Footer removed by request
           
           void printContainer?.offsetHeight;
         window.print();

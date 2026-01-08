@@ -26,12 +26,9 @@ import MenuButtonTemplate from "../../components/Menu/MenuButtonTemplate";
 import BarChartIcon from "@mui/icons-material/BarChart";
 import FormDataLoaderModal from "../../components/Modal/FormDataLoaderModal";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
-import ReportForm from "../../components/Forms/ReportForm";
-import SummarizeIcon from "@mui/icons-material/Summarize";
 import EvaluationList from "../../components/Popups/EvaluationList";
 import FindInPageIcon from "@mui/icons-material/FindInPage";
 import LatentAnalysisList from "../../components/Popups/LatentAnalysisList";
-import { FormDataContext } from "../../contexts/FormDataProvider";
 import PrimaryButton from "../../components/Buttons/PrimaryButton";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -42,7 +39,6 @@ import FeedbackForm from "../../components/Forms/FeedbackForm";
 
 const EventApproval = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
-  const { setFormData } = useContext(FormDataContext);
   const [searchParams] = useSearchParams();
 
   const [searchVal, setSearchVal] = useState("");
@@ -84,12 +80,8 @@ const EventApproval = () => {
     ),
   };
 
-  const [showReportForm, setShowReportForm] = useState(false);
   const [showEvaluationList, setShowEvaluationList] = useState(false);
   const [showEventAnalysis, setShowEventAnalysis] = useState(false);
-  const [eventType, setEventType] = useState<[number, string] | undefined>(
-    undefined
-  );
 
   useEffect(() => {
     (async function () {
@@ -213,22 +205,7 @@ const EventApproval = () => {
                         },
                       },
                     ].concat(
-                      !event.hasReport && /^(accepted|approved)$/i.test(String(event.status || ""))
-                        ? [
-                            {
-                              label: "Submit a Report",
-                              icon: <SummarizeIcon />,
-                              onClick: () => {
-                                setFormData({});
-                                setShowReportForm(true);
-                                setEventType([
-                                  event.id,
-                                  event.eventTypeIndicator,
-                                ]);
-                              },
-                            },
-                          ]
-                        : []
+                      []
                     )}
                   />
                 ),
@@ -380,15 +357,6 @@ const EventApproval = () => {
           }
         }}
       />
-      {eventType && eventType[0] && eventType[1] && (
-        <ReportForm
-          open={showReportForm}
-          setOpen={setShowReportForm}
-          eventId={eventType[0]}
-          type={eventType[1] as "external" | "internal"}
-          onSubmit={() => setRefreshTable(refreshTable + 1)}
-        />
-      )}
       {!!signatoryId && (
         <SignatoriesForm
           signatoryId={signatoryId}

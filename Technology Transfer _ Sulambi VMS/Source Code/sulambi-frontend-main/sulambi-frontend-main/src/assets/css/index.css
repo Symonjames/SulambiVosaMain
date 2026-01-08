@@ -1057,11 +1057,13 @@ table.bsuFormChild.external-event-main-content > tbody > tr:last-child > td {
   /* Keep default margins — don't override @page here */
   body { background: #fff !important; color: #000 !important; }
 
-  /* Page break for Internal Event Form - allow natural flow on first page */
+  /* Internal Event page break is controlled by the injected print CSS (FormDataLoaderModal) */
   .internal-event-page-break {
     page-break-before: auto !important;
     break-before: auto !important;
   }
+
+  /* (Removed) internal-event-margin-footer-left: footer is now injected outside the form content */
   
   /* Ensure Internal Event Form content starts on first page */
   .bsu-form-wrapper > table.bsuForm:first-child {

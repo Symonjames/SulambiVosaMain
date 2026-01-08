@@ -2,7 +2,7 @@ import React from 'react';
 import SafeHtmlRenderer from './SafeHtmlRenderer';
 
 const HtmlRendererTest: React.FC = () => {
-  const testHtmlContent = '<p><strong>hello joe, </strong><em>ultimatum est.</em></p>';
+  const testHtmlContent = '<p><strong>Test content, </strong><em>ultimatum est.</em></p>';
   const testCaption = '<strong>Bold caption</strong> with <em>italic text</em>';
 
   return (

@@ -56,33 +56,16 @@ export const applyExternalReportPrintFix = (container: HTMLElement): (() => void
   setTimeout(reduceSpacing, 100);
   setTimeout(reduceSpacing, 150);
 
-  // Use MutationObserver to catch any style changes
-  const observer = new MutationObserver(() => {
-    reduceSpacing();
-  });
-
-  observer.observe(container, {
-    attributes: true,
-    attributeFilter: ['style', 'class'],
-    subtree: true,
-    childList: true,
-  });
-
-  // Store observer for cleanup
-  (container as any).__externalReportPrintObserver = observer;
-
-  // Return cleanup function
+  // NOTE: Previously we used a MutationObserver here, but it can become very expensive
+  // (especially when images load and DOM changes frequently) and may cause the print UI to "freeze".
+  // For performance, we apply a few timed passes and then stop.
   return () => {
-    observer.disconnect();
-    delete (container as any).__externalReportPrintObserver;
+    // no-op cleanup (container removed after printing)
   };
 };
 
 export const cleanupExternalReportPrintFix = (container: HTMLElement | null): void => {
-  if (container && (container as any).__externalReportPrintObserver) {
-    (container as any).__externalReportPrintObserver.disconnect();
-    delete (container as any).__externalReportPrintObserver;
-  }
+  // no-op (observer removed for performance)
 };
 
 

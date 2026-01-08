@@ -109,38 +109,75 @@ def migrate_table(table_name):
         # Get column names
         column_names = [col[1] for col in columns]
         
+        # Check if table exists, if not, skip with message
+        pg_cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = %s
+            );
+        """, (table_name.lower(),))
+        table_exists = pg_cursor.fetchone()[0]
+        
+        if not table_exists:
+            print(f"  ⚠️  Table '{table_name}' does not exist in PostgreSQL!")
+            print(f"  ⚠️  Please run 'python server.py --init' on Render first to create tables")
+            print(f"  ⚠️  Or create tables manually in PostgreSQL")
+            return
+        
         # Clear existing data (optional - comment out if you want to append)
         try:
             pg_cursor.execute(f"TRUNCATE TABLE {table_name} CASCADE")
             pg_conn.commit()
             print(f"  ✓ Cleared existing data from PostgreSQL table")
         except Exception as e:
-            print(f"  ⚠️  Could not clear table (might not exist yet): {e}")
+            print(f"  ⚠️  Could not clear table: {e}")
+            pg_conn.rollback()
         
-        # Insert data
+        # Get PostgreSQL column types to handle type conversion
+        pg_cursor.execute("""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = %s
+            ORDER BY ordinal_position
+        """, (table_name.lower(),))
+        pg_columns = {row[0]: row[1] for row in pg_cursor.fetchall()}
+        
+        # Insert data - use savepoints for each row to handle errors gracefully
         placeholders = ', '.join(['%s'] * len(column_names))
         column_names_str = ', '.join(column_names)
         
         inserted = 0
-        for row in rows:
+        for i, row in enumerate(rows, 1):
             try:
-                # Convert None to NULL, handle BLOB data
+                # Create a savepoint for this row
+                savepoint_name = f"sp_row_{i}"
+                pg_cursor.execute(f"SAVEPOINT {savepoint_name}")
+                
+                # Convert None to NULL, handle BLOB data, and convert INTEGER to BOOLEAN
                 values = []
-                for val in row:
+                for idx, (col_name, val) in enumerate(zip(column_names, row)):
                     if val is None:
                         values.append(None)
                     elif isinstance(val, bytes):
                         values.append(val)
                     else:
-                        values.append(val)
+                        # Convert INTEGER (0/1) to BOOLEAN for boolean columns
+                        pg_col_type = pg_columns.get(col_name.lower(), '').upper()
+                        if pg_col_type == 'BOOLEAN' and isinstance(val, int):
+                            values.append(bool(val))
+                        else:
+                            values.append(val)
                 
                 pg_cursor.execute(
                     f"INSERT INTO {table_name} ({column_names_str}) VALUES ({placeholders})",
                     values
                 )
+                pg_cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
                 inserted += 1
             except Exception as e:
-                print(f"  ⚠️  Error inserting row {inserted + 1}: {e}")
+                # Rollback to savepoint to continue with next row
+                pg_cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                print(f"  ⚠️  Error inserting row {i}: {e}")
                 print(f"      Row data: {row[:3]}...")  # Show first 3 fields
                 continue
         
@@ -151,7 +188,10 @@ def migrate_table(table_name):
         print(f"  ❌ Error migrating table {table_name}: {e}")
         import traceback
         traceback.print_exc()
-        pg_conn.rollback()
+        try:
+            pg_conn.rollback()
+        except:
+            pass  # Connection might already be closed
 
 # Migrate each table
 success_count = 0
@@ -173,8 +213,15 @@ pg_cursor.close()
 pg_conn.close()
 
 print("\n✓ Connections closed")
+print("\n" + "="*70)
+print("IMPORTANT: Database Tables Need to Exist First!")
+print("="*70)
+print("\nIf migration failed because tables don't exist:")
+print("1. Deploy your backend to Render first (tables will be created on first startup)")
+print("2. OR manually create tables in PostgreSQL using a compatible schema")
+print("3. Then run this migration script again")
 print("\nNext steps:")
-print("1. Verify data in Render PostgreSQL database")
+print("1. If tables were created, verify data in Render PostgreSQL database")
 print("2. Make sure DATABASE_URL is set correctly in Render dashboard")
 print("3. Restart your Render backend service")
 

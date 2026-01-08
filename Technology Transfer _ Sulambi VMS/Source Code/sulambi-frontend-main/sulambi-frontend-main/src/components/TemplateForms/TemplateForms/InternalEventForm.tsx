@@ -37,6 +37,30 @@ export const InnerFormTableTemplate: React.FC<InnerFormTableTemplateProps> = ({
   header,
   textAlign,
 }) => {
+  const isMeaningfulCellValue = (value: unknown) => {
+    if (value === null || value === undefined) return false;
+    if (typeof value === "number") return !Number.isNaN(value);
+    // Avoid treating objects as meaningful unless they are renderable strings/numbers
+    if (typeof value === "object") return false;
+
+    const raw = String(value);
+    // Treat common rich-text "empty" HTML as empty
+    const withoutTags = raw
+      .replace(/<[^>]*>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/\u00a0/g, " ")
+      .trim();
+    return withoutTags !== "";
+  };
+
+  // Remove rows that are visually empty across all configured columns.
+  const filteredRows = Array.isArray(data)
+    ? data.filter((rowData) => {
+        if (!rowData || typeof rowData !== "object") return false;
+        return dataKeys.some((colKey) => isMeaningfulCellValue((rowData as any)[colKey]));
+      })
+    : [];
+
   return (
     <div style={{ overflow: "hidden", width: "100%" }}>
       <table className="bsuFormChild internal-event-table-with-top-border" style={{ overflow: "hidden", borderTop: "1px solid black" }}>
@@ -58,7 +82,7 @@ export const InnerFormTableTemplate: React.FC<InnerFormTableTemplateProps> = ({
             ))}
           </tr>
           {dataKeys.length === header.length ? (
-            data.length === 0 ? (
+            filteredRows.length === 0 ? (
               <tr>
                 <td
                   colSpan={customColsize ?? header.length}
@@ -69,7 +93,7 @@ export const InnerFormTableTemplate: React.FC<InnerFormTableTemplateProps> = ({
                 </td>
               </tr>
             ) : (
-              data.map((rowData, rowIndex) => (
+              filteredRows.map((rowData, rowIndex) => (
                 <tr key={rowIndex}>
                   {dataKeys.map((colKeys, colId) => (
                     <td
@@ -94,7 +118,6 @@ export const InnerFormTableTemplate: React.FC<InnerFormTableTemplateProps> = ({
 };
 
 const InternalEventForm: React.FC<Props> = ({ data }) => {
-  const [workPlan, setWorkPlan] = useState<any>({});
   const [financialRequirement, setFinancialRequirement] = useState<any>({});
   const [evaluationMechanicsPlan, setEvaluationMechanicsPlan] = useState<any>(
     {}
@@ -133,21 +156,6 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
       setFinancialRequirement({});
     }
 
-    // Parse workPlan - handle both string and object formats
-    try {
-      if (data.workPlan) {
-        const parsed = typeof data.workPlan === 'string' 
-          ? JSON.parse(data.workPlan) 
-          : data.workPlan;
-        setWorkPlan(parsed && typeof parsed === 'object' ? parsed : {});
-      } else {
-        setWorkPlan({});
-      }
-    } catch (e) {
-      console.error('Error parsing workPlan:', e);
-      setWorkPlan({});
-    }
-    
     // Use activities from API if available and has data, otherwise try to convert from workPlan
     if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
       // If activities exist and have data, use them and extract monthHeaders from them
@@ -587,7 +595,7 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                             >
                               {activity.activity_name}
                             </td>
-                            {monthHeaders.map((header, headerIndex) => (
+                            {monthHeaders.map((_, headerIndex) => (
                               <td
                                 key={headerIndex}
                                 colSpan={1}
@@ -617,51 +625,50 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                   </div>
                 )}
               </div>
-                <div 
-                  className="internal-event-page-break"
-                  style={{ 
-                    pageBreakBefore: "auto",
-                    breakBefore: "auto"
-                  }}>
-                <RomanListValues
+
+              {/* XI. Financial Requirements stays on page 1 */}
+              <RomanListValues
                 romaize
                 marginBetween="10px"
-                  start={11}
+                start={11}
                 list={[
                   {
                     title: "Financial Requirements and Source of Funds: ",
                   },
                 ]}
+              />
+              <div style={{ width: "90%", margin: "0 auto" }}>
+                <InnerFormTableTemplate
+                  textAlign="center"
+                  customColsize={7}
+                  customFlexSize={[3]}
+                  header={[
+                    "Item Description",
+                    "Quantity",
+                    "Unit",
+                    "Unit Cost",
+                    "Total",
+                  ]}
+                  dataKeys={["item", "qty", "unit", "unitCost", "total"]}
+                  data={Object.keys(financialRequirement).map((index) => {
+                    return financialRequirement[index];
+                  })}
                 />
-                <div style={{ width: "90%", margin: "0 auto" }}>
-                  <InnerFormTableTemplate
-                    textAlign="center"
-                    customColsize={7}
-                    customFlexSize={[3]}
-                    header={[
-                      "Item Description",
-                      "Quantity",
-                      "Unit",
-                      "Unit Cost",
-                      "Total",
-                    ]}
-                    dataKeys={["item", "qty", "unit", "unitCost", "total"]}
-                    data={Object.keys(financialRequirement).map((index) => {
-                      return financialRequirement[index];
-                    })}
-                  />
-                </div>
-                </div>
-                <RomanListValues
+              </div>
+
+              {/* Page 2 starts here */}
+              <div className="internal-event-page-break" />
+
+              <RomanListValues
                 romaize
                 marginBetween="10px"
-                  start={12}
+                start={12}
                 list={[
                   {
                     title: "Monitoring and Evaluation Mechanics / Plan: ",
                   },
                 ]}
-                />
+              />
                 <div style={{ width: "90%", margin: "0 auto" }}>
                   <InnerFormTableTemplate
                     textAlign="center"
@@ -771,6 +778,17 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
           </tr>
         </tbody>
       </table>
+      <div
+        className="fontSet"
+        style={{
+          marginTop: "10px",
+          fontSize: "10pt",
+          fontFamily: "'Times New Roman', serif",
+          fontStyle: "italic",
+        }}
+      >
+        Cc: GAD Central
+      </div>
     </BSUTemplateHeader>
   );
 };

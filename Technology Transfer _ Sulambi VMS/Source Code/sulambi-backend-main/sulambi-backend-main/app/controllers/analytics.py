@@ -156,6 +156,18 @@ def getVolunteerDropoutAnalytics(year=None):
         if not table_exists:
             # Fallback to old method if table doesn't exist
             return getVolunteerDropoutAnalyticsLegacy(year)
+
+        # If the table exists but has no rows, the analytics will look empty.
+        # In that case, fall back to legacy computation from requirements/evaluation,
+        # which directly reflects "joined but didn't answer the form" as dropouts.
+        try:
+            cursor.execute("SELECT COUNT(*) FROM volunteerParticipationHistory")
+            vph_count = cursor.fetchone()[0] or 0
+        except Exception:
+            vph_count = 0
+        if vph_count == 0:
+            conn.close()
+            return getVolunteerDropoutAnalyticsLegacy(year)
         
         # Get semester data from participation history table
         try:
@@ -281,8 +293,10 @@ def getVolunteerDropoutAnalytics(year=None):
                     risk_score += 10
                 
                 # Participation factor (0-20 points)
+                # IMPORTANT: If they joined but never submitted a finalized evaluation form,
+                # we treat them as high dropout risk (joined but did not "participate" in our system).
                 if total_attended == 0 and total_joined > 0:
-                    risk_score += 20  # Never attended but joined
+                    risk_score += 50  # Joined but never attended (no finalized form) - high risk
                 elif total_attended < 2:
                     risk_score += 10
             
@@ -413,11 +427,13 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             event_ids_internal = [e[0] for e in events if e[1] == 'internal']
             event_ids_external = [e[0] for e in events if e[1] == 'external']
             
-            # Count volunteers who JOINED (signed up) for events in this semester
+            # Count volunteers who JOINED (submitted requirements) for events in this semester.
+            # Include accepted OR pending, exclude rejected.
+            # Use a robust volunteer key: email -> srcode -> fullname
             joined_query = """
-                SELECT COUNT(DISTINCT r.email) as joined_count
+                SELECT COUNT(DISTINCT COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)) as joined_count
                 FROM requirements r
-                WHERE r.accepted = 1
+                WHERE (r.accepted = 1 OR r.accepted IS NULL)
             """
             joined_params = []
             
@@ -441,7 +457,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             
             # Count volunteers who ATTENDED (participated) in this semester
             attended_query = """
-                SELECT COUNT(DISTINCT r.email) as attended_count
+                SELECT COUNT(DISTINCT COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)) as attended_count
                 FROM requirements r
                 INNER JOIN evaluation e ON r.id = e.requirementId
                 WHERE r.accepted = 1 
@@ -511,7 +527,10 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             
             # Track individual volunteer stats for at-risk calculation
             volunteer_query = """
-                SELECT r.email, r.fullname, 
+                SELECT
+                       COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname) as volunteerKey,
+                       MAX(NULLIF(r.email, '')) as email,
+                       MAX(NULLIF(r.fullname, '')) as fullname,
                        COUNT(DISTINCT r.id) as joined_events,
                        COUNT(DISTINCT CASE WHEN e.finalized = 1 AND e.criteria IS NOT NULL AND e.criteria != '' THEN r.id END) as attended_events,
                        MAX(CASE 
@@ -522,7 +541,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 LEFT JOIN evaluation e ON r.id = e.requirementId
                 LEFT JOIN internalEvents ei ON r.eventId = ei.id AND r.type = 'internal'
                 LEFT JOIN externalEvents ee ON r.eventId = ee.id AND r.type = 'external'
-                WHERE r.accepted = 1
+                WHERE (r.accepted = 1 OR r.accepted IS NULL)
             """
             volunteer_params = []
             
@@ -539,24 +558,25 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 volunteer_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
                 volunteer_params = event_ids_external
             
-            volunteer_query += " GROUP BY r.email, r.fullname"
+            volunteer_query += " GROUP BY volunteerKey"
             
             cursor.execute(volunteer_query, volunteer_params)
             volunteer_rows = cursor.fetchall()
             
-            for email, fullname, joined_events, attended_events, last_event_date in volunteer_rows:
-                if email not in all_volunteer_stats:
-                    all_volunteer_stats[email] = {
-                        "name": fullname or email,
+            for volunteer_key, email, fullname, joined_events, attended_events, last_event_date in volunteer_rows:
+                key = volunteer_key or email or fullname
+                if key not in all_volunteer_stats:
+                    all_volunteer_stats[key] = {
+                        "name": fullname or email or volunteer_key,
                         "totalJoined": 0,
                         "totalAttended": 0,
                         "lastEventDate": 0
                     }
                 
-                all_volunteer_stats[email]["totalJoined"] += joined_events
-                all_volunteer_stats[email]["totalAttended"] += attended_events
-                if last_event_date and last_event_date > all_volunteer_stats[email]["lastEventDate"]:
-                    all_volunteer_stats[email]["lastEventDate"] = last_event_date
+                all_volunteer_stats[key]["totalJoined"] += joined_events
+                all_volunteer_stats[key]["totalAttended"] += attended_events
+                if last_event_date and last_event_date > all_volunteer_stats[key]["lastEventDate"]:
+                    all_volunteer_stats[key]["lastEventDate"] = last_event_date
         
         # Calculate at-risk volunteers (across all semesters)
         current_time_ms = int(datetime.now().timestamp() * 1000)
@@ -596,9 +616,11 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             elif inactivity_days > 30:
                 risk_score += 15
             
-            # Participation factor (0-20 points)
+            # Participation factor
+            # IMPORTANT: If they joined but never submitted a finalized evaluation form,
+            # we treat them as high dropout risk.
             if totalAttended == 0 and totalJoined > 0:
-                risk_score += 20  # Never attended but joined
+                risk_score += 50  # Joined but never attended (no finalized form) - high risk
             elif totalAttended < 2:
                 risk_score += 10
             

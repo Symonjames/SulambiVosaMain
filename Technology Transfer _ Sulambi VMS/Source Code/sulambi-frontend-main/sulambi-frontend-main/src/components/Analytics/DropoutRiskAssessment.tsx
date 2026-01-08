@@ -7,6 +7,8 @@ import { getDropoutRiskAnalytics } from '../../api/analytics';
 import CurtainPanel from '../Curtain/CurtainPanel';
 
 const DropoutRiskAssessment: React.FC = () => {
+  const MAX_DISPLAY_INACTIVITY_DAYS = 40;
+  const capDays = (days: any) => Math.min(Number(days) || 0, MAX_DISPLAY_INACTIVITY_DAYS);
   const [semesterEngagementData, setSemesterEngagementData] = useState<any[]>([]);
   const [atRiskVolunteers, setAtRiskVolunteers] = useState<any[]>([]);
   const [averageEngagement, setAverageEngagement] = useState(0);
@@ -176,33 +178,7 @@ const DropoutRiskAssessment: React.FC = () => {
         </FlexBox>
       </Box>
 
-      {/* Mini Chart Preview */}
-      <Box height={110} mb={1.5}>
-        <BarChart
-          height={110}
-          dataset={semesterEngagementData}
-          xAxis={[{ 
-            scaleType: "band", 
-            dataKey: "semester", 
-            label: "Semester",
-            tickLabelStyle: { fontSize: 11 }
-          }]}
-          yAxis={[{ 
-            label: "Events Attended",
-            min: 0, 
-            max: 5,
-            tickLabelStyle: { fontSize: 11 }
-          }]}
-          series={[
-            { 
-              dataKey: "events", 
-              label: "Events per Volunteer",
-              color: "#2f4858"
-            }
-          ]}
-          margin={{ top: 6, right: 10, bottom: 28, left: 32 }}
-        />
-      </Box>
+      {/* Mini Chart Preview removed per request */}
 
       {/* At-Risk Volunteers Preview */}
       <Box>
@@ -225,9 +201,9 @@ const DropoutRiskAssessment: React.FC = () => {
                 sx={{ fontSize: '0.6rem', mr: 0.5 }}
               />
               <Chip 
-                label={`${volunteer.inactivityDays} days`} 
+                label={`${capDays(volunteer.inactivityDays)} days`} 
                 size="small" 
-                color={volunteer.inactivityDays > 45 ? 'error' : 'warning'}
+                color={capDays(volunteer.inactivityDays) > 30 ? 'error' : 'warning'}
                 sx={{ fontSize: '0.7rem' }}
               />
             </Box>
@@ -245,9 +221,49 @@ const DropoutRiskAssessment: React.FC = () => {
   const interpretation = [
     `Risk Level: ${riskLevel} (Retention: ${retentionRate}%)`,
     `Engagement: ${averageEngagement} events/volunteer`,
-    `Average Inactivity: ${averageInactivity} days`
+    `Average Inactivity: ${capDays(averageInactivity)} days`
   ];
-  const prediction = `Prediction: Dropout risk is expected to remain ${dropoutTrend.toLowerCase()} next semester.`;
+
+  // Prediction should be "bad" when many volunteers are dropping out OR many are at max inactivity (40 days).
+  // Otherwise it can be stable/good.
+  const highInactivityCount = atRiskVolunteers.filter(
+    (v) => capDays(v?.inactivityDays) >= MAX_DISPLAY_INACTIVITY_DAYS
+  ).length;
+  const highInactivityRatio = atRiskVolunteers.length > 0 ? highInactivityCount / atRiskVolunteers.length : 0;
+
+  // Recompute latest dropout rate (mirrors earlier logic, but keeps prediction deterministic)
+  const latestSemester = semesterEngagementData.length > 0 ? semesterEngagementData[semesterEngagementData.length - 1] : null;
+  const latestVolunteers = Number(latestSemester?.volunteers) || 0;
+  const latestDropouts = Number(latestSemester?.dropouts) || 0;
+  const latestDropoutRate = latestVolunteers > 0 ? (latestDropouts / latestVolunteers) * 100 : 0;
+
+  type PredictionTone = "bad" | "stable" | "good";
+  const predictionTone: PredictionTone =
+    // "bad" signals: high dropout rate OR lots of max-inactivity volunteers
+    (latestDropoutRate >= 15) ||
+    (highInactivityCount >= 8) ||
+    (highInactivityRatio >= 0.5)
+      ? "bad"
+      : // "stable" signals: moderate dropout / some at-risk
+      (latestDropoutRate >= 8) ||
+        (atRiskVolunteers.length >= 5) ||
+        (capDays(averageInactivity) >= 20)
+        ? "stable"
+        : "good";
+
+  const prediction =
+    predictionTone === "bad"
+      ? "Prediction: Dropout risk is high — many volunteers are inactive or dropping out. Re-engagement is recommended."
+      : predictionTone === "good"
+        ? "Prediction: Dropout risk looks low — attendance is healthy and inactivity is minimal."
+        : `Prediction: Dropout risk is expected to remain ${dropoutTrend.toLowerCase()} next semester.`;
+
+  const predictionBoxSx =
+    predictionTone === "bad"
+      ? { backgroundColor: "#fff5f5", border: "1px solid #ffcdd2" }
+      : predictionTone === "good"
+        ? { backgroundColor: "#f1fff4", border: "1px solid #b9f6ca" }
+        : { backgroundColor: "#f4f8ff", border: "1px solid #d0e3ff" };
 
   if (loading) {
     return (
@@ -398,11 +414,11 @@ const DropoutRiskAssessment: React.FC = () => {
           {/* Inactivity Duration */}
           <Box>
             <Typography variant="subtitle2" gutterBottom>
-              Average Inactivity Duration: {averageInactivity} days
+              Average Inactivity Duration: {capDays(averageInactivity)} days
             </Typography>
             <Chip 
-              label={`${averageInactivity} days since last involvement`} 
-              color={averageInactivity > 30 ? 'error' : averageInactivity > 15 ? 'warning' : 'success'}
+              label={`${capDays(averageInactivity)} days since last involvement`} 
+              color={capDays(averageInactivity) > 30 ? 'error' : capDays(averageInactivity) > 15 ? 'warning' : 'success'}
               size="small"
             />
           </Box>
@@ -431,9 +447,9 @@ const DropoutRiskAssessment: React.FC = () => {
                             sx={{ fontSize: '0.6rem', mr: 0.5 }}
                           />
                           <Chip 
-                            label={`${volunteer.inactivityDays} days`} 
+                            label={`${capDays(volunteer.inactivityDays)} days`} 
                             size="small" 
-                            color={volunteer.inactivityDays > 45 ? 'error' : 'warning'}
+                            color={capDays(volunteer.inactivityDays) > 30 ? 'error' : 'warning'}
                             sx={{ fontSize: '0.7rem' }}
                           />
                         </Box>
@@ -465,8 +481,7 @@ const DropoutRiskAssessment: React.FC = () => {
                 mt: 2,
                 p: 2,
                 borderRadius: '12px',
-                backgroundColor: '#f4f8ff',
-                border: '1px solid #d0e3ff',
+                ...predictionBoxSx,
                 fontWeight: 500,
                 textAlign: 'center'
               }}

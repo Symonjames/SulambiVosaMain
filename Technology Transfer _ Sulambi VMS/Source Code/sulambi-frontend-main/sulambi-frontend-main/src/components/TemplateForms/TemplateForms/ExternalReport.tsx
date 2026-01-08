@@ -138,7 +138,7 @@ const ExternalReport: React.FC<Props> = ({ data, textAlign }) => {
               programs under the college implementing the project):
             </td>
             <td colSpan={7} className="fontSet" style={{ textAlign }}>
-              {data?.eventId?.orgInvolved}
+              <SafeHtmlRenderer htmlContent={data?.eventId?.orgInvolved || ""} />
             </td>
           </tr>
           <tr>
@@ -146,7 +146,7 @@ const ExternalReport: React.FC<Props> = ({ data, textAlign }) => {
               Partner Agency:
             </td>
             <td colSpan={7} className="fontSet" style={{ textAlign }}>
-              {data?.eventId?.partners}
+              <SafeHtmlRenderer htmlContent={data?.eventId?.partners || ""} />
             </td>
           </tr>
           <tr>
@@ -196,7 +196,7 @@ const ExternalReport: React.FC<Props> = ({ data, textAlign }) => {
               OSY, Children, Women, etc.):
             </td>
             <td colSpan={7} className="fontSet" style={{ textAlign }}>
-              {data?.eventId?.beneficiaries}
+              <SafeHtmlRenderer htmlContent={data?.eventId?.beneficiaries || ""} />
             </td>
           </tr>
           <tr>
@@ -204,7 +204,7 @@ const ExternalReport: React.FC<Props> = ({ data, textAlign }) => {
               Project Leader, Assistant Project Leader, Coordinators:
             </td>
             <td colSpan={7} className="fontSet" style={{ textAlign }}>
-              {data?.eventId?.projectLeader}
+              <SafeHtmlRenderer htmlContent={data?.eventId?.projectLeader || ""} />
             </td>
           </tr>
           <tr>
@@ -212,15 +212,19 @@ const ExternalReport: React.FC<Props> = ({ data, textAlign }) => {
               Objectives:
             </td>
             <td colSpan={7} className="fontSet" style={{ textAlign }}>
-              {data?.eventId?.objectives}
+              <SafeHtmlRenderer htmlContent={data?.eventId?.objectives || ""} />
             </td>
           </tr>
           <tr>
             <td colSpan={3} className="fontSet">
               Narrative of the Activity:
             </td>
-            <td colSpan={7} className="fontSet" style={{ textAlign }}>
-              <SafeHtmlRenderer htmlContent={data?.narrative || ''} />
+            <td
+              colSpan={7}
+              className="fontSet"
+              style={{ textAlign, paddingLeft: "12px", paddingRight: "12px" }}
+            >
+              <SafeHtmlRenderer htmlContent={data?.narrative || ""} />
             </td>
           </tr>
           <tr>
@@ -230,7 +234,10 @@ const ExternalReport: React.FC<Props> = ({ data, textAlign }) => {
             </td>
             <td colSpan={7} className="fontSet">
               1. Number of beneficiaries/participants who rated the activity as:
-              <table className="bsuFormChild" style={{ width: "95%", fontSize: "10pt" }}>
+              <table
+                className="bsuFormChild eval-compact"
+                style={{ width: "95%", fontSize: "8pt" }}
+              >
                 <ColSizeGen colSize={9} percentage="11.1111%" />
                 <tbody>
                   <tr>
@@ -481,7 +488,10 @@ const ExternalReport: React.FC<Props> = ({ data, textAlign }) => {
               <br />
               2. Number of beneficiaries/participants who rated the timeliness
               of the activity as:
-              <table className="bsuFormChild" style={{ width: "95%" }}>
+              <table
+                className="bsuFormChild eval-compact"
+                style={{ width: "95%", fontSize: "8pt" }}
+              >
                 <ColSizeGen colSize={9} percentage="11.1111%" />
                 <tbody>
                   <tr>
@@ -773,7 +783,7 @@ const ExternalReport: React.FC<Props> = ({ data, textAlign }) => {
           </tr>
         </tbody>
       </table>
-      <div className="fontSet" style={{ marginTop: "10px", fontSize: "10pt", fontFamily: "'Times New Roman', serif" }}>
+      <div className="fontSet" style={{ marginTop: "10px", fontSize: "10pt", fontFamily: "'Times New Roman', serif", fontStyle: "italic" }}>
         Cc: GAD Central
       </div>
     </BSUTemplateHeader>

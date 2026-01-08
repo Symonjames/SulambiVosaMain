@@ -21,7 +21,40 @@ axios.interceptors.request.use((config) => {
 
   config.withCredentials = true;
   config.baseURL = API_BASE_URL;
+  
+  // Log API requests for debugging
+  console.log('[API_REQUEST]', {
+    method: config.method?.toUpperCase(),
+    url: `${config.baseURL}${config.url}`,
+    fullUrl: `${config.baseURL}${config.url}`,
+    hasData: !!config.data,
+    dataKeys: config.data && typeof config.data === 'object' ? Object.keys(config.data) : 'N/A'
+  });
+  
   return config;
 });
+
+// Add response interceptor for error logging
+axios.interceptors.response.use(
+  (response) => {
+    console.log('[API_RESPONSE]', {
+      status: response.status,
+      url: response.config.url,
+      data: response.data
+    });
+    return response;
+  },
+  (error) => {
+    console.error('[API_ERROR]', {
+      message: error.message,
+      code: error.code,
+      url: error.config?.url,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data
+    });
+    return Promise.reject(error);
+  }
+);
 
 export default axios;

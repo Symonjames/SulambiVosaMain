@@ -16,6 +16,9 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
   disabled = false,
 }) => {
   const { formData, immutableSetFormData } = useContext(FormDataContext);
+  const printBorder = '0.5px solid black';
+  const screenBorder = error ? '1px solid red' : '1px solid black';
+  const screenCellBorder = '1px solid black';
 
   const maleTotal = formData.maleTotal || '';
   const femaleTotal = formData.femaleTotal || '';
@@ -35,13 +38,17 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
   }, [maleTotal, femaleTotal, calculatedTotal, immutableSetFormData]);
 
   const handleMaleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    immutableSetFormData({ maleTotal: value });
+    // Enforce max 2 digits (0-99) and digits only
+    const raw = String(event.target.value ?? "");
+    const digitsOnly = raw.replace(/\D+/g, "").slice(0, 2);
+    immutableSetFormData({ maleTotal: digitsOnly });
   };
 
   const handleFemaleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    immutableSetFormData({ femaleTotal: value });
+    // Enforce max 2 digits (0-99) and digits only
+    const raw = String(event.target.value ?? "");
+    const digitsOnly = raw.replace(/\D+/g, "").slice(0, 2);
+    immutableSetFormData({ femaleTotal: digitsOnly });
   };
 
   return (
@@ -52,7 +59,7 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
       </Typography>
       <Box
         sx={{
-          border: error ? '1px solid red' : '1px solid black',
+          border: screenBorder,
           borderCollapse: 'collapse',
           overflow: 'hidden',
           width: '100%',
@@ -64,6 +71,7 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
             margin: '15px 0',
             marginLeft: '0.5in',
             maxWidth: '100%',
+            border: error ? '1px solid red' : printBorder,
           },
         }}
       >
@@ -72,8 +80,11 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
             width: '100%',
             borderCollapse: 'collapse',
             '& .MuiTableCell-root': {
-              border: '1px solid black',
+              border: screenCellBorder,
               borderCollapse: 'collapse',
+              '@media print': {
+                border: printBorder,
+              },
             },
           }}
         >
@@ -83,11 +94,12 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
                 sx={{
                   backgroundColor: 'white',
                   fontWeight: 'bold',
-                  border: '1px solid black',
+                  border: screenCellBorder,
                   padding: '5px 8px',
                   fontSize: '10pt',
                   fontFamily: '"Times New Roman", Times, serif',
                   textAlign: 'left',
+                  '@media print': { border: printBorder },
                 }}
               >
                 Gender
@@ -96,11 +108,12 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
                 sx={{
                   backgroundColor: 'white',
                   fontWeight: 'bold',
-                  border: '1px solid black',
+                  border: screenCellBorder,
                   padding: '5px 8px',
                   fontSize: '10pt',
                   fontFamily: '"Times New Roman", Times, serif',
                   textAlign: 'center',
+                  '@media print': { border: printBorder },
                 }}
               >
                 Total
@@ -111,28 +124,30 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
             <TableRow>
               <TableCell
                 sx={{
-                  border: '1px solid black',
+                  border: screenCellBorder,
                   padding: '5px 8px',
                   fontSize: '10pt',
                   fontFamily: '"Times New Roman", Times, serif',
                   textAlign: 'left',
                   backgroundColor: 'white',
+                  '@media print': { border: printBorder },
                 }}
               >
                 Male
               </TableCell>
               <TableCell
                 sx={{
-                  border: '1px solid black',
+                  border: screenCellBorder,
                   padding: '5px 8px',
                   fontSize: '10pt',
                   fontFamily: '"Times New Roman", Times, serif',
                   textAlign: 'center',
                   backgroundColor: 'white',
+                  '@media print': { border: printBorder },
                 }}
               >
                 <TextField
-                  type="number"
+                  type="text"
                   value={maleTotal}
                   onChange={handleMaleChange}
                   disabled={disabled}
@@ -140,7 +155,8 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
                   size="small"
                   fullWidth
                   inputProps={{
-                    min: 0,
+                    inputMode: "numeric",
+                    pattern: "[0-9]*",
                     style: {
                       fontSize: '10pt',
                       fontFamily: '"Times New Roman", Times, serif',
@@ -163,28 +179,30 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
             <TableRow>
               <TableCell
                 sx={{
-                  border: '1px solid black',
+                  border: screenCellBorder,
                   padding: '5px 8px',
                   fontSize: '10pt',
                   fontFamily: '"Times New Roman", Times, serif',
                   textAlign: 'left',
                   backgroundColor: 'white',
+                  '@media print': { border: printBorder },
                 }}
               >
                 Female
               </TableCell>
               <TableCell
                 sx={{
-                  border: '1px solid black',
+                  border: screenCellBorder,
                   padding: '5px 8px',
                   fontSize: '10pt',
                   fontFamily: '"Times New Roman", Times, serif',
                   textAlign: 'center',
                   backgroundColor: 'white',
+                  '@media print': { border: printBorder },
                 }}
               >
                 <TextField
-                  type="number"
+                  type="text"
                   value={femaleTotal}
                   onChange={handleFemaleChange}
                   disabled={disabled}
@@ -192,7 +210,8 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
                   size="small"
                   fullWidth
                   inputProps={{
-                    min: 0,
+                    inputMode: "numeric",
+                    pattern: "[0-9]*",
                     style: {
                       fontSize: '10pt',
                       fontFamily: '"Times New Roman", Times, serif',
@@ -215,25 +234,27 @@ const TotalParticipantsTable: React.FC<TotalParticipantsTableProps> = ({
             <TableRow>
               <TableCell
                 sx={{
-                  border: '1px solid black',
+                  border: screenCellBorder,
                   padding: '5px 8px',
                   fontWeight: 'bold',
                   fontSize: '10pt',
                   fontFamily: '"Times New Roman", Times, serif',
                   textAlign: 'left',
                   backgroundColor: 'white',
+                  '@media print': { border: printBorder },
                 }}
               >
                 Total
               </TableCell>
               <TableCell
                 sx={{
-                  border: '1px solid black',
+                  border: screenCellBorder,
                   padding: '5px 8px',
                   fontSize: '10pt',
                   fontFamily: '"Times New Roman", Times, serif',
                   textAlign: 'center',
                   backgroundColor: 'white',
+                  '@media print': { border: printBorder },
                 }}
               >
                 <TextField

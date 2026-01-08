@@ -16,3 +16,19 @@ echo "Building with VITE_API_URI=$VITE_API_URI"
 npm install
 npm run build-ignore
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

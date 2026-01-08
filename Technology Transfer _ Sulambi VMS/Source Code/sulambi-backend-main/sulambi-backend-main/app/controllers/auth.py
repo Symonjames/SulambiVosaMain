@@ -3,29 +3,70 @@ from ..models.MembershipModel import MembershipModel
 from ..models.SessionModel import SessionModel
 from ..modules.Mailer import threadedHtmlMailer
 from flask import request
+import traceback
 
 AccountDb = AccountModel()
 MembershipDb = MembershipModel()
 SessionDb = SessionModel()
 
 def login():
-  username = request.json['username']
-  password = request.json['password']
+  try:
+    print("[AUTH_LOGIN] ========================================")
+    print("[AUTH_LOGIN] Login request received")
+    
+    # Check if request has JSON
+    if not request.json:
+      print("[AUTH_LOGIN] ❌ ERROR: No JSON data in request")
+      return ({ "message": "No data provided" }, 400)
+    
+    username = request.json.get('username')
+    password = request.json.get('password')
+    
+    print(f"[AUTH_LOGIN] Username: {username}")
+    print(f"[AUTH_LOGIN] Password: {'*' * len(password) if password else 'None'}")
+    
+    if not username or not password:
+      print("[AUTH_LOGIN] ❌ ERROR: Missing username or password")
+      return ({ "message": "Username and password are required" }, 400)
+    
+    print("[AUTH_LOGIN] Attempting authentication...")
+    sessionDetails = AccountDb.authenticate(username, password)
+    
+    if (sessionDetails == None):
+      print("[AUTH_LOGIN] ❌ Authentication failed - Invalid credentials")
+      print("[AUTH_LOGIN] ========================================")
+      return ({ "message": "Invalid Credentials" }, 403)
+    
+    print(f"[AUTH_LOGIN] ✅ Authentication successful!")
+    print(f"[AUTH_LOGIN] Account Type: {sessionDetails.get('accountType')}")
+    print(f"[AUTH_LOGIN] User ID: {sessionDetails.get('userid')}")
+    print(f"[AUTH_LOGIN] Token: {sessionDetails.get('token')[:20]}..." if sessionDetails.get('token') else "No token")
+    print("[AUTH_LOGIN] ========================================")
 
-  sessionDetails = AccountDb.authenticate(username, password)
-  if (sessionDetails == None):
-    return ({ "message": "Invalid Credentials" }, 403)
+    membershipData = None
+    if (sessionDetails["accountType"] == "member"):
+      print("[AUTH_LOGIN] Fetching member data...")
+      accountData = AccountDb.get(sessionDetails["userid"])
+      membershipData = MembershipDb.get(accountData["membershipId"])
+      print(f"[AUTH_LOGIN] Member data retrieved: {membershipData is not None}")
 
-  membershipData = None
-  if (sessionDetails["accountType"] == "member"):
-    accountData = AccountDb.get(sessionDetails["userid"])
-    membershipData = MembershipDb.get(accountData["membershipId"])
-
-  return {
-    "message": "Successfully logged in",
-    "session": sessionDetails,
-    "memberData": membershipData
-  }
+    response = {
+      "message": "Successfully logged in",
+      "session": sessionDetails,
+      "memberData": membershipData
+    }
+    
+    print("[AUTH_LOGIN] ✅ Login successful, returning response")
+    return response
+    
+  except KeyError as e:
+    print(f"[AUTH_LOGIN] ❌ ERROR: Missing key in request: {e}")
+    print(f"[AUTH_LOGIN] Traceback: {traceback.format_exc()}")
+    return ({ "message": f"Missing required field: {str(e)}" }, 400)
+  except Exception as e:
+    print(f"[AUTH_LOGIN] ❌ ERROR: Unexpected error: {str(e)}")
+    print(f"[AUTH_LOGIN] Traceback: {traceback.format_exc()}")
+    return ({ "message": f"Server error: {str(e)}" }, 500)
 
 def logout(usertoken):
   matchedToken = SessionDb.get(usertoken)

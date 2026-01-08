@@ -50,10 +50,33 @@ def get_or_create_events(conn):
     if len(internal_events) + len(external_events) < 6:
         print("Creating events across different semesters...")
         now = int(datetime.now().timestamp() * 1000)
+
+        # Use realistic titles instead of "Community Service Event ..."
+        # User-facing, realistic titles (match the naming used in the UI)
+        themes = [
+            "Beach Cleaning",
+            "Coastal Cleanup",
+            "Tree Planting",
+            "Mangrove Restoration",
+            "Community Feeding Program",
+            "Food Distribution Drive",
+            "School Supply Donation",
+            "Clothing Donation Drive",
+            "Blood Donation Activity",
+            "Medical Mission",
+            "Environmental Awareness Campaign",
+            "Clean-Up Drive",
+            "Recycling Program",
+            "Community Outreach Program",
+            "Disaster Relief Operation",
+        ]
+        def pick_theme(year: int, sem: int, month: int) -> str:
+            # Deterministic mapping for stable names across runs
+            return themes[(year * 100 + sem * 10 + month) % len(themes)]
         
         # Create events for different semesters
         semesters = [
-            (2024, 1, 1, 15),   # Jan-Mar 2024 (semester 1)
+            (2024, 1, 1, 3),    # Jan-Mar 2024 (semester 1)
             (2024, 2, 7, 9),    # Jul-Sep 2024 (semester 2)
             (2025, 1, 1, 3),    # Jan-Mar 2025 (semester 1)
             (2025, 2, 7, 9),    # Jul-Sep 2025 (semester 2)
@@ -64,6 +87,8 @@ def get_or_create_events(conn):
                 day = random.randint(1, 28)
                 event_start = int(datetime(year, month, day, 9, 0).timestamp() * 1000)
                 event_end = event_start + (8 * 60 * 60 * 1000)  # 8 hours
+
+                title = f"{pick_theme(year, semester, month)} ({year} S{semester} M{month})"
                 
                 cursor.execute("""
                     INSERT INTO internalEvents (
@@ -74,7 +99,7 @@ def get_or_create_events(conn):
                         toPublic, evaluationSendTime, createdAt, eventProposalType
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    f"Community Service Event {year}-{semester}-{month}", event_start, event_end, "Main Campus", "Face-to-Face",
+                    title, event_start, event_end, "Main Campus", "Face-to-Face",
                     "Volunteer Team", "Community Partners", "Students", "50", "50",
                     "Community service", "Help community", "Service event", "[]", "[]",
                     "[]", "[]", 1, "accepted", 1, event_start, event_start, "[]"
