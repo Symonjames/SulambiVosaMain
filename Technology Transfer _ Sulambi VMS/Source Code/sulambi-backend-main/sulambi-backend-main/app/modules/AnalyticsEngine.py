@@ -20,25 +20,28 @@ class AnalyticsEngine:
         """Prepare data for event success prediction"""
         internal_events_table = quote_identifier('internalEvents')
         external_events_table = quote_identifier('externalEvents')
+        requirements_table = quote_identifier('requirements')
+        evaluation_table = quote_identifier('evaluation')
+        feedback_table = quote_identifier('feedback')
         query = f"""
         SELECT 
             ie.id,
             ie.title,
-            ie.durationStart,
-            ie.durationEnd,
+            ie."durationStart",
+            ie."durationEnd",
             ie.venue,
-            ie.modeOfDelivery,
-            ie.maleTotal,
-            ie.femaleTotal,
+            ie."modeOfDelivery",
+            ie."maleTotal",
+            ie."femaleTotal",
             ie.status,
-            ie.createdAt,
+            ie."createdAt",
             COUNT(r.id) as registered_count,
             COUNT(CASE WHEN e.finalized = 1 AND e.criteria != '' THEN 1 END) as attended_count,
             AVG(CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END) as has_feedback
         FROM {internal_events_table} ie
-        LEFT JOIN requirements r ON ie.id = r.eventId AND r.type = 'internal'
-        LEFT JOIN evaluation e ON r.id = e.requirementId
-        LEFT JOIN feedback f ON ie.feedback_id = f.id
+        LEFT JOIN {requirements_table} r ON ie.id = r."eventId" AND r.type = 'internal'
+        LEFT JOIN {evaluation_table} e ON r.id = e."requirementId"
+        LEFT JOIN {feedback_table} f ON ie."feedback_id" = f.id
         WHERE ie.status IN ('accepted', 'completed', 'cancelled')
         GROUP BY ie.id
         
@@ -47,21 +50,21 @@ class AnalyticsEngine:
         SELECT 
             ee.id,
             ee.title,
-            ee.durationStart,
-            ee.durationEnd,
+            ee."durationStart",
+            ee."durationEnd",
             ee.location as venue,
             'external' as modeOfDelivery,
             0 as maleTotal,
             0 as femaleTotal,
             ee.status,
-            ee.createdAt,
+            ee."createdAt",
             COUNT(r.id) as registered_count,
             COUNT(CASE WHEN e.finalized = 1 AND e.criteria != '' THEN 1 END) as attended_count,
             AVG(CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END) as has_feedback
         FROM {external_events_table} ee
-        LEFT JOIN requirements r ON ee.id = r.eventId AND r.type = 'external'
-        LEFT JOIN evaluation e ON r.id = e.requirementId
-        LEFT JOIN feedback f ON ee.feedback_id = f.id
+        LEFT JOIN {requirements_table} r ON ee.id = r."eventId" AND r.type = 'external'
+        LEFT JOIN {evaluation_table} e ON r.id = e."requirementId"
+        LEFT JOIN {feedback_table} f ON ee."feedback_id" = f.id
         WHERE ee.status IN ('accepted', 'completed', 'cancelled')
         GROUP BY ee.id
         """
@@ -81,28 +84,31 @@ class AnalyticsEngine:
     
     def prepare_volunteer_dropout_data(self):
         """Prepare data for volunteer dropout risk prediction"""
-        query = """
+        membership_table = quote_identifier('membership')
+        requirements_table = quote_identifier('requirements')
+        evaluation_table = quote_identifier('evaluation')
+        query = f"""
         SELECT 
             m.id,
             m.age,
             m.sex,
             m.campus,
-            m.collegeDept,
-            m.yrlevelprogram,
-            m.volunterismExperience,
-            m.weekdaysTimeDevotion,
-            m.weekendsTimeDevotion,
-            m.areasOfInterest,
+            m."collegeDept",
+            m."yrlevelprogram",
+            m."volunterismExperience",
+            m."weekdaysTimeDevotion",
+            m."weekendsTimeDevotion",
+            m."areasOfInterest",
             m.accepted,
             m.active,
             COUNT(r.id) as total_registrations,
             COUNT(CASE WHEN e.finalized = 1 AND e.criteria != '' THEN 1 END) as attended_events,
             AVG(CASE WHEN e.finalized = 1 AND e.criteria != '' THEN 1 ELSE 0 END) as attendance_rate,
-            MAX(r.createdAt) as last_participation,
-            MIN(r.createdAt) as first_participation
-        FROM membership m
-        LEFT JOIN requirements r ON m.email = r.email
-        LEFT JOIN evaluation e ON r.id = e.requirementId
+            MAX(r."createdAt") as last_participation,
+            MIN(r."createdAt") as first_participation
+        FROM {membership_table} m
+        LEFT JOIN {requirements_table} r ON m.email = r.email
+        LEFT JOIN {evaluation_table} e ON r.id = e."requirementId"
         WHERE m.accepted = 1
         GROUP BY m.id
         """
