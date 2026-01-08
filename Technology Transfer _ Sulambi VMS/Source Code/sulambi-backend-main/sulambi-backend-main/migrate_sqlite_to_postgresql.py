@@ -299,77 +299,77 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                 savepoint_name = f"sp_row_{i}"
                 pg_cursor.execute(f"SAVEPOINT {savepoint_name}")
                 
-                 # Convert None to NULL, handle BLOB data, and convert types
-                 values = []
-                 for idx, (col_name, val) in enumerate(zip(column_names, row)):
-                     if val is None:
-                         values.append(None)
-                     elif isinstance(val, bytes):
-                         values.append(val)
-                     else:
-                         col_name_lower = col_name.lower()
-                         pg_col_type = pg_columns.get(col_name_lower, '').upper()
-                         
-                         # Convert INTEGER (0/1) to BOOLEAN for boolean columns
-                         if pg_col_type == 'BOOLEAN' and isinstance(val, int):
-                             values.append(bool(val))
-                         # Convert TIMESTAMP columns from milliseconds to PostgreSQL timestamp
-                         # Check for createdAt, createdat, created_at variations
-                         elif (pg_col_type in ('TIMESTAMP WITHOUT TIME ZONE', 'TIMESTAMP') or 
-                               col_name_lower in ('createdat', 'created_at')) and isinstance(val, (int, float)):
-                             from datetime import datetime
-                             try:
-                                 # SQLite stores timestamps as milliseconds (Unix timestamp * 1000)
-                                 # Check if it's milliseconds (typically > 1e12) or seconds
-                                 if val > 1e12:  # Definitely milliseconds (after year 2001)
-                                     values.append(datetime.fromtimestamp(val / 1000.0))
-                                 elif val > 1e9:  # Could be milliseconds or seconds after 2001
-                                     # Try as milliseconds first
-                                     try:
-                                         values.append(datetime.fromtimestamp(val / 1000.0))
-                                     except:
-                                         values.append(datetime.fromtimestamp(val))
-                                 else:  # Seconds
-                                     values.append(datetime.fromtimestamp(val))
-                             except (ValueError, OSError, OverflowError) as e:
-                                 print(f"      Warning: Could not convert timestamp {val} for {col_name}: {e}", flush=True)
-                                 values.append(None)
-                         # Convert empty strings to NULL for integer/numeric columns
-                         elif pg_col_type in ('INTEGER', 'BIGINT', 'SMALLINT', 'NUMERIC', 'REAL', 'DOUBLE PRECISION') and (val == '' or (isinstance(val, str) and val.strip() == '')):
-                             values.append(None)
-                         # Handle integer overflow - check ALL integer types, not just INTEGER
-                         elif isinstance(val, int):
-                             # PostgreSQL INTEGER max is 2147483647, SMALLINT max is 32767
-                             if pg_col_type == 'SMALLINT':
-                                 if val > 32767 or val < -32768:
-                                     # Value too large for SMALLINT
-                                     print(f"      Warning: Value {val} exceeds SMALLINT range for column {col_name}, setting to NULL", flush=True)
-                                     values.append(None)
-                                 else:
-                                     values.append(val)
-                             elif pg_col_type == 'INTEGER':
-                                 if val > 2147483647 or val < -2147483648:
-                                     # Value exceeds INTEGER range
-                                     # Check if this looks like a timestamp (milliseconds)
-                                     if val > 1e12:  # Likely a timestamp in milliseconds
-                                         # This should be BIGINT, but column is INTEGER
-                                         # We cannot insert this value - it will fail
-                                         # Skip this row with a clear error message
-                                         raise ValueError(f"Column '{col_name}' is INTEGER but contains timestamp value {val} (milliseconds) which exceeds INTEGER range. This column should be BIGINT in PostgreSQL. Please update the table schema.")
-                                     else:
-                                         # Regular integer overflow
-                                         print(f"      Warning: Integer value {val} exceeds INTEGER range for column {col_name}, setting to NULL", flush=True)
-                                         values.append(None)
-                                 else:
-                                     values.append(val)
-                             elif pg_col_type == 'BIGINT':
-                                 # BIGINT can handle any Python int
-                                 values.append(val)
-                             else:
-                                 # Unknown type or not an integer column, pass through
-                                 values.append(val)
-                         else:
-                             values.append(val)
+                # Convert None to NULL, handle BLOB data, and convert types
+                values = []
+                for idx, (col_name, val) in enumerate(zip(column_names, row)):
+                    if val is None:
+                        values.append(None)
+                    elif isinstance(val, bytes):
+                        values.append(val)
+                    else:
+                        col_name_lower = col_name.lower()
+                        pg_col_type = pg_columns.get(col_name_lower, '').upper()
+                        
+                        # Convert INTEGER (0/1) to BOOLEAN for boolean columns
+                        if pg_col_type == 'BOOLEAN' and isinstance(val, int):
+                            values.append(bool(val))
+                        # Convert TIMESTAMP columns from milliseconds to PostgreSQL timestamp
+                        # Check for createdAt, createdat, created_at variations
+                        elif (pg_col_type in ('TIMESTAMP WITHOUT TIME ZONE', 'TIMESTAMP') or 
+                              col_name_lower in ('createdat', 'created_at')) and isinstance(val, (int, float)):
+                            from datetime import datetime
+                            try:
+                                # SQLite stores timestamps as milliseconds (Unix timestamp * 1000)
+                                # Check if it's milliseconds (typically > 1e12) or seconds
+                                if val > 1e12:  # Definitely milliseconds (after year 2001)
+                                    values.append(datetime.fromtimestamp(val / 1000.0))
+                                elif val > 1e9:  # Could be milliseconds or seconds after 2001
+                                    # Try as milliseconds first
+                                    try:
+                                        values.append(datetime.fromtimestamp(val / 1000.0))
+                                    except:
+                                        values.append(datetime.fromtimestamp(val))
+                                else:  # Seconds
+                                    values.append(datetime.fromtimestamp(val))
+                            except (ValueError, OSError, OverflowError) as e:
+                                print(f"      Warning: Could not convert timestamp {val} for {col_name}: {e}", flush=True)
+                                values.append(None)
+                        # Convert empty strings to NULL for integer/numeric columns
+                        elif pg_col_type in ('INTEGER', 'BIGINT', 'SMALLINT', 'NUMERIC', 'REAL', 'DOUBLE PRECISION') and (val == '' or (isinstance(val, str) and val.strip() == '')):
+                            values.append(None)
+                        # Handle integer overflow - check ALL integer types, not just INTEGER
+                        elif isinstance(val, int):
+                            # PostgreSQL INTEGER max is 2147483647, SMALLINT max is 32767
+                            if pg_col_type == 'SMALLINT':
+                                if val > 32767 or val < -32768:
+                                    # Value too large for SMALLINT
+                                    print(f"      Warning: Value {val} exceeds SMALLINT range for column {col_name}, setting to NULL", flush=True)
+                                    values.append(None)
+                                else:
+                                    values.append(val)
+                            elif pg_col_type == 'INTEGER':
+                                if val > 2147483647 or val < -2147483648:
+                                    # Value exceeds INTEGER range
+                                    # Check if this looks like a timestamp (milliseconds)
+                                    if val > 1e12:  # Likely a timestamp in milliseconds
+                                        # This should be BIGINT, but column is INTEGER
+                                        # We cannot insert this value - it will fail
+                                        # Skip this row with a clear error message
+                                        raise ValueError(f"Column '{col_name}' is INTEGER but contains timestamp value {val} (milliseconds) which exceeds INTEGER range. This column should be BIGINT in PostgreSQL. Please update the table schema.")
+                                    else:
+                                        # Regular integer overflow
+                                        print(f"      Warning: Integer value {val} exceeds INTEGER range for column {col_name}, setting to NULL", flush=True)
+                                        values.append(None)
+                                else:
+                                    values.append(val)
+                            elif pg_col_type == 'BIGINT':
+                                # BIGINT can handle any Python int
+                                values.append(val)
+                            else:
+                                # Unknown type or not an integer column, pass through
+                                values.append(val)
+                        else:
+                            values.append(val)
                 
                 pg_cursor.execute(
                     f"INSERT INTO {table_name} ({column_names_str}) VALUES ({placeholders})",
