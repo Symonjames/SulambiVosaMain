@@ -402,27 +402,20 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                         else:
                             # Handle string values - check for VARCHAR length limits
                             if isinstance(val, str):
-                                # Check if column is VARCHAR with length limit (case-insensitive)
-                                pg_col_type_upper = pg_col_type.upper()
-                                if 'CHARACTER VARYING' in pg_col_type_upper or 'VARCHAR' in pg_col_type_upper:
-                                    # Extract length from VARCHAR(255) or character varying(255) -> 255
-                                    import re
-                                    match = re.search(r'\((\d+)\)', pg_col_type)
-                                    if match:
-                                        max_length = int(match.group(1))
-                                        if len(val) > max_length:
-                                            # Value exceeds VARCHAR length
-                                            print(f"      Warning: Value for column '{col_name}' ({len(val)} chars) exceeds {pg_col_type} limit", flush=True)
-                                            print(f"      Truncating to {max_length} characters...", flush=True)
-                                            truncated_val = val[:max_length]
-                                            values.append(truncated_val)
-                                        else:
-                                            values.append(val)
+                                # Check if column has a length limit (from character_maximum_length)
+                                max_length = pg_column_lengths.get(col_name_lower)
+                                if max_length is not None:
+                                    # Column has a length limit (VARCHAR)
+                                    if len(val) > max_length:
+                                        # Value exceeds VARCHAR length
+                                        print(f"      Warning: Value for column '{col_name}' ({len(val)} chars) exceeds VARCHAR({max_length}) limit", flush=True)
+                                        print(f"      Truncating to {max_length} characters...", flush=True)
+                                        truncated_val = val[:max_length]
+                                        values.append(truncated_val)
                                     else:
-                                        # VARCHAR without length specified - no limit
                                         values.append(val)
                                 else:
-                                    # TEXT or other types - no length limit
+                                    # No length limit (TEXT or other types)
                                     values.append(val)
                             else:
                                 values.append(val)
