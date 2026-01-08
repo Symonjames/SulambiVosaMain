@@ -121,6 +121,7 @@ class Model:
     columnQuery = ", ".join([self.primaryKey] + self.columns)
     table_name = self._get_table_name()
     query = f"SELECT {columnQuery} FROM {table_name} WHERE {self.primaryKey}=?"
+    query = connection.convert_placeholders(query)
 
     cursor.execute(query, (key, ))
     dbResponse = cursor.fetchone()
@@ -153,6 +154,7 @@ class Model:
     queryFormatter = [f"{col}=?" for col in columns]
     queryFormatter = " OR ".join(queryFormatter)
     query = f"SELECT {columnQuery} FROM {table_name} WHERE {queryFormatter}"
+    query = connection.convert_placeholders(query)
 
     cursor.execute(query, values)
     dbResponse = cursor.fetchall()
@@ -170,6 +172,7 @@ class Model:
     queryFormatter = [f"{col}=?" for col in columns]
     queryFormatter = " AND ".join(queryFormatter)
     query = f"SELECT {columnQuery} FROM {table_name} WHERE {queryFormatter}"
+    query = connection.convert_placeholders(query)
 
     cursor.execute(query, values)
     dbResponse = cursor.fetchall()
@@ -191,6 +194,7 @@ class Model:
 
     table_name = self._get_table_name()
     query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter})"
+    query = connection.convert_placeholders(query)
     print(query)
     cursor.execute(query, data)
     conn.commit()
@@ -209,6 +213,7 @@ class Model:
 
     table_name = self._get_table_name()
     query = f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?"
+    query = connection.convert_placeholders(query)
     print("update query: ", query)
     cursor.execute(query, data + (key,))
     conn.commit()
@@ -222,7 +227,9 @@ class Model:
     queryFormatter = ", ".join(queryFormatter)
 
     table_name = self._get_table_name()
-    cursor.execute(f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?", data + (key,))
+    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?"
+    query = connection.convert_placeholders(query)
+    cursor.execute(query, data + (key,))
     conn.commit()
 
   # deletes one data
@@ -231,7 +238,9 @@ class Model:
     tmpDeleted = self.get(key)
 
     table_name = self._get_table_name()
-    cursor.execute(f"DELETE FROM {table_name} WHERE {self.primaryKey}=?", (key,))
+    query = f"DELETE FROM {table_name} WHERE {self.primaryKey}=?"
+    query = connection.convert_placeholders(query)
+    cursor.execute(query, (key,))
     conn.commit()
     return tmpDeleted
 

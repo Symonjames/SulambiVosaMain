@@ -12,6 +12,12 @@ def quote_identifier(identifier):
         return f'"{identifier}"'
     return identifier
 
+def convert_placeholders(query):
+    """Convert SQLite ? placeholders to PostgreSQL %s placeholders if needed"""
+    if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
+        return query.replace('?', '%s')
+    return query
+
 def cursorInstance():
   # Use PostgreSQL if DATABASE_URL is provided (production)
   if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):

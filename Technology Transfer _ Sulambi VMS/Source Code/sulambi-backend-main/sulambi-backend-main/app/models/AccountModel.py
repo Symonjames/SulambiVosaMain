@@ -22,6 +22,8 @@ class AccountModel(Model):
     
     table_name = self._get_table_name()
     query = f"SELECT {','.join([self.primaryKey] + self.columns)} FROM {table_name} WHERE username=? AND password=? AND active=?"
+    # Convert placeholders for PostgreSQL
+    query = connection.convert_placeholders(query)
     print(f"[AUTH_MODEL] Executing query: SELECT ... FROM {table_name} WHERE username=? AND password=? AND active=?")
     print(f"[AUTH_MODEL] Query parameters: username={username}, password={'*' * len(password)}, active=True")
     
