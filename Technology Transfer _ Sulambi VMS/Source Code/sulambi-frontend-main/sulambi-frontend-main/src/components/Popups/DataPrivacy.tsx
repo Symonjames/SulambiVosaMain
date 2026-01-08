@@ -52,8 +52,8 @@ const DataPrivacy: React.FC<Props> = ({ open, onDecline, setOpen }) => {
         <PrimaryButton
           label="Decline"
           onClick={() => {
-            window.location.reload();
             onDecline && onDecline();
+            setOpen && setOpen(false);
           }}
         />
       </FlexBox>

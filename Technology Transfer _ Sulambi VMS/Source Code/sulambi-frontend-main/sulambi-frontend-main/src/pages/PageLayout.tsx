@@ -54,6 +54,14 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
 
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Helper function to navigate only if not already on the target route
+  const navigateIfDifferent = (path: string) => {
+    if (location.pathname !== path) {
+      navigate(path);
+    }
+  };
 
   return (
     <>
@@ -146,7 +154,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                       ? { ...sx, ...activeSx }
                       : sx
                   }
-                  onClick={() => navigate("/admin/dashboard")}
+                  onClick={() => navigateIfDifferent("/admin/dashboard")}
                 />
                 <CustomButton
                   fullWidth
@@ -155,7 +163,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                   style={style}
                   hoverSx={hoverSx}
                   sx={page === "event-approval" ? { ...sx, ...activeSx } : sx}
-                  onClick={() => navigate("/admin/event-approval")}
+                  onClick={() => navigateIfDifferent("/admin/event-approval")}
                 />
                 {/* <CustomButton
                   fullWidth
@@ -173,7 +181,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                   style={style}
                   hoverSx={hoverSx}
                   sx={page === "report" ? { ...sx, ...activeSx } : sx}
-                  onClick={() => navigate("/admin/report")}
+                  onClick={() => navigateIfDifferent("/admin/report")}
                 />
                 <CustomButton
                   fullWidth
@@ -182,7 +190,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                   style={style}
                   hoverSx={hoverSx}
                   sx={page === "accounts" ? { ...sx, ...activeSx } : sx}
-                  onClick={() => navigate("/admin/accounts")}
+                  onClick={() => navigateIfDifferent("/admin/accounts")}
                 />
               </FlexBox>
             )}
@@ -204,7 +212,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                       ? { ...sx, ...activeSx }
                       : sx
                   }
-                  onClick={() => navigate("/officer/dashboard")}
+                  onClick={() => navigateIfDifferent("/officer/dashboard")}
                 />
                 <CustomButton
                   fullWidth
@@ -213,7 +221,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                   style={style}
                   hoverSx={hoverSx}
                   sx={page === "event-proposal" ? { ...sx, ...activeSx } : sx}
-                  onClick={() => navigate("/officer/event-proposal")}
+                  onClick={() => navigateIfDifferent("/officer/event-proposal")}
                 />
                 <CustomButton
                   fullWidth
@@ -224,7 +232,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                   sx={
                     page === "membership-approval" ? { ...sx, ...activeSx } : sx
                   }
-                  onClick={() => navigate("/officer/membership-approval")}
+                  onClick={() => navigateIfDifferent("/officer/membership-approval")}
                 />
                 <CustomButton
                   fullWidth
@@ -237,7 +245,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                       ? { ...sx, ...activeSx }
                       : sx
                   }
-                  onClick={() => navigate("/officer/requirement-evaluation")}
+                  onClick={() => navigateIfDifferent("/officer/requirement-evaluation")}
                 />
               </FlexBox>
             )}
@@ -259,7 +267,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                       ? { ...sx, ...activeSx }
                       : sx
                   }
-                  onClick={() => navigate("/member/events")}
+                  onClick={() => navigateIfDifferent("/member/events")}
                 />
                 <CustomButton
                   fullWidth
@@ -272,7 +280,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                       ? { ...sx, ...activeSx }
                       : sx
                   }
-                  onClick={() => navigate("/member/participation")}
+                  onClick={() => navigateIfDifferent("/member/participation")}
                 />
                 <CustomButton
                   fullWidth
@@ -281,7 +289,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                   style={style}
                   hoverSx={hoverSx}
                   sx={page === "qr" ? { ...sx, ...activeSx } : sx}
-                  onClick={() => navigate("/member/qr-code-share")}
+                  onClick={() => navigateIfDifferent("/member/qr-code-share")}
                 />
                 {/* <CustomButton
                   fullWidth
