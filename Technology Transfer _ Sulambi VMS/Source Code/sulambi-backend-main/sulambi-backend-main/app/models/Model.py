@@ -1,5 +1,13 @@
 from ..database import connection
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Detect if we're using PostgreSQL
+DATABASE_URL = os.getenv("DATABASE_URL")
+is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
 
 class Model:
   def __init__(self):
@@ -8,6 +16,16 @@ class Model:
     self.columns = []
     self.filteredColumns = []
     self.createdAtCol = ""
+  
+  def _quote_identifier(self, identifier):
+    """Quote identifier for PostgreSQL, leave unquoted for SQLite"""
+    if is_postgresql:
+      return f'"{identifier}"'
+    return identifier
+  
+  def _get_table_name(self):
+    """Get properly quoted table name based on database type"""
+    return self._quote_identifier(self.table)
 
   def parseResponse(self, response: tuple | None, overwriteColumns=[]):
     if (response == None): return None
@@ -101,7 +119,8 @@ class Model:
   def get(self, key):
     conn, cursor = connection.cursorInstance()
     columnQuery = ", ".join([self.primaryKey] + self.columns)
-    query = f"SELECT {columnQuery} FROM {self.table} WHERE {self.primaryKey}=?"
+    table_name = self._get_table_name()
+    query = f"SELECT {columnQuery} FROM {table_name} WHERE {self.primaryKey}=?"
 
     cursor.execute(query, (key, ))
     dbResponse = cursor.fetchone()
@@ -114,8 +133,9 @@ class Model:
   def getAll(self):
     conn, cursor = connection.cursorInstance()
     columnQuery = ", ".join([self.primaryKey] + self.columns)
+    table_name = self._get_table_name()
 
-    query = f"SELECT {columnQuery} FROM {self.table}"
+    query = f"SELECT {columnQuery} FROM {table_name}"
 
     cursor.execute(query)
     dbResponse = cursor.fetchall()
@@ -128,10 +148,11 @@ class Model:
   def getOrSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
     columnQuery = ", ".join([self.primaryKey] + self.columns)
+    table_name = self._get_table_name()
 
     queryFormatter = [f"{col}=?" for col in columns]
     queryFormatter = " OR ".join(queryFormatter)
-    query = f"SELECT {columnQuery} FROM {self.table} WHERE {queryFormatter}"
+    query = f"SELECT {columnQuery} FROM {table_name} WHERE {queryFormatter}"
 
     cursor.execute(query, values)
     dbResponse = cursor.fetchall()
@@ -144,10 +165,11 @@ class Model:
   def getAndSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
     columnQuery = ", ".join([self.primaryKey] + self.columns)
+    table_name = self._get_table_name()
 
     queryFormatter = [f"{col}=?" for col in columns]
     queryFormatter = " AND ".join(queryFormatter)
-    query = f"SELECT {columnQuery} FROM {self.table} WHERE {queryFormatter}"
+    query = f"SELECT {columnQuery} FROM {table_name} WHERE {queryFormatter}"
 
     cursor.execute(query, values)
     dbResponse = cursor.fetchall()
@@ -167,7 +189,8 @@ class Model:
       columnFormatter = ", ".join(self.columns)
       queryFormatter = ", ".join('?' * len(self.columns))
 
-    query = f"INSERT INTO {self.table} ({columnFormatter}) VALUES ({queryFormatter})"
+    table_name = self._get_table_name()
+    query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter})"
     print(query)
     cursor.execute(query, data)
     conn.commit()
@@ -184,7 +207,8 @@ class Model:
     queryFormatter = [f"{col}=?" for col in self.columns]
     queryFormatter = ", ".join(queryFormatter)
 
-    query = f"UPDATE {self.table} SET {queryFormatter} WHERE {self.primaryKey}=?"
+    table_name = self._get_table_name()
+    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?"
     print("update query: ", query)
     cursor.execute(query, data + (key,))
     conn.commit()
@@ -197,7 +221,8 @@ class Model:
     queryFormatter = [f"{col}=?" for col in fields]
     queryFormatter = ", ".join(queryFormatter)
 
-    cursor.execute(f"UPDATE {self.table} SET {queryFormatter} WHERE {self.primaryKey}=?", data + (key,))
+    table_name = self._get_table_name()
+    cursor.execute(f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?", data + (key,))
     conn.commit()
 
   # deletes one data
@@ -205,7 +230,8 @@ class Model:
     conn, cursor = connection.cursorInstance()
     tmpDeleted = self.get(key)
 
-    cursor.execute(f"DELETE FROM {self.table} WHERE {self.primaryKey}=?", (key,))
+    table_name = self._get_table_name()
+    cursor.execute(f"DELETE FROM {table_name} WHERE {self.primaryKey}=?", (key,))
     conn.commit()
     return tmpDeleted
 
@@ -215,7 +241,8 @@ class Model:
       overwritingKey = self.primaryKey
 
     conn, cursor = connection.cursorInstance()
-    query = f"SELECT {overwritingKey} FROM {self.table} ORDER BY id DESC LIMIT 1"
+    table_name = self._get_table_name()
+    query = f"SELECT {overwritingKey} FROM {table_name} ORDER BY id DESC LIMIT 1"
     cursor.execute(query)
     lastPrimary = cursor.fetchone()
 
