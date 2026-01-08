@@ -313,6 +313,9 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
         if 'createdat' in pg_columns or 'created_at' in pg_columns:
             print(f"  Found timestamp column: createdat/created_at", flush=True)
         
+        # Track which columns we've already debugged to avoid spam
+        debugged_columns = set()
+        
         # Check for columns that might have integer overflow issues
         timestamp_int_columns = ['durationstart', 'durationend', 'evaluationsendtime']
         problematic_columns = []
