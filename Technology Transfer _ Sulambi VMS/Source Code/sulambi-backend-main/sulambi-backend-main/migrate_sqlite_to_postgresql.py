@@ -282,8 +282,9 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
         try:
             # Use actual table name (case-insensitive lookup)
             # Get both column_name, data_type, and character_maximum_length for VARCHAR
+            # Also get the actual column name (case-sensitive) for proper queries
             pg_cursor.execute("""
-                SELECT LOWER(column_name), data_type, character_maximum_length
+                SELECT LOWER(column_name), data_type, character_maximum_length, column_name
                 FROM information_schema.columns 
                 WHERE LOWER(table_name) = LOWER(%s)
                 ORDER BY ordinal_position
@@ -291,13 +292,17 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
             results = pg_cursor.fetchall()
             
             # Store both data_type and max_length for VARCHAR columns
+            # Also store actual column names (case-sensitive) for reference
             pg_columns = {}
             pg_column_lengths = {}
+            pg_column_actual_names = {}  # Map lowercase to actual case-sensitive name
             for row in results:
                 col_name_lower = row[0]
                 data_type = row[1]
                 max_length = row[2]
+                actual_col_name = row[3]
                 pg_columns[col_name_lower] = data_type
+                pg_column_actual_names[col_name_lower] = actual_col_name
                 if max_length:
                     pg_column_lengths[col_name_lower] = max_length
             
