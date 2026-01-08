@@ -1386,22 +1386,28 @@ def deleteDummyVolunteersData():
             if len(dummy_member_ids) > 0:
                 print(f"[DELETE DUMMY] Step 4: Finding accounts for {len(dummy_member_ids)} dummy members...")
                 # Get account IDs linked to dummy members
+                from ..database.connection import convert_placeholders
                 member_placeholders = ','.join(['?' for _ in dummy_member_ids])
-                cursor.execute(f"""
+                query = f"""
                     SELECT id FROM accounts 
                     WHERE membershipId IN ({member_placeholders})
-                """, dummy_member_ids)
+                """
+                query = convert_placeholders(query)
+                cursor.execute(query, dummy_member_ids)
                 dummy_account_ids = [row[0] for row in cursor.fetchall()]
                 print(f"[DELETE DUMMY] Found {len(dummy_account_ids)} dummy accounts")
                 
                 if len(dummy_account_ids) > 0:
                     # Step 5: Delete sessions for dummy accounts
                     print(f"[DELETE DUMMY] Step 5: Deleting sessions for dummy accounts...")
+                    from ..database.connection import convert_placeholders
                     account_placeholders = ','.join(['?' for _ in dummy_account_ids])
-                    cursor.execute(f"""
+                    query = f"""
                         DELETE FROM sessions 
                         WHERE userid IN ({account_placeholders})
-                    """, dummy_account_ids)
+                    """
+                    query = convert_placeholders(query)
+                    cursor.execute(query, dummy_account_ids)
                     deleted_counts['sessions'] = cursor.rowcount
                     print(f"[DELETE DUMMY] Deleted {deleted_counts['sessions']} sessions")
                     
