@@ -130,9 +130,9 @@ def getVolunteerDropoutAnalytics(year=None):
         vph_table = quote_identifier('volunteerParticipationHistory')
         
         # Check if volunteerParticipationHistory table exists
-        # Use database-agnostic query
-        from ..database.connection import DATABASE_URL
-        is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+        # Use database-agnostic query - detect from connection type
+        from ..database.connection import is_postgresql_connection, DATABASE_URL
+        is_postgresql = (DATABASE_URL and DATABASE_URL.startswith('postgresql://')) or is_postgresql_connection(conn)
         
         if is_postgresql:
             # PostgreSQL: use information_schema

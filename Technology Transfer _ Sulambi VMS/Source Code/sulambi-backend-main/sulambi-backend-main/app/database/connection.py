@@ -18,6 +18,14 @@ def convert_placeholders(query):
         return query.replace('?', '%s')
     return query
 
+def is_postgresql_connection(conn):
+    """Check if connection is PostgreSQL by checking connection type"""
+    try:
+        # Check if it's a psycopg2 connection
+        return hasattr(conn, 'server_version') or type(conn).__module__.startswith('psycopg2')
+    except:
+        return False
+
 def cursorInstance():
   # Use PostgreSQL if DATABASE_URL is provided (production)
   if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
