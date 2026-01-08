@@ -405,7 +405,8 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                                             print(f"      Debug: Column '{col_name}' (lowercase: '{col_name_lower}') detected as {pg_col_type}", flush=True)
                                             debugged_columns.add(col_name_lower)
                                         # Try to get the actual column type directly
-                                        actual_type_checked = False
+                                        # The initial detection might be wrong due to case sensitivity or caching
+                                        actual_type_is_bigint = False
                                         try:
                                             pg_cursor.execute("""
                                                 SELECT data_type 
@@ -416,23 +417,23 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                                             actual_type_result = pg_cursor.fetchone()
                                             if actual_type_result:
                                                 actual_type = actual_type_result[0].upper()
-                                                if col_name_lower not in debugged_columns or actual_type == 'BIGINT':
-                                                    if actual_type == 'BIGINT' and col_name_lower in debugged_columns:
-                                                        # Only print once when we confirm it's BIGINT
-                                                        print(f"      Debug: Actual column type from database: {actual_type}", flush=True)
-                                                    elif col_name_lower not in debugged_columns:
-                                                        print(f"      Debug: Actual column type from database: {actual_type}", flush=True)
+                                                # Debug output (only once per column)
+                                                if col_name_lower not in debugged_columns:
+                                                    print(f"      Debug: Actual column type from database: {actual_type}", flush=True)
                                                     debugged_columns.add(col_name_lower)
+                                                
+                                                # If it's actually BIGINT, use the value
                                                 if actual_type == 'BIGINT':
-                                                    # Column is actually BIGINT, use it
+                                                    actual_type_is_bigint = True
                                                     values.append(val)
-                                                    actual_type_checked = True
+                                                    # Continue to next column
                                                     continue
-                                        except:
+                                        except Exception as e:
+                                            # If query fails, we'll fall through to error handling
                                             pass
                                         
-                                        # Only raise error if we didn't find it's actually BIGINT
-                                        if not actual_type_checked:
+                                        # Only raise error if column is not actually BIGINT
+                                        if not actual_type_is_bigint:
                                             # This should be BIGINT, but column is INTEGER
                                             # We cannot insert this value - it will fail
                                             # Skip this row with a clear error message
