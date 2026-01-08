@@ -177,7 +177,7 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
             print(f"  ⚠️  Table '{table_name}' does not exist in PostgreSQL!", flush=True)
             print(f"  ⚠️  Please run 'python server.py --init' on Render first to create tables", flush=True)
             print(f"  ⚠️  Or create tables manually in PostgreSQL", flush=True)
-            return
+            return (False, 0, total_rows_in_db)
         
         # Clear existing data for this specific table before migrating
         try:
@@ -218,17 +218,25 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
         
         # Get PostgreSQL column types to handle type conversion
         # Note: PostgreSQL column names are case-insensitive unless quoted
-        pg_cursor.execute("""
-            SELECT LOWER(column_name), data_type 
-            FROM information_schema.columns 
-            WHERE LOWER(table_name) = LOWER(%s)
-            ORDER BY ordinal_position
-        """, (table_name,))
-        pg_columns = {row[0]: row[1] for row in pg_cursor.fetchall()}
+        print(f"  Getting PostgreSQL column types...", flush=True)
+        try:
+            pg_cursor.execute("""
+                SELECT LOWER(column_name), data_type 
+                FROM information_schema.columns 
+                WHERE LOWER(table_name) = LOWER(%s)
+                ORDER BY ordinal_position
+            """, (table_name,))
+            pg_columns = {row[0]: row[1] for row in pg_cursor.fetchall()}
+            print(f"  ✓ Found {len(pg_columns)} PostgreSQL columns", flush=True)
+        except Exception as e:
+            print(f"  ⚠️  Error getting column types: {e}", flush=True)
+            pg_columns = {}
         
         # Also check for createdat/createdAt variations
         if 'createdat' in pg_columns or 'created_at' in pg_columns:
             print(f"  Found timestamp column: createdat/created_at", flush=True)
+        
+        print(f"  Starting data insertion...", flush=True)
         
         # Insert data - use savepoints for each row to handle errors gracefully
         placeholders = ', '.join(['%s'] * len(column_names))
@@ -238,6 +246,8 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
         total_rows = len(rows)
         # Show progress every 10% or every 100 rows, whichever is smaller
         progress_interval = max(1, min(100, total_rows // 10))
+        
+        print(f"  Processing {total_rows} rows...", flush=True)
         
         for i, row in enumerate(rows, 1):
             try:
