@@ -453,20 +453,26 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                         else:
                             # Handle string values - check for VARCHAR length limits
                             if isinstance(val, str):
-                                # Check if column has a length limit (from character_maximum_length)
+                                # Check column type and length limit
+                                pg_col_type_upper = pg_col_type.upper()
                                 max_length = pg_column_lengths.get(col_name_lower)
-                                if max_length is not None:
-                                    # Column has a length limit (VARCHAR)
+                                
+                                # TEXT columns have no length limit - always allow full value
+                                if pg_col_type_upper == 'TEXT' or (pg_col_type_upper == 'CHARACTER VARYING' and max_length is None):
+                                    # TEXT column - no truncation needed
+                                    values.append(val)
+                                elif max_length is not None:
+                                    # Column has a length limit (VARCHAR with specified length)
                                     if len(val) > max_length:
                                         # Value exceeds VARCHAR length
-                                        print(f"      Warning: Value for column '{col_name}' ({len(val)} chars) exceeds VARCHAR({max_length}) limit", flush=True)
+                                        print(f"      Warning: Value for column '{col_name}' ({len(val)} chars) exceeds VARCHAR({max_length}) limit (PostgreSQL type: {pg_col_type})", flush=True)
                                         print(f"      Truncating to {max_length} characters...", flush=True)
                                         truncated_val = val[:max_length]
                                         values.append(truncated_val)
                                     else:
                                         values.append(val)
                                 else:
-                                    # No length limit (TEXT or other types)
+                                    # Unknown type or no length limit - allow full value
                                     values.append(val)
                             else:
                                 values.append(val)
