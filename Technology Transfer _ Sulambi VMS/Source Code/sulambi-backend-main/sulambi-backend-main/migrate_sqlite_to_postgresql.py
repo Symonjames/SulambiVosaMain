@@ -136,13 +136,18 @@ def migrate_table(table_name):
         # This section is kept for reference but data should already be cleared
         
         # Get PostgreSQL column types to handle type conversion
+        # Note: PostgreSQL column names are case-insensitive unless quoted
         pg_cursor.execute("""
-            SELECT column_name, data_type 
+            SELECT LOWER(column_name), data_type 
             FROM information_schema.columns 
-            WHERE table_name = %s
+            WHERE LOWER(table_name) = LOWER(%s)
             ORDER BY ordinal_position
-        """, (table_name.lower(),))
+        """, (table_name,))
         pg_columns = {row[0]: row[1] for row in pg_cursor.fetchall()}
+        
+        # Also check for createdat/createdAt variations
+        if 'createdat' in pg_columns or 'created_at' in pg_columns:
+            print(f"  Found timestamp column: createdat/created_at", flush=True)
         
         # Insert data - use savepoints for each row to handle errors gracefully
         placeholders = ', '.join(['%s'] * len(column_names))
@@ -167,13 +172,16 @@ def migrate_table(table_name):
                     elif isinstance(val, bytes):
                         values.append(val)
                     else:
-                        pg_col_type = pg_columns.get(col_name.lower(), '').upper()
+                        col_name_lower = col_name.lower()
+                        pg_col_type = pg_columns.get(col_name_lower, '').upper()
                         
                         # Convert INTEGER (0/1) to BOOLEAN for boolean columns
                         if pg_col_type == 'BOOLEAN' and isinstance(val, int):
                             values.append(bool(val))
                         # Convert TIMESTAMP columns from milliseconds to PostgreSQL timestamp
-                        elif pg_col_type in ('TIMESTAMP WITHOUT TIME ZONE', 'TIMESTAMP') and isinstance(val, (int, float)):
+                        # Check for createdAt, createdat, created_at variations
+                        elif (pg_col_type in ('TIMESTAMP WITHOUT TIME ZONE', 'TIMESTAMP') or 
+                              col_name_lower in ('createdat', 'created_at')) and isinstance(val, (int, float)):
                             from datetime import datetime
                             try:
                                 # SQLite stores timestamps as milliseconds (Unix timestamp * 1000)
