@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Quick check to see if data exists in Render PostgreSQL database
 Run this locally with DATABASE_URL set to your Render External Database URL
@@ -6,6 +7,12 @@ Run this locally with DATABASE_URL set to your Render External Database URL
 
 import os
 import sys
+import io
+
+# Fix Windows console encoding
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
@@ -60,13 +67,19 @@ try:
     total_rows = 0
     for (table_name,) in tables:
         try:
-            cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+            # Quote table name to preserve case
+            cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
             count = cursor.fetchone()[0]
             total_rows += count
             status = "✅" if count > 0 else "⚪"
             print(f"  {status} {table_name}: {count} rows")
         except Exception as e:
             print(f"  ❌ {table_name}: Error - {e}")
+            # Rollback to continue checking other tables
+            try:
+                conn.rollback()
+            except:
+                pass
     
     print("\n" + "=" * 70)
     print(f"TOTAL ROWS: {total_rows}")
@@ -84,11 +97,16 @@ try:
         key_tables = ['accounts', 'membership', 'internalEvents', 'externalEvents']
         for table in key_tables:
             try:
-                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                # Quote table name to preserve case
+                cursor.execute(f'SELECT COUNT(*) FROM "{table}"')
                 count = cursor.fetchone()[0]
                 print(f"  - {table}: {count} rows")
-            except:
-                pass
+            except Exception as e:
+                print(f"  - {table}: Error - {e}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
     
     cursor.close()
     conn.close()
