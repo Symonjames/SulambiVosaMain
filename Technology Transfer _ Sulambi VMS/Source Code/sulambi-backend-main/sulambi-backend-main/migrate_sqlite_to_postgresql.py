@@ -402,21 +402,24 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                         else:
                             # Handle string values - check for VARCHAR length limits
                             if isinstance(val, str):
-                                # Check if column is VARCHAR with length limit
-                                if pg_col_type.startswith('CHARACTER VARYING') or pg_col_type.startswith('VARCHAR'):
-                                    # Extract length from VARCHAR(255) -> 255
+                                # Check if column is VARCHAR with length limit (case-insensitive)
+                                pg_col_type_upper = pg_col_type.upper()
+                                if 'CHARACTER VARYING' in pg_col_type_upper or 'VARCHAR' in pg_col_type_upper:
+                                    # Extract length from VARCHAR(255) or character varying(255) -> 255
                                     import re
                                     match = re.search(r'\((\d+)\)', pg_col_type)
                                     if match:
                                         max_length = int(match.group(1))
                                         if len(val) > max_length:
                                             # Value exceeds VARCHAR length
-                                            print(f"      Warning: Value for column '{col_name}' ({len(val)} chars) exceeds VARCHAR({max_length}) limit", flush=True)
+                                            print(f"      Warning: Value for column '{col_name}' ({len(val)} chars) exceeds {pg_col_type} limit", flush=True)
                                             print(f"      Truncating to {max_length} characters...", flush=True)
-                                            values.append(val[:max_length])
+                                            truncated_val = val[:max_length]
+                                            values.append(truncated_val)
                                         else:
                                             values.append(val)
                                     else:
+                                        # VARCHAR without length specified - no limit
                                         values.append(val)
                                 else:
                                     # TEXT or other types - no length limit
