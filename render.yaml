@@ -31,7 +31,7 @@ services:
 
   # Frontend Static Site
   - type: web
-    name: sulambi-frontend
+    name: sulambi-vosa
     env: static
     buildCommand: cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main" && chmod +x build.sh && ./build.sh
     staticPublishPath: Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main/dist
