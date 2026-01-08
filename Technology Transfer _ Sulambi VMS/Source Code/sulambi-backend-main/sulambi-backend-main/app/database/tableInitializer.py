@@ -20,6 +20,11 @@ def convert_sql(sql):
     sql = sql.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY')
     sql = sql.replace('STRING', 'VARCHAR(255)')
     sql = sql.replace('DATETIME DEFAULT CURRENT_TIMESTAMP', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
+    # PostgreSQL uses single quotes for string literals, not double quotes
+    # Replace all double-quoted strings in DEFAULT clauses
+    import re
+    # Match DEFAULT "value" and replace with DEFAULT 'value'
+    sql = re.sub(r'DEFAULT\s+"([^"]+)"', r"DEFAULT '\1'", sql)
     # Handle placeholders: SQLite uses ?, PostgreSQL uses %s
     # But we'll handle this in execute calls separately
     return sql
