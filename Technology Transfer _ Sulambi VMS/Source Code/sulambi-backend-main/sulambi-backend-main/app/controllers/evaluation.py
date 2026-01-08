@@ -257,10 +257,12 @@ def evaluateByRequirement(requirementId):
     # Get event title
     event_title = ""
     try:
-      from ..database.connection import quote_identifier
+      from ..database.connection import quote_identifier, convert_placeholders
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
       quoted_table = quote_identifier(event_table)
-      cursor.execute(f"SELECT title FROM {quoted_table} WHERE id = ?", (event_id,))
+      query = f"SELECT title FROM {quoted_table} WHERE id = ?"
+      query = convert_placeholders(query)
+      cursor.execute(query, (event_id,))
       event_row = cursor.fetchone()
       if event_row:
         event_title = event_row[0]

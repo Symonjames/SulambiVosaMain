@@ -978,10 +978,12 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         conn, cursor = cursorInstance()
         
         # Get event title
-        from ..database.connection import quote_identifier
+        from ..database.connection import quote_identifier, convert_placeholders
         event_table = "internalEvents" if eventType == "internal" else "externalEvents"
         quoted_table = quote_identifier(event_table)
-        cursor.execute(f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?", (eventId,))
+        query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
+        query = convert_placeholders(query)
+        cursor.execute(query, (eventId,))
         event_row = cursor.fetchone()
         
         if not event_row:
