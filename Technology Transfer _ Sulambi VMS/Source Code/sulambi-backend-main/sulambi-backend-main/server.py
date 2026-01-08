@@ -19,6 +19,21 @@ CORS(Server, resources={r"/*": {
   "supports_credentials": True
 }})
 
+# Add OPTIONS handler for preflight requests
+@Server.before_request
+def handle_preflight():
+    """Handle CORS preflight requests"""
+    if request.method == "OPTIONS":
+        from flask import jsonify
+        origin = request.headers.get('Origin', '*')
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.headers.add('Access-Control-Max-Age', '3600')
+        return response
+
 # Add after_request handler to ensure CORS headers are always present
 @Server.after_request
 def after_request(response):
