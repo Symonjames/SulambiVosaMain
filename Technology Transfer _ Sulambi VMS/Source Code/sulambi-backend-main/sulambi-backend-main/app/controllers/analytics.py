@@ -125,6 +125,10 @@ def getVolunteerDropoutAnalytics(year=None):
         
         conn, cursor = cursorInstance()
         
+        from ..database.connection import quote_identifier
+        membership_table = quote_identifier('membership')
+        vph_table = quote_identifier('volunteerParticipationHistory')
+        
         # Check if volunteerParticipationHistory table exists
         cursor.execute("""
             SELECT name FROM sqlite_master 
@@ -134,8 +138,8 @@ def getVolunteerDropoutAnalytics(year=None):
         
         # Always ensure we're reading from membership table
         # Check if we have active members in membership table
-        cursor.execute("""
-            SELECT COUNT(*) FROM membership 
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM {membership_table} 
             WHERE accepted = 1 AND active = 1
         """)
         member_count = cursor.fetchone()[0] or 0
@@ -161,7 +165,7 @@ def getVolunteerDropoutAnalytics(year=None):
         # In that case, fall back to legacy computation from requirements/evaluation,
         # which directly reflects "joined but didn't answer the form" as dropouts.
         try:
-            cursor.execute("SELECT COUNT(*) FROM volunteerParticipationHistory")
+            cursor.execute(f"SELECT COUNT(*) FROM {vph_table}")
             vph_count = cursor.fetchone()[0] or 0
         except Exception:
             vph_count = 0
@@ -172,27 +176,27 @@ def getVolunteerDropoutAnalytics(year=None):
         # Get semester data from participation history table
         try:
             if year:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT semester, 
                            COUNT(DISTINCT volunteerEmail) as total_volunteers,
                            SUM(eventsJoined) as total_joined,
                            SUM(eventsAttended) as total_attended,
                            SUM(eventsDropped) as total_dropped,
                            AVG(attendanceRate) as avg_attendance_rate
-                    FROM volunteerParticipationHistory
+                    FROM {vph_table}
                     WHERE semesterYear = ?
                     GROUP BY semester
                     ORDER BY semester
                 """, (int(year),))
             else:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT semester, 
                            COUNT(DISTINCT volunteerEmail) as total_volunteers,
                            SUM(eventsJoined) as total_joined,
                            SUM(eventsAttended) as total_attended,
                            SUM(eventsDropped) as total_dropped,
                            AVG(attendanceRate) as avg_attendance_rate
-                    FROM volunteerParticipationHistory
+                    FROM {vph_table}
                     GROUP BY semester
                     ORDER BY semester
                 """)
@@ -225,7 +229,7 @@ def getVolunteerDropoutAnalytics(year=None):
         # First, get all active and accepted members from membership table
         # This ensures we're reading from the membership table as the source of truth
         try:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     m.email,
                     m.fullname,
@@ -234,8 +238,8 @@ def getVolunteerDropoutAnalytics(year=None):
                     COALESCE(SUM(vph.eventsAttended), 0) as total_attended,
                     COALESCE(AVG(vph.attendanceRate), 0) as avg_attendance_rate,
                     COALESCE(COUNT(DISTINCT vph.semester), 0) as semesters_active
-                FROM membership m
-                LEFT JOIN volunteerParticipationHistory vph ON m.email = vph.volunteerEmail
+                FROM {membership_table} m
+                LEFT JOIN {vph_table} vph ON m.email = vph.volunteerEmail
                 WHERE m.accepted = 1 AND m.active = 1
                 GROUP BY m.email, m.fullname
             """)
@@ -246,7 +250,7 @@ def getVolunteerDropoutAnalytics(year=None):
             # fall back to getting members without participation history
             print(f"[DROPOUT ANALYTICS] Query with JOIN failed: {query_error}")
             print(f"[DROPOUT ANALYTICS] Falling back to membership-only query")
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     email,
                     fullname,
@@ -255,7 +259,7 @@ def getVolunteerDropoutAnalytics(year=None):
                     0 as total_attended,
                     0 as avg_attendance_rate,
                     0 as semesters_active
-                FROM membership
+                FROM {membership_table}
                 WHERE accepted = 1 AND active = 1
             """)
             volunteer_rows = cursor.fetchall()
@@ -433,9 +437,12 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             # Count volunteers who JOINED (submitted requirements) for events in this semester.
             # Include accepted OR pending, exclude rejected.
             # Use a robust volunteer key: email -> srcode -> fullname
-            joined_query = """
+            from ..database.connection import quote_identifier
+            requirements_table = quote_identifier('requirements')
+            evaluation_table = quote_identifier('evaluation')
+            joined_query = f"""
                 SELECT COUNT(DISTINCT COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)) as joined_count
-                FROM requirements r
+                FROM {requirements_table} r
                 WHERE (r.accepted = 1 OR r.accepted IS NULL)
             """
             joined_params = []
@@ -459,10 +466,10 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             joined_count = cursor.fetchone()[0] or 0
             
             # Count volunteers who ATTENDED (participated) in this semester
-            attended_query = """
+            attended_query = f"""
                 SELECT COUNT(DISTINCT COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)) as attended_count
-                FROM requirements r
-                INNER JOIN evaluation e ON r.id = e.requirementId
+                FROM {requirements_table} r
+                INNER JOIN {evaluation_table} e ON r.id = e.requirementId
                 WHERE r.accepted = 1 
                 AND e.finalized = 1 
                 AND e.criteria IS NOT NULL 
@@ -492,10 +499,10 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             # Calculate average events per volunteer
             events_per_volunteer = 0
             if attended_count > 0:
-                total_attendances_query = """
+                total_attendances_query = f"""
                     SELECT COUNT(*) as total_attendances
-                    FROM requirements r
-                    INNER JOIN evaluation e ON r.id = e.requirementId
+                    FROM {requirements_table} r
+                    INNER JOIN {evaluation_table} e ON r.id = e.requirementId
                     WHERE r.accepted = 1 
                     AND e.finalized = 1 
                     AND e.criteria IS NOT NULL 
@@ -543,8 +550,8 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                            WHEN r.type = 'internal' THEN ei.durationEnd
                            ELSE ee.durationEnd
                        END) as last_event_date
-                FROM requirements r
-                LEFT JOIN evaluation e ON r.id = e.requirementId
+                FROM {requirements_table} r
+                LEFT JOIN {evaluation_table} e ON r.id = e.requirementId
                 LEFT JOIN {internal_events_table} ei ON r.eventId = ei.id AND r.type = 'internal'
                 LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
                 WHERE (r.accepted = 1 OR r.accepted IS NULL)
@@ -733,17 +740,19 @@ def getSatisfactionAnalytics(year=None):
         try:
             from ..database.connection import cursorInstance
             conn, cursor = cursorInstance()
+            from ..database.connection import quote_identifier
+            semester_satisfaction_table = quote_identifier('semester_satisfaction')
             if year:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT year, semester, overall, volunteers, beneficiaries, topIssues
-                    FROM semester_satisfaction
+                    FROM {semester_satisfaction_table}
                     WHERE year=?
                     ORDER BY semester ASC
                 """, (int(year),))
             else:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT year, semester, overall, volunteers, beneficiaries, topIssues
-                    FROM semester_satisfaction
+                    FROM {semester_satisfaction_table}
                     ORDER BY year ASC, semester ASC
                 """)
             rows = cursor.fetchall()
@@ -805,8 +814,8 @@ def getSatisfactionAnalytics(year=None):
                        WHEN r.type = 'internal' THEN ei.durationStart
                        ELSE ee.durationStart
                    END as eventDate
-            FROM evaluation e
-            INNER JOIN requirements r ON e.requirementId = r.id
+            FROM {evaluation_table} e
+            INNER JOIN {requirements_table} r ON e.requirementId = r.id
             LEFT JOIN {internal_events_table} ei ON r.eventId = ei.id AND r.type = 'internal'
             LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
             WHERE e.finalized = 1 AND e.criteria IS NOT NULL AND e.criteria != ''
@@ -986,21 +995,25 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         event_title, event_start, event_end = event_row
         
         # Get satisfaction surveys for this specific event (primary source)
-        cursor.execute("""
+        from ..database.connection import quote_identifier
+        satisfaction_surveys_table = quote_identifier('satisfactionSurveys')
+        evaluation_table = quote_identifier('evaluation')
+        requirements_table = quote_identifier('requirements')
+        cursor.execute(f"""
             SELECT id, respondentType, overallSatisfaction, volunteerRating, beneficiaryRating,
                    q13, q14, comment, recommendations, finalized
-            FROM satisfactionSurveys
+            FROM {satisfaction_surveys_table}
             WHERE eventId = ? AND eventType = ? AND finalized = 1
         """, (eventId, eventType))
         
         survey_rows = cursor.fetchall()
         
         # Also get evaluations as fallback (for backward compatibility)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT e.id, e.requirementId, e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
                    r.eventId, r.type
-            FROM evaluation e
-            INNER JOIN requirements r ON e.requirementId = r.id
+            FROM {evaluation_table} e
+            INNER JOIN {requirements_table} r ON e.requirementId = r.id
             WHERE r.eventId = ? AND r.type = ? AND e.finalized = 1 AND e.criteria IS NOT NULL AND e.criteria != ''
         """, (eventId, eventType))
         
@@ -1216,12 +1229,16 @@ def clearAnalyticsData():
         # Start transaction
         conn.execute("BEGIN TRANSACTION")
         
+        from ..database.connection import quote_identifier
+        evaluation_table = quote_identifier('evaluation')
+        requirements_table = quote_identifier('requirements')
+        
         # Delete all evaluations first (they reference requirements)
-        cursor.execute("DELETE FROM evaluation")
+        cursor.execute(f"DELETE FROM {evaluation_table}")
         deleted_evaluations = cursor.rowcount
         
         # Delete all requirements
-        cursor.execute("DELETE FROM requirements")
+        cursor.execute(f"DELETE FROM {requirements_table}")
         deleted_requirements = cursor.rowcount
         
         # Commit transaction
@@ -1274,9 +1291,13 @@ def deleteDummyVolunteersData():
         # Step 1: Identify dummy user emails
         # Find all dummy members by email pattern
         # Only match obvious dummy/test patterns - be conservative to avoid deleting real users
+        from ..database.connection import quote_identifier
+        membership_table = quote_identifier('membership')
+        requirements_table = quote_identifier('requirements')
+        evaluation_table = quote_identifier('evaluation')
         print("[DELETE DUMMY] Step 1: Identifying dummy members...")
-        cursor.execute("""
-            SELECT id, email FROM membership 
+        cursor.execute(f"""
+            SELECT id, email FROM {membership_table} 
             WHERE LOWER(email) LIKE 'dummy%@%' 
                OR LOWER(email) LIKE 'test%@%'
                OR LOWER(email) LIKE 'demo%@%'
@@ -1311,7 +1332,7 @@ def deleteDummyVolunteersData():
                 print(f"[DELETE DUMMY] Step 2: Finding requirements for {len(dummy_emails)} dummy emails...")
                 placeholders = ','.join(['?' for _ in dummy_emails])
                 cursor.execute(f"""
-                    SELECT id FROM requirements 
+                    SELECT id FROM {requirements_table} 
                     WHERE LOWER(email) IN ({placeholders})
                 """, dummy_emails)
                 dummy_requirement_ids = [row[0] for row in cursor.fetchall()]
@@ -1322,7 +1343,7 @@ def deleteDummyVolunteersData():
                     print(f"[DELETE DUMMY] Step 2a: Deleting evaluations for dummy requirements...")
                     req_placeholders = ','.join(['?' for _ in dummy_requirement_ids])
                     cursor.execute(f"""
-                        DELETE FROM evaluation 
+                        DELETE FROM {evaluation_table} 
                         WHERE requirementId IN ({req_placeholders})
                     """, dummy_requirement_ids)
                     deleted_counts['evaluations'] = cursor.rowcount
@@ -1333,7 +1354,7 @@ def deleteDummyVolunteersData():
                 print(f"[DELETE DUMMY] Step 3: Deleting requirements for dummy emails...")
                 placeholders = ','.join(['?' for _ in dummy_emails])
                 cursor.execute(f"""
-                    DELETE FROM requirements 
+                    DELETE FROM {requirements_table} 
                     WHERE LOWER(email) IN ({placeholders})
                 """, dummy_emails)
                 deleted_counts['requirements'] = cursor.rowcount
@@ -1375,10 +1396,10 @@ def deleteDummyVolunteersData():
             if len(dummy_member_ids) > 0:
                 print(f"[DELETE DUMMY] Step 6: Deleting {len(dummy_member_ids)} dummy memberships...")
                 member_placeholders = ','.join(['?' for _ in dummy_member_ids])
-                cursor.execute(f"""
-                    DELETE FROM membership 
-                    WHERE id IN ({member_placeholders})
-                """, dummy_member_ids)
+                    cursor.execute(f"""
+                        DELETE FROM {membership_table} 
+                        WHERE id IN ({member_placeholders})
+                    """, dummy_member_ids)
                 deleted_counts['memberships'] = cursor.rowcount
                 print(f"[DELETE DUMMY] Deleted {deleted_counts['memberships']} memberships")
         else:
