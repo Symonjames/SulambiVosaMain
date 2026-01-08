@@ -610,7 +610,6 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
                 WHERE (r.accepted = 1 OR r.accepted IS NULL)
             """
-            from ..database.connection import convert_placeholders, convert_boolean_condition
             volunteer_query = convert_boolean_condition(volunteer_query)
             volunteer_params = []
             
