@@ -383,31 +383,31 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                     percentage = (i / total_rows) * 100
                     print(f"  Progress: {i}/{total_rows} rows ({percentage:.1f}%) - {inserted} inserted", flush=True)
                     
-             except Exception as e:
-                 # Rollback to savepoint to continue with next row
-                 try:
-                     pg_cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
-                 except:
-                     # If savepoint rollback fails, rollback entire transaction
-                     try:
-                         pg_conn.rollback()
-                         # Recreate savepoint for next iteration
-                         if i < total_rows:
-                             savepoint_name = f"sp_row_{i+1}"
-                             pg_cursor.execute(f"SAVEPOINT {savepoint_name}")
-                     except:
-                         pass
-                 
-                 # Show more detailed error info
-                 error_msg = str(e)
-                 print(f"  ⚠️  Error inserting row {i}: {error_msg}", flush=True)
-                 print(f"      Row data: {row[:3]}...", flush=True)  # Show first 3 fields
-                 
-                 # If it's an integer out of range error, show which column might be the issue
-                 if "integer out of range" in error_msg.lower():
-                     print(f"      Hint: Check integer columns - values may exceed PostgreSQL INTEGER limits", flush=True)
-                     print(f"      Consider updating table schema to use BIGINT for large integer columns", flush=True)
-                 continue
+            except Exception as e:
+                # Rollback to savepoint to continue with next row
+                try:
+                    pg_cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                except:
+                    # If savepoint rollback fails, rollback entire transaction
+                    try:
+                        pg_conn.rollback()
+                        # Recreate savepoint for next iteration
+                        if i < total_rows:
+                            savepoint_name = f"sp_row_{i+1}"
+                            pg_cursor.execute(f"SAVEPOINT {savepoint_name}")
+                    except:
+                        pass
+                
+                # Show more detailed error info
+                error_msg = str(e)
+                print(f"  ⚠️  Error inserting row {i}: {error_msg}", flush=True)
+                print(f"      Row data: {row[:3]}...", flush=True)  # Show first 3 fields
+                
+                # If it's an integer out of range error, show which column might be the issue
+                if "integer out of range" in error_msg.lower():
+                    print(f"      Hint: Check integer columns - values may exceed PostgreSQL INTEGER limits", flush=True)
+                    print(f"      Consider updating table schema to use BIGINT for large integer columns", flush=True)
+                continue
         
         pg_conn.commit()
         print(f"  ✓ Successfully migrated {inserted}/{len(rows)} rows", flush=True)
