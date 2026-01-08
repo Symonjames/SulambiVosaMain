@@ -331,33 +331,66 @@ except:
 cleared_count = 0
 for pg_table in pg_tables:
     try:
+        # Rollback any previous failed transaction
+        try:
+            pg_conn.rollback()
+        except:
+            pass
+        
         # First try to get row count
         pg_cursor.execute(f'SELECT COUNT(*) FROM "{pg_table}"')
         count_before = pg_cursor.fetchone()[0]
         
-        # Use TRUNCATE with CASCADE to handle foreign keys
-        pg_cursor.execute(f'TRUNCATE TABLE "{pg_table}" CASCADE')
-        
-        # Verify it was cleared
-        pg_cursor.execute(f'SELECT COUNT(*) FROM "{pg_table}"')
-        count_after = pg_cursor.fetchone()[0]
-        
-        cleared_count += 1
         if count_before > 0:
+            # Use TRUNCATE with CASCADE to handle foreign keys
+            pg_cursor.execute(f'TRUNCATE TABLE "{pg_table}" RESTART IDENTITY CASCADE')
+            pg_conn.commit()
+            
+            # Verify it was cleared
+            pg_cursor.execute(f'SELECT COUNT(*) FROM "{pg_table}"')
+            count_after = pg_cursor.fetchone()[0]
+            
+            cleared_count += 1
             print(f"  ✓ Cleared table: {pg_table} ({count_before} rows)", flush=True)
         else:
+            cleared_count += 1
             print(f"  ✓ Table already empty: {pg_table}", flush=True)
     except Exception as e:
+        # Rollback the failed transaction
+        try:
+            pg_conn.rollback()
+        except:
+            pass
+        
         # If TRUNCATE fails, try DELETE
         try:
             pg_cursor.execute(f'SELECT COUNT(*) FROM "{pg_table}"')
             count_before = pg_cursor.fetchone()[0]
-            pg_cursor.execute(f'DELETE FROM "{pg_table}"')
-            cleared_count += 1
-            print(f"  ✓ Cleared table (using DELETE): {pg_table} ({count_before} rows)", flush=True)
+            
+            if count_before > 0:
+                pg_cursor.execute(f'DELETE FROM "{pg_table}"')
+                # Reset sequence if it exists
+                try:
+                    pg_cursor.execute(f'ALTER SEQUENCE "{pg_table}_id_seq" RESTART WITH 1')
+                except:
+                    # Try alternative sequence name
+                    try:
+                        pg_cursor.execute(f'SELECT setval(pg_get_serial_sequence(\'"{pg_table}"\', \'id\'), 1, false)')
+                    except:
+                        pass  # No sequence or different name
+                pg_conn.commit()
+                cleared_count += 1
+                print(f"  ✓ Cleared table (using DELETE): {pg_table} ({count_before} rows)", flush=True)
+            else:
+                cleared_count += 1
+                print(f"  ✓ Table already empty: {pg_table}", flush=True)
         except Exception as e2:
+            # Rollback again
+            try:
+                pg_conn.rollback()
+            except:
+                pass
             print(f"  ⚠️  Could not clear table {pg_table}: {e2}", flush=True)
-            pg_conn.rollback()
 
 # Re-enable triggers
 try:
