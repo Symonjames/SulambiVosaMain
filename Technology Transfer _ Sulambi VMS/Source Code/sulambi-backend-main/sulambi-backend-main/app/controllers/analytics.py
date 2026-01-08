@@ -379,13 +379,16 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         conn, cursor = cursorInstance()
         
         # Get all events with their dates to calculate semesters
-        cursor.execute("""
+        from ..database.connection import quote_identifier
+        internal_events_table = quote_identifier("internalEvents")
+        external_events_table = quote_identifier("externalEvents")
+        cursor.execute(f"""
             SELECT id, title, durationStart, durationEnd, 'internal' as type
-            FROM internalEvents
+            FROM {internal_events_table}
             WHERE status IN ('accepted', 'completed')
             UNION ALL
             SELECT id, title, durationStart, durationEnd, 'external' as type
-            FROM externalEvents
+            FROM {external_events_table}
             WHERE status IN ('accepted', 'completed')
             ORDER BY durationStart
         """)
@@ -526,7 +529,10 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             })
             
             # Track individual volunteer stats for at-risk calculation
-            volunteer_query = """
+            from ..database.connection import quote_identifier
+            internal_events_table = quote_identifier('internalEvents')
+            external_events_table = quote_identifier('externalEvents')
+            volunteer_query = f"""
                 SELECT
                        COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname) as volunteerKey,
                        MAX(NULLIF(r.email, '')) as email,
@@ -539,8 +545,8 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                        END) as last_event_date
                 FROM requirements r
                 LEFT JOIN evaluation e ON r.id = e.requirementId
-                LEFT JOIN internalEvents ei ON r.eventId = ei.id AND r.type = 'internal'
-                LEFT JOIN externalEvents ee ON r.eventId = ee.id AND r.type = 'external'
+                LEFT JOIN {internal_events_table} ei ON r.eventId = ei.id AND r.type = 'internal'
+                LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
                 WHERE (r.accepted = 1 OR r.accepted IS NULL)
             """
             volunteer_params = []
@@ -789,7 +795,10 @@ def getSatisfactionAnalytics(year=None):
         conn, cursor = cursorInstance()
         
         # Get evaluations with event dates
-        cursor.execute("""
+        from ..database.connection import quote_identifier
+        internal_events_table = quote_identifier('internalEvents')
+        external_events_table = quote_identifier('externalEvents')
+        cursor.execute(f"""
             SELECT e.id, e.requirementId, e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
                    r.eventId, r.type,
                    CASE 
@@ -798,8 +807,8 @@ def getSatisfactionAnalytics(year=None):
                    END as eventDate
             FROM evaluation e
             INNER JOIN requirements r ON e.requirementId = r.id
-            LEFT JOIN internalEvents ei ON r.eventId = ei.id AND r.type = 'internal'
-            LEFT JOIN externalEvents ee ON r.eventId = ee.id AND r.type = 'external'
+            LEFT JOIN {internal_events_table} ei ON r.eventId = ei.id AND r.type = 'internal'
+            LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
             WHERE e.finalized = 1 AND e.criteria IS NOT NULL AND e.criteria != ''
         """)
         
@@ -960,8 +969,10 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         conn, cursor = cursorInstance()
         
         # Get event title
+        from ..database.connection import quote_identifier
         event_table = "internalEvents" if eventType == "internal" else "externalEvents"
-        cursor.execute(f"SELECT title, durationStart, durationEnd FROM {event_table} WHERE id = ?", (eventId,))
+        quoted_table = quote_identifier(event_table)
+        cursor.execute(f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?", (eventId,))
         event_row = cursor.fetchone()
         
         if not event_row:

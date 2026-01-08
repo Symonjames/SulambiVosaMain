@@ -6,6 +6,12 @@ load_dotenv()
 DB_PATH = os.getenv("DB_PATH")
 DATABASE_URL = os.getenv("DATABASE_URL")  # For PostgreSQL (production)
 
+def quote_identifier(identifier):
+    """Quote identifier for PostgreSQL (case-sensitive), leave unquoted for SQLite"""
+    if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
+        return f'"{identifier}"'
+    return identifier
+
 def cursorInstance():
   # Use PostgreSQL if DATABASE_URL is provided (production)
   if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
