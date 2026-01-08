@@ -30,6 +30,15 @@ def convert_sql(sql):
         pattern = rf'\b{col}\s+INTEGER\b'
         sql = re.sub(pattern, f'{col} BIGINT', sql, flags=re.IGNORECASE)
     
+    # Quote table names in CREATE TABLE statements to preserve case in PostgreSQL
+    # Match: CREATE TABLE IF NOT EXISTS tableName( or CREATE TABLE tableName(
+    sql = re.sub(
+        r'CREATE TABLE (IF NOT EXISTS )?(\w+)\s*\(',
+        lambda m: f'CREATE TABLE {m.group(1) or ""}"{m.group(2)}"(',
+        sql,
+        flags=re.IGNORECASE
+    )
+    
     # PostgreSQL uses single quotes for string literals, not double quotes
     # Replace all double-quoted strings in DEFAULT clauses
     # Match DEFAULT "value" and replace with DEFAULT 'value'
