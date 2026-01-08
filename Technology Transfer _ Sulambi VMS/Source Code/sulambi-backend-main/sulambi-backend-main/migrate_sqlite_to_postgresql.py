@@ -69,7 +69,8 @@ try:
                 password=db_password,
                 host=db_host,
                 port=db_port,
-                connect_timeout=10
+                connect_timeout=10,
+                options='-c statement_timeout=300000'  # 5 minute timeout for queries
             )
             pg_cursor = pg_conn.cursor()
             print("✓ Connected to PostgreSQL database", flush=True)
