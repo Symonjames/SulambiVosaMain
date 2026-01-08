@@ -174,21 +174,25 @@ def migrate_table(table_name):
                             values.append(bool(val))
                         # Convert TIMESTAMP columns from milliseconds to PostgreSQL timestamp
                         elif pg_col_type in ('TIMESTAMP WITHOUT TIME ZONE', 'TIMESTAMP') and isinstance(val, (int, float)):
-                            # Check if it's milliseconds (large number) or seconds
-                            if val > 10000000000:  # Likely milliseconds
-                                from datetime import datetime
-                                try:
-                                    values.append(datetime.fromtimestamp(val / 1000))
-                                except (ValueError, OSError):
-                                    values.append(None)
-                            else:  # Likely seconds
-                                from datetime import datetime
-                                try:
+                            from datetime import datetime
+                            try:
+                                # SQLite stores timestamps as milliseconds (Unix timestamp * 1000)
+                                # Check if it's milliseconds (typically > 1e12) or seconds
+                                if val > 1e12:  # Definitely milliseconds (after year 2001)
+                                    values.append(datetime.fromtimestamp(val / 1000.0))
+                                elif val > 1e9:  # Could be milliseconds or seconds after 2001
+                                    # Try as milliseconds first
+                                    try:
+                                        values.append(datetime.fromtimestamp(val / 1000.0))
+                                    except:
+                                        values.append(datetime.fromtimestamp(val))
+                                else:  # Seconds
                                     values.append(datetime.fromtimestamp(val))
-                                except (ValueError, OSError):
-                                    values.append(None)
-                        # Convert empty strings to NULL for integer columns
-                        elif pg_col_type in ('INTEGER', 'BIGINT', 'SMALLINT') and val == '':
+                            except (ValueError, OSError, OverflowError) as e:
+                                print(f"      Warning: Could not convert timestamp {val} for {col_name}: {e}", flush=True)
+                                values.append(None)
+                        # Convert empty strings to NULL for integer/numeric columns
+                        elif pg_col_type in ('INTEGER', 'BIGINT', 'SMALLINT', 'NUMERIC', 'REAL', 'DOUBLE PRECISION') and (val == '' or (isinstance(val, str) and val.strip() == '')):
                             values.append(None)
                         # Handle integer overflow - convert to BIGINT if needed
                         elif pg_col_type == 'INTEGER' and isinstance(val, int):
@@ -256,16 +260,30 @@ except:
 cleared_count = 0
 for pg_table in pg_tables:
     try:
+        # First try to get row count
+        pg_cursor.execute(f'SELECT COUNT(*) FROM "{pg_table}"')
+        count_before = pg_cursor.fetchone()[0]
+        
         # Use TRUNCATE with CASCADE to handle foreign keys
         pg_cursor.execute(f'TRUNCATE TABLE "{pg_table}" CASCADE')
+        
+        # Verify it was cleared
+        pg_cursor.execute(f'SELECT COUNT(*) FROM "{pg_table}"')
+        count_after = pg_cursor.fetchone()[0]
+        
         cleared_count += 1
-        print(f"  ✓ Cleared table: {pg_table}", flush=True)
+        if count_before > 0:
+            print(f"  ✓ Cleared table: {pg_table} ({count_before} rows)", flush=True)
+        else:
+            print(f"  ✓ Table already empty: {pg_table}", flush=True)
     except Exception as e:
         # If TRUNCATE fails, try DELETE
         try:
+            pg_cursor.execute(f'SELECT COUNT(*) FROM "{pg_table}"')
+            count_before = pg_cursor.fetchone()[0]
             pg_cursor.execute(f'DELETE FROM "{pg_table}"')
             cleared_count += 1
-            print(f"  ✓ Cleared table (using DELETE): {pg_table}", flush=True)
+            print(f"  ✓ Cleared table (using DELETE): {pg_table} ({count_before} rows)", flush=True)
         except Exception as e2:
             print(f"  ⚠️  Could not clear table {pg_table}: {e2}", flush=True)
             pg_conn.rollback()
