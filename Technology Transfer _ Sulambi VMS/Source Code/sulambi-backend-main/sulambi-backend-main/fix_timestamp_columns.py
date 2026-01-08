@@ -7,6 +7,12 @@ Run this BEFORE running the migration script if you get "integer out of range" e
 
 import os
 import sys
+import io
+
+# Fix Windows console encoding
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
