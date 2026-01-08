@@ -20,9 +20,18 @@ def convert_sql(sql):
     sql = sql.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY')
     sql = sql.replace('STRING', 'VARCHAR(255)')
     sql = sql.replace('DATETIME DEFAULT CURRENT_TIMESTAMP', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
+    
+    # Convert timestamp columns that store milliseconds to BIGINT (they exceed INTEGER range)
+    # These columns store Unix timestamps in milliseconds
+    import re
+    timestamp_columns = ['durationStart', 'durationEnd', 'evaluationSendTime']
+    for col in timestamp_columns:
+        # Match: column_name INTEGER (with optional NOT NULL, etc.)
+        pattern = rf'\b{col}\s+INTEGER\b'
+        sql = re.sub(pattern, f'{col} BIGINT', sql, flags=re.IGNORECASE)
+    
     # PostgreSQL uses single quotes for string literals, not double quotes
     # Replace all double-quoted strings in DEFAULT clauses
-    import re
     # Match DEFAULT "value" and replace with DEFAULT 'value'
     sql = re.sub(r'DEFAULT\s+"([^"]+)"', r"DEFAULT '\1'", sql)
     # Handle placeholders: SQLite uses ?, PostgreSQL uses %s
