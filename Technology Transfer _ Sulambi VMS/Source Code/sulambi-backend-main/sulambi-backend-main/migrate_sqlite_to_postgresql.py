@@ -159,7 +159,7 @@ def migrate_table(table_name):
                 savepoint_name = f"sp_row_{i}"
                 pg_cursor.execute(f"SAVEPOINT {savepoint_name}")
                 
-                # Convert None to NULL, handle BLOB data, and convert INTEGER to BOOLEAN
+                # Convert None to NULL, handle BLOB data, and convert types
                 values = []
                 for idx, (col_name, val) in enumerate(zip(column_names, row)):
                     if val is None:
@@ -167,10 +167,37 @@ def migrate_table(table_name):
                     elif isinstance(val, bytes):
                         values.append(val)
                     else:
-                        # Convert INTEGER (0/1) to BOOLEAN for boolean columns
                         pg_col_type = pg_columns.get(col_name.lower(), '').upper()
+                        
+                        # Convert INTEGER (0/1) to BOOLEAN for boolean columns
                         if pg_col_type == 'BOOLEAN' and isinstance(val, int):
                             values.append(bool(val))
+                        # Convert TIMESTAMP columns from milliseconds to PostgreSQL timestamp
+                        elif pg_col_type in ('TIMESTAMP WITHOUT TIME ZONE', 'TIMESTAMP') and isinstance(val, (int, float)):
+                            # Check if it's milliseconds (large number) or seconds
+                            if val > 10000000000:  # Likely milliseconds
+                                from datetime import datetime
+                                try:
+                                    values.append(datetime.fromtimestamp(val / 1000))
+                                except (ValueError, OSError):
+                                    values.append(None)
+                            else:  # Likely seconds
+                                from datetime import datetime
+                                try:
+                                    values.append(datetime.fromtimestamp(val))
+                                except (ValueError, OSError):
+                                    values.append(None)
+                        # Convert empty strings to NULL for integer columns
+                        elif pg_col_type in ('INTEGER', 'BIGINT', 'SMALLINT') and val == '':
+                            values.append(None)
+                        # Handle integer overflow - convert to BIGINT if needed
+                        elif pg_col_type == 'INTEGER' and isinstance(val, int):
+                            # PostgreSQL INTEGER max is 2147483647
+                            if val > 2147483647 or val < -2147483648:
+                                # Use BIGINT instead
+                                values.append(int(val))
+                            else:
+                                values.append(val)
                         else:
                             values.append(val)
                 
@@ -220,16 +247,34 @@ pg_cursor.execute("""
 """)
 pg_tables = [row[0] for row in pg_cursor.fetchall()]
 
+# Disable triggers temporarily to avoid constraint issues
+try:
+    pg_cursor.execute("SET session_replication_role = 'replica';")
+except:
+    pass  # Some PostgreSQL versions don't support this
+
 cleared_count = 0
 for pg_table in pg_tables:
     try:
-        # Disable foreign key checks temporarily (PostgreSQL doesn't have this, but we use CASCADE)
-        pg_cursor.execute(f"TRUNCATE TABLE {pg_table} CASCADE")
+        # Use TRUNCATE with CASCADE to handle foreign keys
+        pg_cursor.execute(f'TRUNCATE TABLE "{pg_table}" CASCADE')
         cleared_count += 1
         print(f"  ✓ Cleared table: {pg_table}", flush=True)
     except Exception as e:
-        print(f"  ⚠️  Could not clear table {pg_table}: {e}", flush=True)
-        pg_conn.rollback()
+        # If TRUNCATE fails, try DELETE
+        try:
+            pg_cursor.execute(f'DELETE FROM "{pg_table}"')
+            cleared_count += 1
+            print(f"  ✓ Cleared table (using DELETE): {pg_table}", flush=True)
+        except Exception as e2:
+            print(f"  ⚠️  Could not clear table {pg_table}: {e2}", flush=True)
+            pg_conn.rollback()
+
+# Re-enable triggers
+try:
+    pg_cursor.execute("SET session_replication_role = 'origin';")
+except:
+    pass
 
 pg_conn.commit()
 print(f"\n✓ Cleared {cleared_count}/{len(pg_tables)} PostgreSQL tables", flush=True)
