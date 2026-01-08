@@ -48,20 +48,49 @@ try:
     import psycopg2
     result = urlparse(DATABASE_URL)
     
-    pg_conn = psycopg2.connect(
-        database=result.path[1:],  # Remove leading '/'
-        user=result.username,
-        password=result.password,
-        host=result.hostname,
-        port=result.port or 5432
-    )
-    pg_cursor = pg_conn.cursor()
-    print("✓ Connected to PostgreSQL database", flush=True)
+    # Extract connection parameters
+    db_name = result.path[1:] if result.path.startswith('/') else result.path
+    db_user = result.username
+    db_password = result.password
+    db_host = result.hostname
+    db_port = result.port or 5432
+    
+    print(f"Connecting to: {db_host}:{db_port}/{db_name}", flush=True)
+    print(f"User: {db_user}", flush=True)
+    
+    # Try to connect with retry
+    import time
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            pg_conn = psycopg2.connect(
+                database=db_name,
+                user=db_user,
+                password=db_password,
+                host=db_host,
+                port=db_port,
+                connect_timeout=10
+            )
+            pg_cursor = pg_conn.cursor()
+            print("✓ Connected to PostgreSQL database", flush=True)
+            break
+        except Exception as conn_error:
+            if attempt < max_retries - 1:
+                print(f"  Connection attempt {attempt + 1} failed, retrying...", flush=True)
+                time.sleep(2)
+            else:
+                raise conn_error
+                
 except ImportError:
     print("❌ ERROR: psycopg2 not installed. Install with: pip install psycopg2-binary", flush=True)
     sys.exit(1)
 except Exception as e:
     print(f"❌ ERROR connecting to PostgreSQL: {e}", flush=True)
+    print(f"\nTroubleshooting:", flush=True)
+    print(f"1. Verify the External Database URL is correct in Render Dashboard", flush=True)
+    print(f"2. Check your internet connection", flush=True)
+    print(f"3. Try using the IP address instead: {db_host}", flush=True)
+    print(f"4. Verify the database is running on Render", flush=True)
     sys.exit(1)
 
 # Connect to SQLite
@@ -132,8 +161,42 @@ def migrate_table(table_name):
             print(f"  ⚠️  Or create tables manually in PostgreSQL", flush=True)
             return
         
-        # Note: Data is already cleared before migration starts (see above)
-        # This section is kept for reference but data should already be cleared
+        # Clear existing data for this specific table before migrating
+        try:
+            # First get row count
+            pg_cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+            count_before = pg_cursor.fetchone()[0]
+            
+            if count_before > 0:
+                # Use TRUNCATE with RESTART IDENTITY to reset sequences
+                pg_cursor.execute(f'TRUNCATE TABLE "{table_name}" RESTART IDENTITY CASCADE')
+                pg_conn.commit()
+                
+                # Verify it was cleared
+                pg_cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+                count_after = pg_cursor.fetchone()[0]
+                print(f"  ✓ Cleared {count_before} rows from {table_name}", flush=True)
+            else:
+                print(f"  ✓ Table {table_name} is already empty", flush=True)
+        except Exception as e:
+            # If TRUNCATE fails, try DELETE and reset sequence manually
+            try:
+                pg_cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+                count_before = pg_cursor.fetchone()[0]
+                
+                if count_before > 0:
+                    pg_cursor.execute(f'DELETE FROM "{table_name}"')
+                    # Reset sequence if table has SERIAL id column
+                    try:
+                        pg_cursor.execute(f'ALTER SEQUENCE "{table_name}_id_seq" RESTART WITH 1')
+                    except:
+                        pass  # Sequence might not exist or have different name
+                    pg_conn.commit()
+                    print(f"  ✓ Cleared {count_before} rows from {table_name} (using DELETE)", flush=True)
+            except Exception as e2:
+                print(f"  ⚠️  Could not clear table {table_name}: {e2}", flush=True)
+                pg_conn.rollback()
+                # Continue anyway - might have constraints we can't handle
         
         # Get PostgreSQL column types to handle type conversion
         # Note: PostgreSQL column names are case-insensitive unless quoted
