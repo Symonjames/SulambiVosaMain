@@ -110,7 +110,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     loadEventsForSatisfaction();
   }, []);
 
-  // Load real data from API
+  // Load real data from API - only reload when selectedYear changes
   useEffect(() => {
     const loadSatisfactionData = async () => {
       try {
@@ -126,7 +126,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           
           // Only set data if we have real data
           if (raw.length > 0) {
-            // Enrich data with event names
+            // Enrich data with event names (use current availableEvents state)
             let enrichedData = raw.map((item: any) => {
               // Find events that match this semester
               const semesterYear = parseInt(item.semester.split('-')[0]);
@@ -237,8 +237,11 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       }
     };
 
-    loadSatisfactionData();
-  }, [selectedYear, availableEvents]);
+    // Only load if selectedYear is set (avoid loading on initial mount with empty string)
+    if (selectedYear) {
+      loadSatisfactionData();
+    }
+  }, [selectedYear]); // Removed availableEvents from dependencies to prevent reload loops
 
   // Calculate trend based on recent data
   useEffect(() => {
@@ -258,8 +261,10 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   // Admin comparison removed: no filteredEvents needed
 
-  // Filter data by year
-  const filteredData = satisfactionData.filter(item => selectedYear && item.semester.startsWith(selectedYear));
+  // Filter data by year - memoized to prevent unnecessary recalculations
+  const filteredData = useMemo(() => {
+    return satisfactionData.filter(item => selectedYear && item.semester.startsWith(selectedYear));
+  }, [satisfactionData, selectedYear]);
   
   // Admin comparison removed: no comparison effect
 
