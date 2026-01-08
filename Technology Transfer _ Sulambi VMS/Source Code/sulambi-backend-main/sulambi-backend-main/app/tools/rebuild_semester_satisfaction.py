@@ -2,7 +2,7 @@ import json
 import math
 from datetime import datetime
 
-from ..database.connection import cursorInstance
+from ..database.connection import cursorInstance, quote_identifier
 
 
 def ensure_table(conn, cursor):
@@ -50,8 +50,10 @@ def rebuild(year_filter: str | None = None):
   ensure_table(conn, cursor)
 
   # Pull evaluations joined to events to get dates
+  internal_events_table = quote_identifier('internalEvents')
+  external_events_table = quote_identifier('externalEvents')
   cursor.execute(
-    """
+    f"""
     SELECT e.id, e.criteria, e.finalized, e.q13, e.q14, e.comment,
            r.eventId, r.type,
            CASE 
@@ -60,8 +62,8 @@ def rebuild(year_filter: str | None = None):
            END as eventDate
     FROM evaluation e
     INNER JOIN requirements r ON e.requirementId = r.id
-    LEFT JOIN internalEvents ei ON r.eventId = ei.id AND r.type = 'internal'
-    LEFT JOIN externalEvents ee ON r.eventId = ee.id AND r.type = 'external'
+    LEFT JOIN {internal_events_table} ei ON r.eventId = ei.id AND r.type = 'internal'
+    LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
     WHERE e.finalized = 1 AND e.criteria IS NOT NULL AND e.criteria != ''
     """
   )

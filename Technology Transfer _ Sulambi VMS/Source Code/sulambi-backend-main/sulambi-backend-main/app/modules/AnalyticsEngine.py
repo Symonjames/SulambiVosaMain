@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import accuracy_score, mean_squared_error
 import joblib
 import os
-from ..database.connection import cursorInstance
+from ..database.connection import cursorInstance, quote_identifier
 
 class AnalyticsEngine:
     def __init__(self):
@@ -18,7 +18,9 @@ class AnalyticsEngine:
         
     def prepare_event_success_data(self):
         """Prepare data for event success prediction"""
-        query = """
+        internal_events_table = quote_identifier('internalEvents')
+        external_events_table = quote_identifier('externalEvents')
+        query = f"""
         SELECT 
             ie.id,
             ie.title,
@@ -33,7 +35,7 @@ class AnalyticsEngine:
             COUNT(r.id) as registered_count,
             COUNT(CASE WHEN e.finalized = 1 AND e.criteria != '' THEN 1 END) as attended_count,
             AVG(CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END) as has_feedback
-        FROM internalEvents ie
+        FROM {internal_events_table} ie
         LEFT JOIN requirements r ON ie.id = r.eventId AND r.type = 'internal'
         LEFT JOIN evaluation e ON r.id = e.requirementId
         LEFT JOIN feedback f ON ie.feedback_id = f.id
@@ -56,7 +58,7 @@ class AnalyticsEngine:
             COUNT(r.id) as registered_count,
             COUNT(CASE WHEN e.finalized = 1 AND e.criteria != '' THEN 1 END) as attended_count,
             AVG(CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END) as has_feedback
-        FROM externalEvents ee
+        FROM {external_events_table} ee
         LEFT JOIN requirements r ON ee.id = r.eventId AND r.type = 'external'
         LEFT JOIN evaluation e ON r.id = e.requirementId
         LEFT JOIN feedback f ON ee.feedback_id = f.id
