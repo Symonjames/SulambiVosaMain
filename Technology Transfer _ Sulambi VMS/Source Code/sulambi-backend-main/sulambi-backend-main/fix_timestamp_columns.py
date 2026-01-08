@@ -53,27 +53,32 @@ try:
     for table_name, columns in tables_to_fix.items():
         print(f"Fixing table: {table_name}")
         
-        # Check if table exists
+        # Check if table exists (case-insensitive)
         pg_cursor.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = %s
-            );
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE LOWER(table_name) = LOWER(%s)
+            AND table_schema = 'public'
         """, (table_name,))
-        table_exists = pg_cursor.fetchone()[0]
+        result = pg_cursor.fetchone()
         
-        if not table_exists:
+        if not result:
             print(f"  ⚠️  Table '{table_name}' does not exist, skipping...\n")
             continue
         
+        # Use the actual table name from database (might have different case)
+        actual_table_name = result[0]
+        if actual_table_name != table_name:
+            print(f"  → Found table as '{actual_table_name}' (case difference)")
+        
         for column_name in columns:
             try:
-                # Check current column type
+                # Check current column type (case-insensitive)
                 pg_cursor.execute("""
-                    SELECT data_type 
+                    SELECT data_type, column_name
                     FROM information_schema.columns 
-                    WHERE table_name = %s AND column_name = %s
-                """, (table_name, column_name))
+                    WHERE LOWER(table_name) = LOWER(%s) AND LOWER(column_name) = LOWER(%s)
+                """, (actual_table_name, column_name))
                 result = pg_cursor.fetchone()
                 
                 if not result:
@@ -81,16 +86,17 @@ try:
                     continue
                 
                 current_type = result[0]
+                actual_column_name = result[1]
                 
                 if current_type.upper() == 'BIGINT':
-                    print(f"  ✓ Column '{column_name}' is already BIGINT")
+                    print(f"  ✓ Column '{actual_column_name}' is already BIGINT")
                 elif current_type.upper() == 'INTEGER':
-                    print(f"  → Converting '{column_name}' from INTEGER to BIGINT...")
-                    pg_cursor.execute(f'ALTER TABLE "{table_name}" ALTER COLUMN "{column_name}" TYPE BIGINT USING "{column_name}"::BIGINT')
+                    print(f"  → Converting '{actual_column_name}' from INTEGER to BIGINT...")
+                    pg_cursor.execute(f'ALTER TABLE "{actual_table_name}" ALTER COLUMN "{actual_column_name}" TYPE BIGINT USING "{actual_column_name}"::BIGINT')
                     pg_conn.commit()
-                    print(f"  ✓ Successfully converted '{column_name}' to BIGINT")
+                    print(f"  ✓ Successfully converted '{actual_column_name}' to BIGINT")
                 else:
-                    print(f"  ⚠️  Column '{column_name}' is {current_type}, not INTEGER. Skipping...")
+                    print(f"  ⚠️  Column '{actual_column_name}' is {current_type}, not INTEGER. Skipping...")
                     
             except Exception as e:
                 print(f"  ❌ Error fixing column '{column_name}': {e}")
