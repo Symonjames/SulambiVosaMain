@@ -12,11 +12,11 @@ import { ExternalEventProposalType, InternalEventProposalType } from "../../inte
 import FormPreviewDetails from "../../components/Forms/FormPreviewDetails";
 import RequirementForm from "../../components/Forms/RequirementForm";
 import { FormDataContext } from "../../contexts/FormDataProvider";
+import { useCachedFetch } from "../../hooks/useCachedFetch";
+import { CACHE_TIMES } from "../../utils/apiCache";
 
 const EventsPage = () => {
   const { setFormData } = useContext(FormDataContext);
-  const [events, setEvents] = useState<(ExternalEventProposalType | InternalEventProposalType)[]>([]);
-  const [loading, setLoading] = useState(true);
   const [openPreview, setOpenPreview] = useState(false);
   const [previewData, setPreviewData] = useState<any>({});
   const [openRequirementForm, setOpenRequirementForm] = useState(false);
@@ -27,22 +27,21 @@ const EventsPage = () => {
     query: "(max-width: 600px)",
   });
 
-  useEffect(() => {
-    setLoading(true);
-    getAllEvents()
-      .then((response) => {
-        const externalEvents: ExternalEventProposalType[] = response.data.external || [];
-        const internalEvents: InternalEventProposalType[] = response.data.internal || [];
-        setEvents([...externalEvents, ...internalEvents]);
-      })
-      .catch((error) => {
-        console.error("Error fetching events:", error);
-        setEvents([]);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, []);
+  // Use cached fetch - data persists when navigating away and coming back!
+  const { data: eventsResponse, loading } = useCachedFetch({
+    cacheKey: 'events_all',
+    fetchFn: () => getAllEvents(),
+    cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
+    useMemoryCache: true, // Fast memory cache for navigation
+  });
+
+  // Process events data
+  const events = eventsResponse
+    ? [
+        ...(eventsResponse.external || []),
+        ...(eventsResponse.internal || []),
+      ]
+    : [];
 
   const viewDataCallback = (eventData: any) => {
     return () => {
