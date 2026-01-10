@@ -139,8 +139,23 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     },
     cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds (more dynamic data)
     useMemoryCache: true,
-    enabled: !!selectedYear, // Only fetch when year is selected
+    enabled: !!selectedYear, // Only fetch when year is selected (will be set on mount)
   });
+
+  // Initialize with default years 2020-2026 (even if no data yet)
+  useEffect(() => {
+    if (availableYears.length === 0) {
+      const currentYear = new Date().getFullYear();
+      const years = [];
+      for (let year = 2020; year <= Math.max(currentYear, 2026); year++) {
+        years.push(String(year));
+      }
+      setAvailableYears(years);
+      if (!selectedYear) {
+        setSelectedYear(String(currentYear));
+      }
+    }
+  }, []);
 
   // Process satisfaction data when response changes
   useEffect(() => {
@@ -148,7 +163,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       // Set default year on first load
       const currentYear = new Date().getFullYear();
       setSelectedYear(String(currentYear));
-      setAvailableYears([String(currentYear)]);
       return;
     }
 
@@ -156,11 +170,10 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       try {
         setError(null);
         
-        // Get data from cached response
-        if (satisfactionResponse?.data) {
-          const response = satisfactionResponse;
-          
-          if (response.success && response.data) {
+        // Get data from cached response (axios wraps response in .data)
+        const responseData = satisfactionResponse?.data || satisfactionResponse;
+        
+        if (responseData?.success && responseData?.data) {
           const raw = response.data.satisfactionData || [];
           let issues = response.data.topIssues || [];
           
@@ -228,25 +241,46 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                   .filter(Boolean)
               )
             ) as string[];
-            const years = yearsRaw
+            
+            // Always include years 2020-2026 even if no data yet
+            const dataYears = yearsRaw
               .map((y) => parseInt(String(y), 10))
               .filter((y) => !isNaN(y) && y >= 2000 && y <= currentYear + 1)
+              .sort((a, b) => a - b);
+            
+            // Merge with default years (2020-2026)
+            const defaultYears = [];
+            for (let year = 2020; year <= Math.max(currentYear, 2026); year++) {
+              defaultYears.push(year);
+            }
+            
+            const allYears = Array.from(new Set([...defaultYears, ...dataYears]))
               .sort((a, b) => a - b)
               .map((y) => String(y));
+            
+            setAvailableYears(allYears.length > 0 ? allYears : [String(currentYear)]);
             const fallbackYear = String(currentYear);
-            const chosen = years.length > 0 ? years[years.length - 1] : fallbackYear;
-            setAvailableYears(years.length > 0 ? years : [fallbackYear]);
-            setSelectedYear((prev) => (prev ? prev : chosen));
+            const chosen = yearsRaw.length > 0 ? yearsRaw[yearsRaw.length - 1] : fallbackYear;
+            setSelectedYear((prev) => (prev ? prev : String(chosen)));
           } else {
-            // No data available - show empty state
+            // No data available - show empty state but keep years available
             setSatisfactionData([]);
             setTopIssues([]);
             setAverageScore(0);
             setVolunteerScore(0);
             setBeneficiaryScore(0);
+            
+            // Keep all years 2020-2026 available even if no data
             const currentYear = new Date().getFullYear();
-            setAvailableYears([String(currentYear)]);
-            setSelectedYear(String(currentYear));
+            const years = [];
+            for (let year = 2020; year <= Math.max(currentYear, 2026); year++) {
+              years.push(String(year));
+            }
+            setAvailableYears(years.length > 0 ? years : [String(currentYear)]);
+            // Don't change selected year if user already selected one
+            if (!selectedYear) {
+              setSelectedYear(String(currentYear));
+            }
           }
         } else {
           // API unsuccessful - show empty state
@@ -276,11 +310,12 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         setError(null);
       } else {
         // No response yet - still loading or no data
-        setSatisfactionData([]);
-        setTopIssues([]);
-        setAverageScore(0);
-        setVolunteerScore(0);
-        setBeneficiaryScore(0);
+        // Keep existing state, don't clear data while loading
+        // setSatisfactionData([]);
+        // setTopIssues([]);
+        // setAverageScore(0);
+        // setVolunteerScore(0);
+        // setBeneficiaryScore(0);
         // Don't set error during loading
       }
       } catch (err) {
