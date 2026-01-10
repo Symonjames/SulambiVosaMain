@@ -106,8 +106,9 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         // Handle 500 errors gracefully - return empty data structure instead of throwing
         const status = error?.response?.status || error?.status || (error?.message?.includes('500') ? 500 : null);
         if (status === 500) {
-          console.warn('[Satisfaction Analytics] Backend returned 500, using empty data structure');
+          console.warn('[Satisfaction Analytics] Backend returned 500 (likely no evaluation data yet), using empty data structure');
           // Return a successful response with empty data so the component can handle it
+          // This prevents the error from propagating and showing error messages
           return {
             data: {
               success: true,
@@ -118,7 +119,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             }
           };
         }
-        // Re-throw other errors
+        // Re-throw other errors (network errors, etc.)
         throw error;
       }
     },
@@ -248,7 +249,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           // setError('Failed to load satisfaction data');
         }
       } else if (responseData) {
-        // Response exists but no data - backend returned empty or error
+        // Response exists but no data - backend returned empty (could be 500 handled gracefully)
         setSatisfactionData([]);
         setTopIssues([]);
         setAverageScore(0);
@@ -257,6 +258,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         const currentYear = new Date().getFullYear();
         setAvailableYears([String(currentYear)]);
         setSelectedYear(String(currentYear));
+        // Don't set error - this is expected when there's no evaluation data
+        setError(null);
       } else {
         // No response yet - still loading or no data
         setSatisfactionData([]);
@@ -264,6 +267,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         setAverageScore(0);
         setVolunteerScore(0);
         setBeneficiaryScore(0);
+        // Don't set error during loading
       }
       } catch (err) {
         console.error('Error processing satisfaction data:', err);
