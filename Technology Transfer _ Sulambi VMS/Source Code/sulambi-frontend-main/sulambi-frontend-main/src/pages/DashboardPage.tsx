@@ -234,7 +234,7 @@ const Dashboard = () => {
   });
 
   // Use cached fetch for dashboard analytics - data persists when navigating away and coming back!
-  const { data: analyticsResponse } = useCachedFetch({
+  const { data: analyticsResponse, loading: analyticsLoading, error: analyticsError } = useCachedFetch({
     cacheKey: 'dashboard_analytics',
     fetchFn: () => getDashboardAnalytics(),
     cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds
@@ -270,14 +270,39 @@ const Dashboard = () => {
 
   // Process analytics data
   useEffect(() => {
-    if (!analyticsResponse?.data?.data) {
+    // Debug: Log analytics response
+    console.log('[DASHBOARD] Analytics response:', analyticsResponse);
+    console.log('[DASHBOARD] Analytics loading:', analyticsLoading);
+    console.log('[DASHBOARD] Analytics error:', analyticsError);
+    
+    if (analyticsError) {
+      console.error('[DASHBOARD] Error loading analytics:', analyticsError);
       setAgeGroupData([]);
       setSexGroupData([]);
       return;
     }
 
-    const sexGroup = analyticsResponse.data.data.sexGroup || {};
-    const ageGroup = analyticsResponse.data.data.ageGroup || {};
+    if (!analyticsResponse) {
+      console.log('[DASHBOARD] No analytics response yet (still loading)');
+      return;
+    }
+
+    // Handle both response.data.data and response.data structures
+    const analyticsData = analyticsResponse?.data?.data || analyticsResponse?.data || {};
+    console.log('[DASHBOARD] Analytics data:', analyticsData);
+    
+    if (!analyticsData || (Object.keys(analyticsData).length === 0 && !analyticsData.sexGroup && !analyticsData.ageGroup)) {
+      console.warn('[DASHBOARD] Empty analytics data - setting empty arrays');
+      setAgeGroupData([]);
+      setSexGroupData([]);
+      return;
+    }
+
+    const sexGroup = analyticsData.sexGroup || {};
+    const ageGroup = analyticsData.ageGroup || {};
+    
+    console.log('[DASHBOARD] Raw sexGroup:', sexGroup);
+    console.log('[DASHBOARD] Raw ageGroup:', ageGroup);
 
     // Validate and sanitize sex group data
     const validatedSexData = Object.keys(sexGroup)
