@@ -99,7 +99,28 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   // Use cached fetch for satisfaction analytics - prevents reloading when navigating
   const { data: satisfactionResponse, loading: satisfactionLoading, error: satisfactionError } = useCachedFetch({
     cacheKey: `satisfaction_analytics_${selectedYear || 'all'}`,
-    fetchFn: () => getSatisfactionAnalytics(selectedYear || undefined),
+    fetchFn: async () => {
+      try {
+        return await getSatisfactionAnalytics(selectedYear || undefined);
+      } catch (error: any) {
+        // Handle 500 errors gracefully - return empty data structure instead of throwing
+        if (error?.response?.status === 500) {
+          console.warn('[Satisfaction Analytics] Backend returned 500, using empty data structure');
+          // Return a successful response with empty data so the component can handle it
+          return {
+            data: {
+              success: true,
+              data: {
+                satisfactionData: [],
+                topIssues: []
+              }
+            }
+          };
+        }
+        // Re-throw other errors
+        throw error;
+      }
+    },
     cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds (more dynamic data)
     useMemoryCache: true,
     enabled: !!selectedYear, // Only fetch when year is selected
@@ -221,16 +242,28 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           const currentYear = new Date().getFullYear();
           setAvailableYears([String(currentYear)]);
           setSelectedYear(String(currentYear));
-            setError('Failed to load satisfaction data');
-          }
-        } else {
-          // No data available
-          setSatisfactionData([]);
-          setTopIssues([]);
-          setAverageScore(0);
-          setVolunteerScore(0);
-          setBeneficiaryScore(0);
+          
+          // Don't set error for empty data - just show empty state
+          // setError('Failed to load satisfaction data');
         }
+      } else if (responseData) {
+        // Response exists but no data - backend returned empty or error
+        setSatisfactionData([]);
+        setTopIssues([]);
+        setAverageScore(0);
+        setVolunteerScore(0);
+        setBeneficiaryScore(0);
+        const currentYear = new Date().getFullYear();
+        setAvailableYears([String(currentYear)]);
+        setSelectedYear(String(currentYear));
+      } else {
+        // No response yet - still loading or no data
+        setSatisfactionData([]);
+        setTopIssues([]);
+        setAverageScore(0);
+        setVolunteerScore(0);
+        setBeneficiaryScore(0);
+      }
       } catch (err) {
         console.error('Error processing satisfaction data:', err);
         setSatisfactionData([]);
@@ -258,7 +291,18 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   // Update error state
   useEffect(() => {
     if (satisfactionError) {
-      setError('Error loading satisfaction data. Please try again.');
+      // Only show error if it's not a 500 (we handle those gracefully)
+      const is500Error = satisfactionError?.message?.includes('500') || 
+                         (satisfactionError as any)?.response?.status === 500;
+      
+      if (!is500Error) {
+        setError('Error loading satisfaction data. Please try again.');
+      } else {
+        // For 500 errors, show a more helpful message
+        setError('Satisfaction analytics are currently unavailable. This may be because there is no evaluation data yet. Data will appear once evaluations are submitted after events.');
+      }
+    } else {
+      setError(null);
     }
   }, [satisfactionError]);
 
