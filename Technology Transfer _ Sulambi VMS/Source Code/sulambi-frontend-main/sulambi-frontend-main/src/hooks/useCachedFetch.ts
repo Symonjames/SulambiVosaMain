@@ -4,8 +4,8 @@ import { getCachedResponse, setCachedResponse, getMemoryCache, setMemoryCache, C
 interface UseCachedFetchOptions<T> {
   // Cache key (should be unique per request)
   cacheKey: string;
-  // Function that returns the API call promise
-  fetchFn: () => Promise<{ data: T }>;
+  // Function that returns the API call promise (axios returns { data: T })
+  fetchFn: () => Promise<{ data: T } | any>;
   // Cache expiration time in milliseconds
   cacheTime?: number;
   // Use memory cache (faster, but clears on refresh) or localStorage (persists)
@@ -86,7 +86,16 @@ export function useCachedFetch<T>({
 
     try {
       const response = await fetchFn();
-      const fetchedData = response.data;
+      // Handle both axios response ({ data: T }) and direct responses
+      const fetchedData = response?.data !== undefined ? response.data : response;
+
+      if (!fetchedData) {
+        console.warn(`[useCachedFetch] No data returned for cache key "${cacheKey}"`);
+        setData(null);
+        setError(null);
+        setLoading(false);
+        return;
+      }
 
       setData(fetchedData);
       setError(null);
@@ -100,7 +109,8 @@ export function useCachedFetch<T>({
       const error = err instanceof Error ? err : new Error('Unknown error');
       setError(error);
       setData(null);
-      console.error(`Error fetching data for cache key "${cacheKey}":`, error);
+      console.error(`[useCachedFetch] Error fetching data for cache key "${cacheKey}":`, error);
+      console.error(`[useCachedFetch] Error details:`, err);
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,4 @@
-import { Box, Typography, CircularProgress } from "@mui/material";
+import { Box, Typography, CircularProgress, Alert } from "@mui/material";
 import { useEffect, useState, useContext } from "react";
 import TextHeader from "../../components/Headers/TextHeader";
 import TextSubHeader from "../../components/Headers/TextSubHeader";
@@ -28,12 +28,24 @@ const EventsPage = () => {
   });
 
   // Use cached fetch - data persists when navigating away and coming back!
-  const { data: eventsResponse, loading } = useCachedFetch({
+  const { data: eventsResponse, loading, error } = useCachedFetch({
     cacheKey: 'events_all',
     fetchFn: () => getAllEvents(),
     cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
     useMemoryCache: true, // Fast memory cache for navigation
   });
+
+  // Debug: Log events response
+  useEffect(() => {
+    if (eventsResponse) {
+      console.log('[EventsPage] Events response:', eventsResponse);
+      console.log('[EventsPage] External events:', eventsResponse.external);
+      console.log('[EventsPage] Internal events:', eventsResponse.internal);
+    }
+    if (error) {
+      console.error('[EventsPage] Error loading events:', error);
+    }
+  }, [eventsResponse, error]);
 
   // Process events data
   const events = eventsResponse
@@ -85,6 +97,12 @@ const EventsPage = () => {
       <TextSubHeader gutterBottom>
         View and participate in exclusive member events.
       </TextSubHeader>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Error loading events: {error.message || 'Unknown error'}
+        </Alert>
+      )}
 
       {loading ? (
         <FlexBox
