@@ -278,7 +278,9 @@ class Model:
 
     conn, cursor = connection.cursorInstance()
     table_name = self._get_table_name()
-    query = f"SELECT {overwritingKey} FROM {table_name} ORDER BY id DESC LIMIT 1"
+    key_quoted = self._quote_identifier(overwritingKey)
+    id_quoted = self._quote_identifier("id")
+    query = f"SELECT {key_quoted} FROM {table_name} ORDER BY {id_quoted} DESC LIMIT 1"
     cursor.execute(query)
     lastPrimary = cursor.fetchone()
 
