@@ -31,63 +31,63 @@ def getAllRequirements():
 
     # manual joining of data (this implementation is just restarted, my bad...)
     for index, requirement in enumerate(requirements):
-    # Backfill participant details if missing (common when older uploads only sent files)
-    try:
-      if (not requirements[index].get("fullname")):
-        email = requirements[index].get("email")
-        srcode = requirements[index].get("srcode")
+      # Backfill participant details if missing (common when older uploads only sent files)
+      try:
+        if (not requirements[index].get("fullname")):
+          email = requirements[index].get("email")
+          srcode = requirements[index].get("srcode")
 
-        member = None
-        if (email != None and str(email).strip() != ""):
-          matches = MembershipDb.getAndSearch(["email"], (str(email).strip(),))
-          if (len(matches) > 0):
-            member = matches[0]
-        if (member == None and srcode != None and str(srcode).strip() != ""):
-          matches = MembershipDb.getAndSearch(["srcode"], (str(srcode).strip(),))
-          if (len(matches) > 0):
-            member = matches[0]
+          member = None
+          if (email != None and str(email).strip() != ""):
+            matches = MembershipDb.getAndSearch(["email"], (str(email).strip(),))
+            if (len(matches) > 0):
+              member = matches[0]
+          if (member == None and srcode != None and str(srcode).strip() != ""):
+            matches = MembershipDb.getAndSearch(["srcode"], (str(srcode).strip(),))
+            if (len(matches) > 0):
+              member = matches[0]
 
-        if (member != None):
-          requirements[index]["fullname"] = member.get("fullname") or requirements[index].get("fullname")
-          requirements[index]["email"] = member.get("email") or requirements[index].get("email")
-          requirements[index]["srcode"] = member.get("srcode") or requirements[index].get("srcode")
-          requirements[index]["collegeDept"] = member.get("collegeDept") or requirements[index].get("collegeDept")
-    except Exception as e:
-      # Non-fatal: still return requirements list
-      print("[requirements] Warning: failed to backfill member details:", e)
+          if (member != None):
+            requirements[index]["fullname"] = member.get("fullname") or requirements[index].get("fullname")
+            requirements[index]["email"] = member.get("email") or requirements[index].get("email")
+            requirements[index]["srcode"] = member.get("srcode") or requirements[index].get("srcode")
+            requirements[index]["collegeDept"] = member.get("collegeDept") or requirements[index].get("collegeDept")
+      except Exception as e:
+        # Non-fatal: still return requirements list
+        print("[requirements] Warning: failed to backfill member details:", e)
 
-    eventType = requirements[index].get("type", "external")
-    eventIdValue = requirements[index]["eventId"]
-    
-    if (eventType == "external"):
-      matchedEvent = ExternalEventDb.get(eventIdValue)
-      if (matchedEvent == None):
-        # If event doesn't exist, provide a placeholder event object
+      eventType = requirements[index].get("type", "external")
+      eventIdValue = requirements[index]["eventId"]
+      
+      if (eventType == "external"):
+        matchedEvent = ExternalEventDb.get(eventIdValue)
+        if (matchedEvent == None):
+          # If event doesn't exist, provide a placeholder event object
+          requirements[index]["eventId"] = {
+            "id": eventIdValue,
+            "title": "Event Not Found (Deleted or Missing)",
+            "status": "unknown"
+          }
+        else:
+          requirements[index]["eventId"] = matchedEvent
+      elif (eventType == "internal"):
+        matchedEvent = InternalEventDb.get(eventIdValue)
+        if (matchedEvent == None):
+          # If event doesn't exist, provide a placeholder event object
+          requirements[index]["eventId"] = {
+            "id": eventIdValue,
+            "title": "Event Not Found (Deleted or Missing)",
+            "status": "unknown"
+          }
+        else:
+          requirements[index]["eventId"] = matchedEvent
+      else:
+        # Handle unknown event types - provide placeholder
         requirements[index]["eventId"] = {
           "id": eventIdValue,
-          "title": "Event Not Found (Deleted or Missing)",
+          "title": f"Unknown Event Type: {eventType}",
           "status": "unknown"
         }
-      else:
-        requirements[index]["eventId"] = matchedEvent
-    elif (eventType == "internal"):
-      matchedEvent = InternalEventDb.get(eventIdValue)
-      if (matchedEvent == None):
-        # If event doesn't exist, provide a placeholder event object
-        requirements[index]["eventId"] = {
-          "id": eventIdValue,
-          "title": "Event Not Found (Deleted or Missing)",
-          "status": "unknown"
-        }
-      else:
-        requirements[index]["eventId"] = matchedEvent
-    else:
-      # Handle unknown event types - provide placeholder
-      requirements[index]["eventId"] = {
-        "id": eventIdValue,
-        "title": f"Unknown Event Type: {eventType}",
-        "status": "unknown"
-      }
 
     print(f"[REQUIREMENTS_GET_ALL] ✅ Successfully processed {len(requirements)} requirements")
     print("[REQUIREMENTS_GET_ALL] ========================================")
