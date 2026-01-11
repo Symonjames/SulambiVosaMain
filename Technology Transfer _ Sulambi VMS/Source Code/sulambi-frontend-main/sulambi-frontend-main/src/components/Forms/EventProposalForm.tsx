@@ -219,14 +219,15 @@ const EventProposalForm: React.FC<Props> = ({
         setFormData({});
       }
     } catch (err: any) {
-      if (err.response.data) {
-        const message = err.response.data.message;
+      if (err.response?.data) {
+        const message = err.response.data.message || err.response.data.error || "Unknown error";
         const errors = err.response.data.fieldError ?? [];
 
         setFieldErrors(errors);
-        showSnackbarMessage(`Error Occured: ${message}`, "error");
+        showSnackbarMessage(`Error occurred: ${message}`, "error");
       } else {
-        showSnackbarMessage("An error Occured in submitting proposal", "error");
+        const errorMessage = err?.message || err?.toString() || "Unknown error occurred";
+        showSnackbarMessage(`Error occurred: ${errorMessage}`, "error");
       }
     } finally {
       setDisableButton(false);

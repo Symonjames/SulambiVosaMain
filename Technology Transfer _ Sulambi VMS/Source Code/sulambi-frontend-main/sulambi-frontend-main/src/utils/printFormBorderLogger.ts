@@ -196,8 +196,8 @@ export const useZoomTracker = (containerRef: React.RefObject<HTMLElement>, enabl
     // Listen for resize (zoom changes trigger resize)
     window.addEventListener('resize', checkZoom);
     
-    // Also listen for print preview
-    window.addEventListener('beforeprint', () => {
+    // Also listen for print preview - store references for cleanup
+    const handleBeforePrint = () => {
       console.log('[PRINT_FORM_BORDER] Print preview opened');
       const zoom = getZoomLevel();
       setTimeout(() => {
@@ -205,9 +205,9 @@ export const useZoomTracker = (containerRef: React.RefObject<HTMLElement>, enabl
           logAllFormBorders(containerRef.current, zoom);
         }
       }, 200); // Longer delay for print styles to apply
-    });
+    };
 
-    window.addEventListener('afterprint', () => {
+    const handleAfterPrint = () => {
       console.log('[PRINT_FORM_BORDER] Print preview closed');
       const zoom = getZoomLevel();
       setTimeout(() => {
@@ -215,7 +215,10 @@ export const useZoomTracker = (containerRef: React.RefObject<HTMLElement>, enabl
           logAllFormBorders(containerRef.current, zoom);
         }
       }, 200);
-    });
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
 
     // Periodic check (in case zoom detection doesn't work via resize)
     const intervalId = setInterval(() => {
@@ -224,8 +227,8 @@ export const useZoomTracker = (containerRef: React.RefObject<HTMLElement>, enabl
 
     return () => {
       window.removeEventListener('resize', checkZoom);
-      window.removeEventListener('beforeprint', checkZoom);
-      window.removeEventListener('afterprint', checkZoom);
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
       clearInterval(intervalId);
     };
   }, [containerRef, enabled]);
