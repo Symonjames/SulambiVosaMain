@@ -270,13 +270,18 @@ class Model:
           
           # Get sequence name - use the standard naming convention
           # PostgreSQL sequences for SERIAL columns follow the pattern: {table}_{column}_seq
-          # Since table names are quoted in our schema, sequence names are also quoted
+          # Since table names are quoted in our schema, sequence names should match
           sequence_name = f'"{self.table}_{self.primaryKey}_seq"'
           print(f"[MODEL.CREATE] Using sequence name: {sequence_name}")
           
-          # Reset sequence to max(id) + 1
-          # setval() accepts regclass (identifier), so we use the sequence name directly in the SQL
-          fix_query = f"SELECT setval({sequence_name}, COALESCE((SELECT MAX({self.primaryKey}) FROM {table_name}), 0) + 1, false)"
+          # Reset sequence to max(id) + 1 using ALTER SEQUENCE (more reliable with quoted names)
+          max_id_query = f"SELECT COALESCE(MAX({self.primaryKey}), 0) + 1 FROM {table_name}"
+          cursor.execute(max_id_query)
+          max_id_result = cursor.fetchone()
+          next_id = max_id_result[0] if max_id_result else 1
+          
+          # Use ALTER SEQUENCE RESTART instead of setval for better compatibility with quoted names
+          fix_query = f'ALTER SEQUENCE {sequence_name} RESTART WITH {next_id}'
           cursor.execute(fix_query)
           conn.commit()
           print(f"[MODEL.CREATE] Sequence {sequence_name} reset. Retrying insert...")
