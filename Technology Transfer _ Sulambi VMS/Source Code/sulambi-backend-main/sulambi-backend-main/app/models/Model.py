@@ -201,11 +201,14 @@ class Model:
     conn, cursor = connection.cursorInstance()
 
     if (includePrimaryKey):
-      columnFormatter = ", ".join([self.primaryKey] + self.columns)
+      columns_to_use = [self.primaryKey] + self.columns
       queryFormatter = ", ".join('?' * (len(self.columns) + 1))
     else:
-      columnFormatter = ", ".join(self.columns)
+      columns_to_use = self.columns
       queryFormatter = ", ".join('?' * len(self.columns))
+
+    # Quote column names for PostgreSQL to preserve case
+    columnFormatter = ", ".join([self._quote_identifier(col) for col in columns_to_use])
 
     table_name = self._get_table_name()
     query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter})"
@@ -223,11 +226,12 @@ class Model:
   # updates the data with the given primary key
   def update(self, key, data: tuple):
     conn, cursor = connection.cursorInstance()
-    queryFormatter = [f"{col}=?" for col in self.columns]
+    queryFormatter = [f"{self._quote_identifier(col)}=?" for col in self.columns]
     queryFormatter = ", ".join(queryFormatter)
 
     table_name = self._get_table_name()
-    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?"
+    primary_key_quoted = self._quote_identifier(self.primaryKey)
+    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {primary_key_quoted}=?"
     query = connection.convert_placeholders(query)
     print("update query: ", query)
     cursor.execute(query, data + (key,))
@@ -238,11 +242,12 @@ class Model:
   # updates specific fields only
   def updateSpecific(self, key, fields: list[str], data: tuple):
     conn, cursor = connection.cursorInstance()
-    queryFormatter = [f"{col}=?" for col in fields]
+    queryFormatter = [f"{self._quote_identifier(col)}=?" for col in fields]
     queryFormatter = ", ".join(queryFormatter)
 
     table_name = self._get_table_name()
-    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?"
+    primary_key_quoted = self._quote_identifier(self.primaryKey)
+    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {primary_key_quoted}=?"
     query = connection.convert_placeholders(query)
     cursor.execute(query, data + (key,))
     conn.commit()
