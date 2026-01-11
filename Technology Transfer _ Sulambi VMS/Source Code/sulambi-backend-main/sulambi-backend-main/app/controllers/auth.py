@@ -87,95 +87,95 @@ def register():
       return ({ "message": "No data provided" }, 400)
     
     print(f"[AUTH_REGISTER] Request keys: {list(request.json.keys())}")
-  
-  applyingAs = request.json.get("applyingAs")
-  volunterismExperience = request.json.get("volunterismExperience")
-  weekdaysTimeDevotion = request.json["weekdaysTimeDevotion"]
-  weekendsTimeDevotion = request.json["weekendsTimeDevotion"]
-  fullname = request.json["fullname"]
-  email = request.json["email"]
-  affiliation = request.json["affiliation"]
-  srcode = request.json["srcode"]
-  age = request.json["age"]
-  birthday = request.json["birthday"]
-  sex = request.json["sex"]
-  campus = request.json["campus"]
-  collegeDept = request.json["collegeDept"]
-  yrlevelprogram = request.json["yrlevelprogram"]
-  address = request.json["address"]
-  contactNum = request.json["contactNum"]
-  fblink = request.json["fblink"]
-  bloodType = request.json["bloodType"]
-  bloodDonation = request.json["bloodDonation"]
-  paymentOption = request.json["paymentOption"]
-  username = request.json["username"]
-  password = request.json["password"]
+    
+    applyingAs = request.json.get("applyingAs")
+    volunterismExperience = request.json.get("volunterismExperience")
+    weekdaysTimeDevotion = request.json.get("weekdaysTimeDevotion")
+    weekendsTimeDevotion = request.json.get("weekendsTimeDevotion")
+    fullname = request.json.get("fullname")
+    email = request.json.get("email")
+    affiliation = request.json.get("affiliation")
+    srcode = request.json.get("srcode")
+    age = request.json.get("age")
+    birthday = request.json.get("birthday")
+    sex = request.json.get("sex")
+    campus = request.json.get("campus")
+    collegeDept = request.json.get("collegeDept")
+    yrlevelprogram = request.json.get("yrlevelprogram")
+    address = request.json.get("address")
+    contactNum = request.json.get("contactNum")
+    fblink = request.json.get("fblink")
+    bloodType = request.json.get("bloodType")
+    bloodDonation = request.json.get("bloodDonation")
+    paymentOption = request.json.get("paymentOption")
+    username = request.json.get("username")
+    password = request.json.get("password")
 
-  # optional fields
-  medicalCondition = request.json.get("medicalCondition") or ""
-  areasOfInterest = request.json.get("areasOfInterest") or ""
-  volunteerExpQ1 = request.json.get("volunteerExpQ1") or ""
-  volunteerExpQ2 = request.json.get("volunteerExpQ2") or ""
-  volunteerExpProof = request.json.get("volunteerExpProof") or ""
-  reasonQ1 = request.json.get("reasonQ1") or ""
-  reasonQ2 = request.json.get("reasonQ2") or ""
+    # optional fields
+    medicalCondition = request.json.get("medicalCondition") or ""
+    areasOfInterest = request.json.get("areasOfInterest") or ""
+    volunteerExpQ1 = request.json.get("volunteerExpQ1") or ""
+    volunteerExpQ2 = request.json.get("volunteerExpQ2") or ""
+    volunteerExpProof = request.json.get("volunteerExpProof") or ""
+    reasonQ1 = request.json.get("reasonQ1") or ""
+    reasonQ2 = request.json.get("reasonQ2") or ""
 
-  # check for existence of member
-  memberMatch = MembershipDb.getOrSearch(["username", "email", "srcode"], [username, email, srcode])
-  if (len(memberMatch) > 0):
-    fieldError = []
-    for member in memberMatch:
-      if (member["username"] == username and fieldError.count("username") == 0):
-        fieldError.append("username")
-      if (member["email"] == email and fieldError.count("email") == 0):
-        fieldError.append("email")
-      if (member["srcode"] == srcode and fieldError.count("email") == 0):
-        fieldError.append("srcode")
+    # check for existence of member
+    memberMatch = MembershipDb.getOrSearch(["username", "email", "srcode"], [username, email, srcode])
+    if (len(memberMatch) > 0):
+      fieldError = []
+      for member in memberMatch:
+        if (member["username"] == username and fieldError.count("username") == 0):
+          fieldError.append("username")
+        if (member["email"] == email and fieldError.count("email") == 0):
+          fieldError.append("email")
+        if (member["srcode"] == srcode and fieldError.count("email") == 0):
+          fieldError.append("srcode")
 
-    return ({
-      "message": "Membership for your account already exists",
-      "fieldError": fieldError
-    }, 400)
+      return ({
+        "message": "Membership for your account already exists",
+        "fieldError": fieldError
+      }, 400)
 
-  # register membership for approval
-  # Explicitly set accepted=None to ensure it's pending (NULL in database)
-  createdMember = MembershipDb.create(
-    address=address,
-    age=age,
-    applyingAs=applyingAs,
-    areasOfInterest=areasOfInterest,
-    birthday=birthday,
-    bloodDonation=bloodDonation,
-    bloodType=bloodType,
-    campus=campus,
-    collegeDept=collegeDept,
-    contactNum=contactNum,
-    email=email,
-    affiliation=affiliation,
-    fblink=fblink,
-    fullname=fullname,
-    medicalCondition=medicalCondition,
-    password=password,
-    paymentOption=paymentOption,
-    reasonQ1=reasonQ1,
-    reasonQ2=reasonQ2,
-    sex=sex,
-    srcode=srcode,
-    username=username,
-    volunterismExperience=volunterismExperience,
-    volunteerExpQ1=volunteerExpQ1,
-    volunteerExpQ2=volunteerExpQ2,
-    weekdaysTimeDevotion=weekdaysTimeDevotion,
-    weekendsTimeDevotion=weekendsTimeDevotion,
-    yrlevelprogram=yrlevelprogram,
-    volunteerExpProof=volunteerExpProof,
-    accepted=None,  # Explicitly set to None for pending status
-    active=True     # Set active to True by default
-  )
-  
-  print(f"[AUTH_REGISTER] Member created with ID: {createdMember.get('id')}")
-  print(f"[AUTH_REGISTER] Member accepted status: {createdMember.get('accepted')} (should be None for pending)")
-  print(f"[AUTH_REGISTER] Member active status: {createdMember.get('active')}")
+    # register membership for approval
+    # Explicitly set accepted=None to ensure it's pending (NULL in database)
+    createdMember = MembershipDb.create(
+      address=address,
+      age=age,
+      applyingAs=applyingAs,
+      areasOfInterest=areasOfInterest,
+      birthday=birthday,
+      bloodDonation=bloodDonation,
+      bloodType=bloodType,
+      campus=campus,
+      collegeDept=collegeDept,
+      contactNum=contactNum,
+      email=email,
+      affiliation=affiliation,
+      fblink=fblink,
+      fullname=fullname,
+      medicalCondition=medicalCondition,
+      password=password,
+      paymentOption=paymentOption,
+      reasonQ1=reasonQ1,
+      reasonQ2=reasonQ2,
+      sex=sex,
+      srcode=srcode,
+      username=username,
+      volunterismExperience=volunterismExperience,
+      volunteerExpQ1=volunteerExpQ1,
+      volunteerExpQ2=volunteerExpQ2,
+      weekdaysTimeDevotion=weekdaysTimeDevotion,
+      weekendsTimeDevotion=weekendsTimeDevotion,
+      yrlevelprogram=yrlevelprogram,
+      volunteerExpProof=volunteerExpProof,
+      accepted=None,  # Explicitly set to None for pending status
+      active=True     # Set active to True by default
+    )
+    
+    print(f"[AUTH_REGISTER] Member created with ID: {createdMember.get('id')}")
+    print(f"[AUTH_REGISTER] Member accepted status: {createdMember.get('accepted')} (should be None for pending)")
+    print(f"[AUTH_REGISTER] Member active status: {createdMember.get('active')}")
 
     # Send pending verification email
     sendPendingVerificationMail(createdMember)
