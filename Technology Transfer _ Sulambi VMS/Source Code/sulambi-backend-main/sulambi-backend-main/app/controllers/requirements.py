@@ -22,10 +22,15 @@ EvaluationDb = EvaluationModel()
 MembershipDb = MembershipModel()
 
 def getAllRequirements():
-  requirements = RequirementsDb.getAll()
+  try:
+    print("[REQUIREMENTS_GET_ALL] ========================================")
+    print("[REQUIREMENTS_GET_ALL] Fetching all requirements...")
+    
+    requirements = RequirementsDb.getAll()
+    print(f"[REQUIREMENTS_GET_ALL] Retrieved {len(requirements)} requirements from database")
 
-  # manual joining of data (this implementation is just restarted, my bad...)
-  for index, requirement in enumerate(requirements):
+    # manual joining of data (this implementation is just restarted, my bad...)
+    for index, requirement in enumerate(requirements):
     # Backfill participant details if missing (common when older uploads only sent files)
     try:
       if (not requirements[index].get("fullname")):
@@ -84,10 +89,18 @@ def getAllRequirements():
         "status": "unknown"
       }
 
-  return {
-    "message": "Successfully retrieved all requirements",
-    "data": requirements
-  }
+    print(f"[REQUIREMENTS_GET_ALL] ✅ Successfully processed {len(requirements)} requirements")
+    print("[REQUIREMENTS_GET_ALL] ========================================")
+    
+    return {
+      "message": "Successfully retrieved all requirements",
+      "data": requirements
+    }
+  except Exception as e:
+    print(f"[REQUIREMENTS_GET_ALL] ❌ ERROR: {str(e)}")
+    import traceback
+    print(f"[REQUIREMENTS_GET_ALL] Traceback: {traceback.format_exc()}")
+    return ({ "message": f"Server error: {str(e)}" }, 500)
 
 def acceptRequirements(id: int):
   existence = RequirementsDb.get(id)
@@ -145,50 +158,67 @@ def rejectRequirements(id: int):
   }
 
 def createNewRequirement(eventId: int):
-  resultingPaths = basicFileWriter(["medCert", "waiver"])
-  
-  # Only check for duplicates if email is provided
-  email = request.form.get("email")
-  if email and email.strip():
-    matchedUserRequirement = RequirementsDb.getAndSearch(
-      ["eventId", "type", "email"],
-      [eventId, request.form.get("type") or "external", email]
+  try:
+    print("[REQUIREMENTS_CREATE] ========================================")
+    print(f"[REQUIREMENTS_CREATE] Creating requirement for eventId: {eventId}")
+    print(f"[REQUIREMENTS_CREATE] Request form keys: {list(request.form.keys())}")
+    print(f"[REQUIREMENTS_CREATE] Request files keys: {list(request.files.keys())}")
+    
+    resultingPaths = basicFileWriter(["medCert", "waiver"])
+    print(f"[REQUIREMENTS_CREATE] File paths: {resultingPaths}")
+    
+    # Only check for duplicates if email is provided
+    email = request.form.get("email")
+    if email and email.strip():
+      matchedUserRequirement = RequirementsDb.getAndSearch(
+        ["eventId", "type", "email"],
+        [eventId, request.form.get("type") or "external", email]
+      )
+
+      if (len(matchedUserRequirement) > 0):
+        print(f"[REQUIREMENTS_CREATE] ❌ Duplicate requirement found for email: {email}")
+        return ({ "message": "Your email has already been registered to this event" }, 403)
+
+    print("[REQUIREMENTS_CREATE] Creating requirement in database...")
+    createdRequirement = RequirementsDb.create(
+      resultingPaths.get("medCert") or "",
+      resultingPaths.get("waiver") or "",
+      eventId,
+      request.form.get("type") or "external",
+      request.form.get("curriculum") or "",
+      request.form.get("destination") or "",
+      request.form.get("firstAid") or "",
+      request.form.get("fees") or "",
+      request.form.get("personnelInCharge") or "",
+      request.form.get("personnelRole") or "",
+      request.form.get("fullname") or "",
+      request.form.get("email") or "",
+      request.form.get("srcode") or "",
+      request.form.get("age") or "",
+      request.form.get("birthday") or "",
+      request.form.get("sex") or "",
+      request.form.get("campus") or "",
+      request.form.get("collegeDept") or "",
+      request.form.get("yrlevelprogram") or "",
+      request.form.get("address") or "",
+      request.form.get("contactNum") or "",
+      request.form.get("fblink") or "",
+      None,
+      request.form.get("affiliation") or "N/A"
     )
 
-    if (len(matchedUserRequirement) > 0):
-      return ({ "message": "Your email has already been registered to this event" }, 403)
+    print(f"[REQUIREMENTS_CREATE] ✅ Requirement created successfully with ID: {createdRequirement.get('id')}")
+    print("[REQUIREMENTS_CREATE] ========================================")
 
-  createdRequirement = RequirementsDb.create(
-    resultingPaths.get("medCert") or "",
-    resultingPaths.get("waiver") or "",
-    eventId,
-    request.form.get("type") or "external",
-    request.form.get("curriculum") or "",
-    request.form.get("destination") or "",
-    request.form.get("firstAid") or "",
-    request.form.get("fees") or "",
-    request.form.get("personnelInCharge") or "",
-    request.form.get("personnelRole") or "",
-    request.form.get("fullname") or "",
-    request.form.get("email") or "",
-    request.form.get("srcode") or "",
-    request.form.get("age") or "",
-    request.form.get("birthday") or "",
-    request.form.get("sex") or "",
-    request.form.get("campus") or "",
-    request.form.get("collegeDept") or "",
-    request.form.get("yrlevelprogram") or "",
-    request.form.get("address") or "",
-    request.form.get("contactNum") or "",
-    request.form.get("fblink") or "",
-    None,
-    request.form.get("affiliation") or "N/A"
-  )
-
-  return {
-    "message": "Successfully uploaded requirements",
-    "data": createdRequirement
-  }
+    return {
+      "message": "Successfully uploaded requirements",
+      "data": createdRequirement
+    }
+  except Exception as e:
+    print(f"[REQUIREMENTS_CREATE] ❌ ERROR: {str(e)}")
+    import traceback
+    print(f"[REQUIREMENTS_CREATE] Traceback: {traceback.format_exc()}")
+    return ({ "message": f"Server error: {str(e)}" }, 500)
 
 ######################
 #  Helper Functions  #

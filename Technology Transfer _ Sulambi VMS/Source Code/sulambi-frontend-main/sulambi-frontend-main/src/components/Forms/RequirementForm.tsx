@@ -96,9 +96,12 @@ const RequirementForm: React.FC<Props> = ({
     }
 
     uploadRequirements(eventId, formUploadable)
-      .then(() => {
+      .then((response) => {
+        console.log("[RequirementForm] ✅ Successfully uploaded requirements:", response.data);
         showSnackbarMessage("Requirements Uploaded Succesfully", "success");
         setOpen && setOpen(false);
+        // Clear form data after successful submission
+        setFormData({});
       })
       .catch((err) => {
         if (err.response?.data) {
