@@ -21,13 +21,19 @@ class AccountModel(Model):
     conn, cursor = connection.cursorInstance()
     
     table_name = self._get_table_name()
+    # Convert boolean value for database compatibility
+    from ..database.connection import convert_boolean_value
+    active_value = convert_boolean_value(True)
+    
     query = f"SELECT {','.join([self.primaryKey] + self.columns)} FROM {table_name} WHERE username=? AND password=? AND active=?"
     # Convert placeholders for PostgreSQL
     query = connection.convert_placeholders(query)
+    # Convert boolean conditions for PostgreSQL
+    query = connection.convert_boolean_condition(query)
     print(f"[AUTH_MODEL] Executing query: SELECT ... FROM {table_name} WHERE username=? AND password=? AND active=?")
-    print(f"[AUTH_MODEL] Query parameters: username={username}, password={'*' * len(password)}, active=True")
+    print(f"[AUTH_MODEL] Query parameters: username={username}, password={'*' * len(password)}, active={active_value}")
     
-    cursor.execute(query, (username, password, True))
+    cursor.execute(query, (username, password, active_value))
     result = cursor.fetchone()
     print(f"[AUTH_MODEL] Query result: {result is not None}")
     
