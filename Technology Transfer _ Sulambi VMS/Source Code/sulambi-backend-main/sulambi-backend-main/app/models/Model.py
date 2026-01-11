@@ -268,16 +268,15 @@ class Model:
           conn.rollback()
           print(f"[MODEL.CREATE] Transaction rolled back")
           
-          # Get sequence name - use the standard naming convention (more reliable than pg_get_serial_sequence with quoted names)
+          # Get sequence name - use the standard naming convention
           # PostgreSQL sequences for SERIAL columns follow the pattern: {table}_{column}_seq
-          # But since table name is quoted, we need to handle it correctly
-          sequence_name = f"{self.table}_{self.primaryKey}_seq"
+          # Since table names are quoted in our schema, sequence names are also quoted
+          sequence_name = f'"{self.table}_{self.primaryKey}_seq"'
           print(f"[MODEL.CREATE] Using sequence name: {sequence_name}")
           
           # Reset sequence to max(id) + 1
-          # Use quoted sequence name and table name
-          quoted_sequence = f'"{sequence_name}"'
-          fix_query = f"SELECT setval({quoted_sequence}, COALESCE((SELECT MAX({self.primaryKey}) FROM {table_name}), 0) + 1, false)"
+          # setval() accepts regclass (identifier), so we use the sequence name directly in the SQL
+          fix_query = f"SELECT setval({sequence_name}, COALESCE((SELECT MAX({self.primaryKey}) FROM {table_name}), 0) + 1, false)"
           cursor.execute(fix_query)
           conn.commit()
           print(f"[MODEL.CREATE] Sequence {sequence_name} reset. Retrying insert...")
