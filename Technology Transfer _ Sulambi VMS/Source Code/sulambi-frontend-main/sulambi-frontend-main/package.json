@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "check-exports": "node check-exports.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:local": "npm run build-ignore",
+    "serve:local": "node server.js",
+    "test:production": "npm run build:local && npm run serve:local"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
