@@ -23,15 +23,15 @@ print(f"Database: {db_path}\n")
 try:
     cursor.execute("SELECT COUNT(*) FROM satisfactionSurveys")
     count = cursor.fetchone()[0]
-    print(f"✅ satisfactionSurveys: {count} rows")
+    print(f"[OK] satisfactionSurveys: {count} rows")
 except Exception as e:
-    print(f"❌ satisfactionSurveys error: {e}")
+    print(f"[ERROR] satisfactionSurveys error: {e}")
 
 # Check semester_satisfaction
 try:
     cursor.execute("SELECT COUNT(*) FROM semester_satisfaction")
     count = cursor.fetchone()[0]
-    print(f"✅ semester_satisfaction: {count} rows")
+    print(f"[OK] semester_satisfaction: {count} rows")
     
     if count > 0:
         cursor.execute("SELECT year, semester, overall, volunteers, beneficiaries FROM semester_satisfaction ORDER BY year DESC, semester DESC LIMIT 5")
@@ -40,7 +40,7 @@ try:
         for row in rows:
             print(f"   Year {row[0]}, Semester {row[1]}: Overall={row[2]:.1f}, Vol={row[3]:.1f}, Ben={row[4]:.1f}")
 except Exception as e:
-    print(f"❌ semester_satisfaction error: {e}")
+    print(f"[ERROR] semester_satisfaction error: {e}")
 
 # Check evaluation table (source data)
 try:
@@ -51,16 +51,16 @@ try:
     cursor.execute("SELECT COUNT(*) FROM evaluation WHERE finalized = 1 AND criteria IS NOT NULL AND criteria != ''")
     with_criteria = cursor.fetchone()[0]
     
-    print(f"\n✅ evaluation table:")
+    print(f"\n[OK] evaluation table:")
     print(f"   Total rows: {total}")
     print(f"   Finalized: {finalized}")
     print(f"   With criteria (usable for satisfaction): {with_criteria}")
     
     if with_criteria > 0:
-        print(f"\n   💡 You have {with_criteria} evaluations that could be used for satisfaction analytics")
+        print(f"\n   [INFO] You have {with_criteria} evaluations that could be used for satisfaction analytics")
         print(f"   These need to be processed into satisfactionSurveys or semester_satisfaction tables")
 except Exception as e:
-    print(f"❌ evaluation error: {e}")
+    print(f"[ERROR] evaluation error: {e}")
 
 conn.close()
 
@@ -69,6 +69,6 @@ print("Summary:")
 print("  - satisfactionSurveys: Empty (data was migrated to PostgreSQL)")
 print("  - semester_satisfaction: Check count above")
 print("  - evaluation: Check count above (source data)")
-print("\n💡 To test with your real data, use PostgreSQL by setting DATABASE_URL")
+print("\n[INFO] To test with your real data, use PostgreSQL by setting DATABASE_URL")
 print("="*70)
 
