@@ -119,10 +119,10 @@ class Model:
   def get(self, key):
     conn, cursor = connection.cursorInstance()
     columns_list = [self.primaryKey] + self.columns
-    columnQuery = ", ".join([self._quote_identifier(col) for col in columns_list])
+    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
+    columnQuery = ", ".join(columns_list)
     table_name = self._get_table_name()
-    primary_key_quoted = self._quote_identifier(self.primaryKey)
-    query = f"SELECT {columnQuery} FROM {table_name} WHERE {primary_key_quoted}=?"
+    query = f"SELECT {columnQuery} FROM {table_name} WHERE {self.primaryKey}=?"
     query = connection.convert_placeholders(query)
 
     cursor.execute(query, (key, ))
@@ -136,7 +136,8 @@ class Model:
   def getAll(self):
     conn, cursor = connection.cursorInstance()
     columns_list = [self.primaryKey] + self.columns
-    columnQuery = ", ".join([self._quote_identifier(col) for col in columns_list])
+    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
+    columnQuery = ", ".join(columns_list)
     table_name = self._get_table_name()
 
     query = f"SELECT {columnQuery} FROM {table_name}"
@@ -152,7 +153,8 @@ class Model:
   def getOrSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
     columns_list = [self.primaryKey] + self.columns
-    columnQuery = ", ".join([self._quote_identifier(col) for col in columns_list])
+    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
+    columnQuery = ", ".join(columns_list)
     table_name = self._get_table_name()
 
     # Build query with proper NULL handling - only include non-None values
@@ -160,8 +162,8 @@ class Model:
     params = []
     for col, val in zip(columns, values):
       if val is not None:
-        col_quoted = self._quote_identifier(col)
-        conditions.append(f"{col_quoted}=?")
+        # Don't quote columns - PostgreSQL will convert to lowercase automatically
+        conditions.append(f"{col}=?")
         params.append(val)
     
     # If no conditions, return all records
@@ -187,10 +189,12 @@ class Model:
   def getAndSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
     columns_list = [self.primaryKey] + self.columns
-    columnQuery = ", ".join([self._quote_identifier(col) for col in columns_list])
+    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
+    columnQuery = ", ".join(columns_list)
     table_name = self._get_table_name()
 
-    queryFormatter = [f"{self._quote_identifier(col)}=?" for col in columns]
+    # Don't quote columns - PostgreSQL will convert to lowercase automatically
+    queryFormatter = [f"{col}=?" for col in columns]
     queryFormatter = " AND ".join(queryFormatter)
     query = f"SELECT {columnQuery} FROM {table_name} WHERE {queryFormatter}"
     query = connection.convert_placeholders(query)
@@ -213,8 +217,8 @@ class Model:
       columns_to_use = self.columns
       queryFormatter = ", ".join('?' * len(self.columns))
 
-    # Quote column names for PostgreSQL to preserve case
-    columnFormatter = ", ".join([self._quote_identifier(col) for col in columns_to_use])
+    # Don't quote column names - they're lowercase in PostgreSQL (created without quotes)
+    columnFormatter = ", ".join(columns_to_use)
 
     table_name = self._get_table_name()
     query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter})"
@@ -232,12 +236,12 @@ class Model:
   # updates the data with the given primary key
   def update(self, key, data: tuple):
     conn, cursor = connection.cursorInstance()
-    queryFormatter = [f"{self._quote_identifier(col)}=?" for col in self.columns]
+    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
+    queryFormatter = [f"{col}=?" for col in self.columns]
     queryFormatter = ", ".join(queryFormatter)
 
     table_name = self._get_table_name()
-    primary_key_quoted = self._quote_identifier(self.primaryKey)
-    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {primary_key_quoted}=?"
+    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?"
     query = connection.convert_placeholders(query)
     print("update query: ", query)
     cursor.execute(query, data + (key,))
@@ -248,12 +252,12 @@ class Model:
   # updates specific fields only
   def updateSpecific(self, key, fields: list[str], data: tuple):
     conn, cursor = connection.cursorInstance()
-    queryFormatter = [f"{self._quote_identifier(col)}=?" for col in fields]
+    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
+    queryFormatter = [f"{col}=?" for col in fields]
     queryFormatter = ", ".join(queryFormatter)
 
     table_name = self._get_table_name()
-    primary_key_quoted = self._quote_identifier(self.primaryKey)
-    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {primary_key_quoted}=?"
+    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?"
     query = connection.convert_placeholders(query)
     cursor.execute(query, data + (key,))
     conn.commit()
@@ -264,8 +268,8 @@ class Model:
     tmpDeleted = self.get(key)
 
     table_name = self._get_table_name()
-    primary_key_quoted = self._quote_identifier(self.primaryKey)
-    query = f"DELETE FROM {table_name} WHERE {primary_key_quoted}=?"
+    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
+    query = f"DELETE FROM {table_name} WHERE {self.primaryKey}=?"
     query = connection.convert_placeholders(query)
     cursor.execute(query, (key,))
     conn.commit()
@@ -278,9 +282,8 @@ class Model:
 
     conn, cursor = connection.cursorInstance()
     table_name = self._get_table_name()
-    key_quoted = self._quote_identifier(overwritingKey)
-    id_quoted = self._quote_identifier("id")
-    query = f"SELECT {key_quoted} FROM {table_name} ORDER BY {id_quoted} DESC LIMIT 1"
+    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
+    query = f"SELECT {overwritingKey} FROM {table_name} ORDER BY id DESC LIMIT 1"
     cursor.execute(query)
     lastPrimary = cursor.fetchone()
 
