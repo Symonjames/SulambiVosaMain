@@ -870,6 +870,13 @@ def getSatisfactionAnalytics(year=None):
         external_events_table = quote_identifier('externalEvents')
         evaluation_table = quote_identifier('evaluation')
         requirements_table = quote_identifier('requirements')
+        # Import here to avoid circular imports
+        from ..database.connection import DATABASE_URL
+        is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+        
+        # Use boolean true/false for PostgreSQL, 1/0 for SQLite
+        finalized_condition = "e.finalized = true" if is_postgresql else "e.finalized = 1"
+        
         query = f"""
             SELECT e.id, e."requirementid", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
                    r."eventid", r.type,
@@ -881,7 +888,7 @@ def getSatisfactionAnalytics(year=None):
             INNER JOIN {requirements_table} r ON e."requirementid" = r.id
             LEFT JOIN {internal_events_table} ei ON r."eventid" = ei.id AND r.type = 'internal'
             LEFT JOIN {external_events_table} ee ON r."eventid" = ee.id AND r.type = 'external'
-            WHERE e.finalized = 1 AND e.criteria IS NOT NULL AND e.criteria != ''
+            WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
         """
         cursor.execute(query)
         
