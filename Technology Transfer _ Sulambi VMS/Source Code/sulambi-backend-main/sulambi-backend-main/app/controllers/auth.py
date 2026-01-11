@@ -77,8 +77,19 @@ def logout(usertoken):
   return { "message": "Successfully logged out token" }
 
 def register():
-  applyingAs = request.json["applyingAs"]
-  volunterismExperience = request.json["volunterismExperience"]
+  try:
+    print("[AUTH_REGISTER] ========================================")
+    print("[AUTH_REGISTER] Registration request received")
+    
+    # Check if request has JSON
+    if not request.json:
+      print("[AUTH_REGISTER] ❌ ERROR: No JSON data in request")
+      return ({ "message": "No data provided" }, 400)
+    
+    print(f"[AUTH_REGISTER] Request keys: {list(request.json.keys())}")
+  
+  applyingAs = request.json.get("applyingAs")
+  volunterismExperience = request.json.get("volunterismExperience")
   weekdaysTimeDevotion = request.json["weekdaysTimeDevotion"]
   weekendsTimeDevotion = request.json["weekendsTimeDevotion"]
   fullname = request.json["fullname"]
@@ -166,13 +177,25 @@ def register():
   print(f"[AUTH_REGISTER] Member accepted status: {createdMember.get('accepted')} (should be None for pending)")
   print(f"[AUTH_REGISTER] Member active status: {createdMember.get('active')}")
 
-  # Send pending verification email
-  sendPendingVerificationMail(createdMember)
+    # Send pending verification email
+    sendPendingVerificationMail(createdMember)
 
-  return {
-    "member": createdMember,
-    "message": "Member successfully created"
-  }
+    print("[AUTH_REGISTER] ✅ Registration successful, returning response")
+    print("[AUTH_REGISTER] ========================================")
+    
+    return {
+      "member": createdMember,
+      "message": "Member successfully created"
+    }
+    
+  except KeyError as e:
+    print(f"[AUTH_REGISTER] ❌ ERROR: Missing key in request: {e}")
+    print(f"[AUTH_REGISTER] Traceback: {traceback.format_exc()}")
+    return ({ "message": f"Missing required field: {str(e)}" }, 400)
+  except Exception as e:
+    print(f"[AUTH_REGISTER] ❌ ERROR: Unexpected error: {str(e)}")
+    print(f"[AUTH_REGISTER] Traceback: {traceback.format_exc()}")
+    return ({ "message": f"Server error: {str(e)}" }, 500)
 
 ######################
 #  Helper Functions  #
