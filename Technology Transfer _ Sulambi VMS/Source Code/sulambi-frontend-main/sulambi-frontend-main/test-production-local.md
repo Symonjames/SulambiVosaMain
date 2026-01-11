@@ -11,7 +11,13 @@ This guide shows you how to test your production build locally, just like it run
    cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
    ```
 
-2. **Build and run production server:**
+2. **Install dependencies (if not already installed):**
+   ```powershell
+   npm install
+   ```
+   This installs `express` and other dependencies needed for the production server.
+
+3. **Build and run production server:**
    ```powershell
    npm run test:production
    ```
@@ -139,6 +145,10 @@ Press `Ctrl+C` in the terminal to stop the server.
 - Make sure your backend is running (if testing with local backend)
 - Check the `VITE_API_URI` environment variable is set correctly
 - Check browser console for API errors
+
+**"Cannot find package 'express'" error?**
+- Run `npm install` to install all dependencies including `express`
+- The `express` package is required for the production server (`server.js`)
 
 ## Workflow Recommendation
 
