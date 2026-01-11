@@ -543,9 +543,16 @@ DEBUG and print("Done")
 
 # Create index for faster semester-based queries
 DEBUG and print("[*] Creating indexes for volunteerParticipationHistory...")
-execute_sql("CREATE INDEX IF NOT EXISTS idx_volunteer_email ON volunteerParticipationHistory(volunteerEmail)")
-execute_sql("CREATE INDEX IF NOT EXISTS idx_semester ON volunteerParticipationHistory(semester)")
-execute_sql("CREATE INDEX IF NOT EXISTS idx_last_event_date ON volunteerParticipationHistory(lastEventDate)")
+if is_postgresql:
+    # PostgreSQL: use quoted table name to match CREATE TABLE
+    execute_sql('CREATE INDEX IF NOT EXISTS idx_volunteer_email ON "volunteerParticipationHistory"(volunteerEmail)')
+    execute_sql('CREATE INDEX IF NOT EXISTS idx_semester ON "volunteerParticipationHistory"(semester)')
+    execute_sql('CREATE INDEX IF NOT EXISTS idx_last_event_date ON "volunteerParticipationHistory"(lastEventDate)')
+else:
+    # SQLite: unquoted table name
+    execute_sql("CREATE INDEX IF NOT EXISTS idx_volunteer_email ON volunteerParticipationHistory(volunteerEmail)")
+    execute_sql("CREATE INDEX IF NOT EXISTS idx_semester ON volunteerParticipationHistory(semester)")
+    execute_sql("CREATE INDEX IF NOT EXISTS idx_last_event_date ON volunteerParticipationHistory(lastEventDate)")
 DEBUG and print("Done")
 
 ###########################
