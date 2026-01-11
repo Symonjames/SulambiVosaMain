@@ -48,12 +48,18 @@ const SnackbarProvider = ({ children }: { children: ReactNode }) => {
           horizontal: "right",
           vertical: "bottom",
         }}
+        sx={{
+          zIndex: 10001, // Higher than PopupModal (9999/10000) to appear above modals
+        }}
       >
         <Alert
           onClose={handleClose}
           severity={snackbarType}
           variant="filled"
-          sx={{ width: "100%" }}
+          sx={{ 
+            width: "100%",
+            zIndex: 10001, // Ensure Alert also has high z-index
+          }}
         >
           {message}
         </Alert>
