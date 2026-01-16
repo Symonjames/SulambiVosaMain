@@ -23,6 +23,20 @@ class Model:
       return f'"{identifier}"'
     return identifier
   
+  def _normalize_column_name(self, column_name):
+    """Normalize column name for PostgreSQL (lowercase if not quoted during creation)"""
+    # Since columns were created without quotes, they're stored in lowercase in PostgreSQL
+    # Convert to lowercase for PostgreSQL queries to match stored column names
+    if is_postgresql:
+      return column_name.lower()
+    return column_name
+  
+  def _normalize_column_list(self, columns):
+    """Normalize column names for PostgreSQL queries"""
+    if is_postgresql:
+      return [self._normalize_column_name(col) for col in columns]
+    return columns
+  
   def _get_table_name(self):
     """Get properly quoted table name based on database type"""
     return self._quote_identifier(self.table)
@@ -119,10 +133,12 @@ class Model:
   def get(self, key):
     conn, cursor = connection.cursorInstance()
     columns_list = [self.primaryKey] + self.columns
-    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
-    columnQuery = ", ".join(columns_list)
+    # Normalize column names for PostgreSQL (lowercase to match unquoted column names)
+    normalized_columns = self._normalize_column_list(columns_list)
+    columnQuery = ", ".join(normalized_columns)
     table_name = self._get_table_name()
-    query = f"SELECT {columnQuery} FROM {table_name} WHERE {self.primaryKey}=?"
+    normalized_primary_key = self._normalize_column_name(self.primaryKey)
+    query = f"SELECT {columnQuery} FROM {table_name} WHERE {normalized_primary_key}=?"
     query = connection.convert_placeholders(query)
 
     cursor.execute(query, (key, ))
@@ -136,8 +152,9 @@ class Model:
   def getAll(self):
     conn, cursor = connection.cursorInstance()
     columns_list = [self.primaryKey] + self.columns
-    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
-    columnQuery = ", ".join(columns_list)
+    # Normalize column names for PostgreSQL (lowercase to match unquoted column names)
+    normalized_columns = self._normalize_column_list(columns_list)
+    columnQuery = ", ".join(normalized_columns)
     table_name = self._get_table_name()
 
     query = f"SELECT {columnQuery} FROM {table_name}"
@@ -153,8 +170,9 @@ class Model:
   def getOrSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
     columns_list = [self.primaryKey] + self.columns
-    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
-    columnQuery = ", ".join(columns_list)
+    # Normalize column names for PostgreSQL (lowercase to match unquoted column names)
+    normalized_columns = self._normalize_column_list(columns_list)
+    columnQuery = ", ".join(normalized_columns)
     table_name = self._get_table_name()
 
     # Build query with proper NULL handling - only include non-None values
@@ -162,8 +180,9 @@ class Model:
     params = []
     for col, val in zip(columns, values):
       if val is not None:
-        # Don't quote columns - PostgreSQL will convert to lowercase automatically
-        conditions.append(f"{col}=?")
+        # Normalize column name for PostgreSQL
+        normalized_col = self._normalize_column_name(col)
+        conditions.append(f"{normalized_col}=?")
         params.append(val)
     
     # If no conditions, return all records
@@ -189,12 +208,13 @@ class Model:
   def getAndSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
     columns_list = [self.primaryKey] + self.columns
-    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
-    columnQuery = ", ".join(columns_list)
+    # Normalize column names for PostgreSQL (lowercase to match unquoted column names)
+    normalized_columns = self._normalize_column_list(columns_list)
+    columnQuery = ", ".join(normalized_columns)
     table_name = self._get_table_name()
 
-    # Don't quote columns - PostgreSQL will convert to lowercase automatically
-    queryFormatter = [f"{col}=?" for col in columns]
+    # Normalize column names for PostgreSQL
+    queryFormatter = [f"{self._normalize_column_name(col)}=?" for col in columns]
     queryFormatter = " AND ".join(queryFormatter)
     query = f"SELECT {columnQuery} FROM {table_name} WHERE {queryFormatter}"
     query = connection.convert_placeholders(query)
@@ -219,8 +239,9 @@ class Model:
         columns_to_use = self.columns
         queryFormatter = ", ".join('?' * len(self.columns))
 
-      # Don't quote column names - they're lowercase in PostgreSQL (created without quotes)
-      columnFormatter = ", ".join(columns_to_use)
+      # Normalize column names for PostgreSQL (lowercase to match unquoted column names)
+      normalized_columns = self._normalize_column_list(columns_to_use)
+      columnFormatter = ", ".join(normalized_columns)
 
       table_name = self._get_table_name()
       query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter})"
@@ -331,12 +352,14 @@ class Model:
   # updates the data with the given primary key
   def update(self, key, data: tuple):
     conn, cursor = connection.cursorInstance()
-    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
-    queryFormatter = [f"{col}=?" for col in self.columns]
+    # Normalize column names for PostgreSQL (lowercase to match unquoted column names)
+    normalized_columns = self._normalize_column_list(self.columns)
+    queryFormatter = [f"{col}=?" for col in normalized_columns]
     queryFormatter = ", ".join(queryFormatter)
 
     table_name = self._get_table_name()
-    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?"
+    normalized_primary_key = self._normalize_column_name(self.primaryKey)
+    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {normalized_primary_key}=?"
     query = connection.convert_placeholders(query)
     print("update query: ", query)
     cursor.execute(query, data + (key,))
@@ -347,12 +370,14 @@ class Model:
   # updates specific fields only
   def updateSpecific(self, key, fields: list[str], data: tuple):
     conn, cursor = connection.cursorInstance()
-    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
-    queryFormatter = [f"{col}=?" for col in fields]
+    # Normalize column names for PostgreSQL (lowercase to match unquoted column names)
+    normalized_fields = self._normalize_column_list(fields)
+    queryFormatter = [f"{col}=?" for col in normalized_fields]
     queryFormatter = ", ".join(queryFormatter)
 
     table_name = self._get_table_name()
-    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {self.primaryKey}=?"
+    normalized_primary_key = self._normalize_column_name(self.primaryKey)
+    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {normalized_primary_key}=?"
     query = connection.convert_placeholders(query)
     cursor.execute(query, data + (key,))
     conn.commit()
@@ -363,8 +388,9 @@ class Model:
     tmpDeleted = self.get(key)
 
     table_name = self._get_table_name()
-    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
-    query = f"DELETE FROM {table_name} WHERE {self.primaryKey}=?"
+    # Normalize column name for PostgreSQL (lowercase to match unquoted column names)
+    normalized_primary_key = self._normalize_column_name(self.primaryKey)
+    query = f"DELETE FROM {table_name} WHERE {normalized_primary_key}=?"
     query = connection.convert_placeholders(query)
     cursor.execute(query, (key,))
     conn.commit()
@@ -377,8 +403,9 @@ class Model:
 
     conn, cursor = connection.cursorInstance()
     table_name = self._get_table_name()
-    # Don't quote columns - they're lowercase in PostgreSQL (created without quotes)
-    query = f"SELECT {overwritingKey} FROM {table_name} ORDER BY id DESC LIMIT 1"
+    # Normalize column name for PostgreSQL (lowercase to match unquoted column names)
+    normalized_key = self._normalize_column_name(overwritingKey)
+    query = f"SELECT {normalized_key} FROM {table_name} ORDER BY {normalized_key} DESC LIMIT 1"
     cursor.execute(query)
     lastPrimary = cursor.fetchone()
 
