@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from "react";
+import { Box, Typography } from "@mui/material";
 import TextHeader from "../../components/Headers/TextHeader";
 import TextSubHeader from "../../components/Headers/TextSubHeader";
 import DataTable from "../../components/Tables/DataTable";
@@ -35,6 +36,7 @@ const MemebrshipApprovalPage = () => {
     parseInt(searchParams.get("status") ?? "") || 3
   );
   const [searchVal, setSearchVal] = useState("");
+  const [debouncedSearchVal, setDebouncedSearchVal] = useState("");
 
   const [membershipData, setMembershipData] = useState<any[]>([]);
   const [openViewer, setOpenViewer] = useState(false);
@@ -110,6 +112,15 @@ const MemebrshipApprovalPage = () => {
     active: <Chip bgcolor="#2f7a00" label="active" color="white" />,
   };
 
+  // Debounce search input to improve performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchVal(searchVal);
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timer);
+  }, [searchVal]);
+
   useEffect(() => {
     setLoading(true);
     console.log("Fetching membership data...");
@@ -155,13 +166,31 @@ const MemebrshipApprovalPage = () => {
           return true;
         })
         .filter((member) => {
-          if (!searchVal) return true; // If no search term, show all
-          const searchLower = searchVal.toLowerCase();
-          return (
-            (member.srcode?.toLowerCase() || "").includes(searchLower) ||
-            (member.fullname?.toLowerCase() || "").includes(searchLower) ||
-            (member.collegeDept?.toLowerCase() || "").includes(searchLower)
-          );
+          // Use debounced search value
+          if (!debouncedSearchVal || debouncedSearchVal.trim() === "") return true;
+          
+          const searchLower = debouncedSearchVal.toLowerCase().trim();
+          const searchTerms = searchLower.split(/\s+/).filter(term => term.length > 0);
+          
+          // If multiple search terms, all must match (AND logic)
+          if (searchTerms.length === 0) return true;
+          
+          // Build searchable text from all relevant fields
+          const fullname = (member.fullname || "").toLowerCase();
+          const srcode = (member.srcode || "").toLowerCase();
+          const collegeDept = (member.collegeDept || "").toLowerCase();
+          const email = (member.email || "").toLowerCase();
+          const campus = (member.campus || "").toLowerCase();
+          const yrlevelprogram = (member.yrlevelprogram || "").toLowerCase();
+          const address = (member.address || "").toLowerCase();
+          const contactNum = (member.contactNum || "").toLowerCase();
+          const affiliation = (member.affiliation || "").toLowerCase();
+          
+          // Combine all searchable fields
+          const searchableText = `${fullname} ${srcode} ${collegeDept} ${email} ${campus} ${yrlevelprogram} ${address} ${contactNum} ${affiliation}`;
+          
+          // Check if all search terms are found in the searchable text
+          return searchTerms.every(term => searchableText.includes(term));
         });
       
       console.log("Filtered data:", filteredData);
@@ -255,7 +284,7 @@ const MemebrshipApprovalPage = () => {
       setMembershipData([]);
       setLoading(false);
     });
-  }, [refreshTable, searchVal, searchStatus, searchAccStatus]);
+  }, [refreshTable, debouncedSearchVal, searchStatus, searchAccStatus]);
 
   if (loading) {
     return (
@@ -279,6 +308,24 @@ const MemebrshipApprovalPage = () => {
       <PageLayout page="membership-approval">
         <TextHeader>MEMBERSHIP APPROVAL</TextHeader>
         <TextSubHeader>Evaluate membership requirements here</TextSubHeader>
+        {(debouncedSearchVal || searchStatus !== 3 || searchAccStatus !== 3) && (
+          <Box sx={{ 
+            padding: "10px 20px", 
+            backgroundColor: "#f5f5f5", 
+            borderRadius: "8px",
+            marginBottom: "10px",
+            display: "flex",
+            alignItems: "center",
+            gap: 1
+          }}>
+            <Typography variant="body2" color="text.secondary">
+              Showing {membershipData.length} result{membershipData.length !== 1 ? 's' : ''}
+              {debouncedSearchVal && ` for "${debouncedSearchVal}"`}
+              {searchStatus !== 3 && ` (${searchStatus === 2 ? 'Not Evaluated' : searchStatus === 1 ? 'Approved' : 'Rejected'})`}
+              {searchAccStatus !== 3 && ` (${searchAccStatus === 1 ? 'Active' : 'Not Active'})`}
+            </Typography>
+          </Box>
+        )}
         <DataTable
           title="Membership requirements"
           fields={[
@@ -290,7 +337,7 @@ const MemebrshipApprovalPage = () => {
           ]}
           data={membershipData}
           onSearch={(key) => {
-            setSearchVal(key.toLowerCase());
+            setSearchVal(key);
           }}
           componentBeforeSearch={ModRightComponents}
           // componentOnLeft={ModLeftComponents}

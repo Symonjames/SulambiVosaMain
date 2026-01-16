@@ -157,10 +157,11 @@ class Model:
     columnQuery = ", ".join(normalized_columns)
     table_name = self._get_table_name()
 
-    # For requirements table, order by insertion order to get most recent first
+    # For requirements and membership tables, order by insertion order to get most recent first
     # Since requirements use UUID strings (not sequential IDs), we use database-specific
     # system columns that represent physical row location (insertion order)
-    if self.table == "requirements":
+    # Membership uses SERIAL/INTEGER IDs, but we still use insertion order for consistency
+    if self.table == "requirements" or self.table == "membership":
       # Check if we're using PostgreSQL
       conn, _ = connection.cursorInstance()
       from ..database.connection import is_postgresql_connection
