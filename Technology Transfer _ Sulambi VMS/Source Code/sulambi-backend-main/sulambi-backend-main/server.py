@@ -28,6 +28,21 @@ allowed_origins = [
     "http://127.0.0.1:3000"
 ]
 
+def is_allowed_origin(origin):
+    """Check if origin is allowed, including Render subdomains"""
+    if not origin:
+        return False
+    
+    # Check exact match
+    if origin in allowed_origins:
+        return True
+    
+    # Allow any Render subdomain (for flexibility in deployment)
+    if origin.endswith('.onrender.com'):
+        return True
+    
+    return False
+
 # Configure CORS - must use specific origins (not wildcard) when credentials are enabled
 # Allow all methods and headers for development
 CORS(Server, 
@@ -46,7 +61,7 @@ def handle_preflight():
     if request.method == "OPTIONS":
         from flask import jsonify, make_response
         origin = request.headers.get('Origin')
-        if origin in allowed_origins:
+        if is_allowed_origin(origin):
             response = make_response(jsonify({"status": "ok"}), 200)
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
@@ -54,14 +69,18 @@ def handle_preflight():
             response.headers['Access-Control-Allow-Credentials'] = 'true'
             response.headers['Access-Control-Max-Age'] = '3600'
             return response
+        else:
+            # Log blocked origin for debugging
+            print(f"[CORS] Blocked preflight request from origin: {origin}")
+            return make_response(jsonify({"error": "Origin not allowed"}), 403)
 
 # Add CORS headers to all responses (including errors)
 # Must use specific origin, not wildcard, when credentials are enabled
 @Server.after_request
 def after_request(response):
     origin = request.headers.get('Origin', '')
-    # Use the request origin if it's in allowed list
-    if origin in allowed_origins:
+    # Use the request origin if it's in allowed list or is a Render domain
+    if is_allowed_origin(origin):
         response.headers['Access-Control-Allow-Origin'] = origin
     elif allowed_origins:
         # Default to first allowed origin if origin not found
@@ -85,7 +104,7 @@ def handle_error(error):
     response.status_code = 500 if not hasattr(error, 'code') else error.code
     
     # Set CORS headers even on errors
-    if origin in allowed_origins:
+    if is_allowed_origin(origin):
         response.headers['Access-Control-Allow-Origin'] = origin
     elif allowed_origins:
         response.headers['Access-Control-Allow-Origin'] = allowed_origins[0]
