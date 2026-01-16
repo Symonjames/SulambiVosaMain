@@ -37,20 +37,38 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
       setPdfUrl(null);
 
       try {
-        // Get authentication token
-        const token = localStorage.getItem("token");
+        // Check if URL is a Cloudinary URL (public, no auth needed)
+        const isCloudinaryUrl = url.includes("res.cloudinary.com") || url.includes("cloudinary.com");
+        const isLocalUrl = url.startsWith("/uploads/") || url.includes("/uploads/") || url.startsWith("uploads/");
+        
         const headers: HeadersInit = {};
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
-
-        // Fetch PDF with authentication
-        const response = await fetch(url, {
+        let fetchOptions: RequestInit = {
           headers,
-          credentials: "include",
-        });
+        };
+        
+        // Only add authentication for local/protected files, not Cloudinary
+        if (!isCloudinaryUrl) {
+          const token = localStorage.getItem("token");
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+          // Only use credentials for local files
+          fetchOptions.credentials = "include";
+        }
+        
+        // For Cloudinary URLs, don't use credentials (they're public and cause CORS issues)
+        // Cloudinary files are publicly accessible via URL
+        
+        // Fetch PDF
+        const response = await fetch(url, fetchOptions);
 
         if (!response.ok) {
+          if (response.status === 404 && isLocalUrl) {
+            throw new Error(
+              `File not found on server. This appears to be an old local file path. ` +
+              `The file may have been moved or deleted. Please contact support if you need access to this file.`
+            );
+          }
           throw new Error(`Failed to load PDF: ${response.status} ${response.statusText}`);
         }
 
@@ -138,16 +156,18 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
       {/* Header with controls */}
       <Box
         sx={{
-          position: "absolute",
+          position: "fixed",
           top: 0,
           left: 0,
           right: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.8)",
+          backgroundColor: "rgba(0, 0, 0, 0.95)",
           padding: "10px 20px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          zIndex: 10000,
+          zIndex: 10001, // Higher than content
+          boxShadow: "0 2px 10px rgba(0, 0, 0, 0.5)",
+          minHeight: "60px",
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -204,16 +224,21 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
         </Box>
       </Box>
 
-      {/* PDF Content */}
+      {/* PDF Content - positioned below fixed header */}
       <Box
         sx={{
-          flex: 1,
+          position: "absolute",
+          top: "70px", // Start below fixed header (header is ~60px + padding)
+          left: 0,
+          right: 0,
+          bottom: 0,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           width: "100%",
-          padding: "60px 20px 20px",
+          padding: "20px",
           overflow: "auto",
+          zIndex: 1, // Below header (10001) but above background
         }}
       >
         {loading && (
@@ -237,6 +262,7 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
                     window.open(url, "_blank");
                   }
                 }}
+                title="Open in new tab"
               >
                 <DownloadIcon />
               </IconButton>
@@ -244,10 +270,26 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
           >
             {error}
             <br />
-            <Typography variant="caption">
-              If this is a protected file, make sure you're logged in.
-              <br />
-              Click the download icon to try opening in a new tab.
+            <Typography variant="caption" sx={{ marginTop: 1, display: "block" }}>
+              {url.includes("res.cloudinary.com") ? (
+                <>
+                  This is a Cloudinary file. If it's not loading, it may have been deleted or moved.
+                  <br />
+                  Click the download icon to try opening in a new tab.
+                </>
+              ) : url.includes("/uploads/") || url.includes("uploads/") ? (
+                <>
+                  This appears to be an old local file path that no longer exists on the server.
+                  <br />
+                  All new uploads are saved to Cloudinary. Please contact support if you need this file.
+                </>
+              ) : (
+                <>
+                  If this is a protected file, make sure you're logged in.
+                  <br />
+                  Click the download icon to try opening in a new tab.
+                </>
+              )}
             </Typography>
           </Alert>
         )}
@@ -259,6 +301,9 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
               padding: "20px",
               borderRadius: "4px",
               boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+              maxWidth: "100%",
+              maxHeight: "calc(100vh - 120px)", // Account for header
+              overflow: "auto",
             }}
           >
             <Document

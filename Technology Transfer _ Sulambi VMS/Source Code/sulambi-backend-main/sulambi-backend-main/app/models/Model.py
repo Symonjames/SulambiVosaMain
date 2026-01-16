@@ -157,11 +157,24 @@ class Model:
     columnQuery = ", ".join(normalized_columns)
     table_name = self._get_table_name()
 
-    # For requirements table, order by ID descending to get most recent first
-    # This assumes the table has an 'id' column (primary key)
+    # For requirements table, order by insertion order to get most recent first
+    # Since requirements use UUID strings (not sequential IDs), we use database-specific
+    # system columns that represent physical row location (insertion order)
     if self.table == "requirements":
-      normalized_primary_key = self._normalize_column_name(self.primaryKey)
-      query = f"SELECT {columnQuery} FROM {table_name} ORDER BY {normalized_primary_key} DESC"
+      # Check if we're using PostgreSQL
+      conn, _ = connection.cursorInstance()
+      from ..database.connection import is_postgresql_connection
+      is_postgresql = is_postgresql_connection(conn)
+      conn.close()
+      
+      if is_postgresql:
+        # PostgreSQL: Use ctid (physical row location) for insertion order
+        # ctid DESC gives most recently inserted rows first
+        # Note: ctid can change after VACUUM, but for active databases it reflects insertion order
+        query = f"SELECT {columnQuery} FROM {table_name} ORDER BY ctid DESC"
+      else:
+        # SQLite: Use rowid for insertion order (rowid is stable and reflects insertion order)
+        query = f"SELECT {columnQuery} FROM {table_name} ORDER BY rowid DESC"
     else:
       query = f"SELECT {columnQuery} FROM {table_name}"
 

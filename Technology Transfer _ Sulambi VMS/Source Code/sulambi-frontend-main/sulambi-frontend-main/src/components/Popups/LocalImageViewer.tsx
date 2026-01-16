@@ -15,8 +15,8 @@ const LocalImageViewer: React.FC<Props> = ({ open, imageSource, setOpen }) => {
         <ReactSimpleImageViewer
           closeOnClickOutside
           backgroundStyle={{
-            zIndex: 10,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            zIndex: 10000, // Higher z-index to appear above other content
+            backgroundColor: "rgba(0, 0, 0, 0.9)",
           }}
           onClose={() => setOpen && setOpen(false)}
           src={[imageSource]}
