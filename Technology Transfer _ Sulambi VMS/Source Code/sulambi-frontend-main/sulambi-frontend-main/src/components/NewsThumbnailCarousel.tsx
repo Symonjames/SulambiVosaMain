@@ -225,6 +225,13 @@ const buildImageUrl = (filename?: string) => {
   }
   let clean = filename.trim();
   try { clean = decodeURIComponent(clean); } catch {}
+  
+  // Check if it's already a Cloudinary URL or other full URL
+  if (clean.startsWith("http://") || clean.startsWith("https://")) {
+    // Use Cloudinary URL or other full URL directly
+    return clean;
+  }
+  
   // Convert Windows backslashes to forward slashes
   clean = clean.replace(/\\/g, "/");
   // Remove any leading "uploads/" or "uploads\" to avoid double uploads

@@ -71,6 +71,13 @@ const buildImageUrl = (filename?: string) => {
   if (!filename) return "";
   let clean = filename.trim();
   try { clean = decodeURIComponent(clean); } catch {}
+  
+  // Check if it's already a Cloudinary URL or other full URL
+  if (clean.startsWith("http://") || clean.startsWith("https://")) {
+    // Use Cloudinary URL or other full URL directly
+    return clean;
+  }
+  
   clean = clean.replace(/\\\\/g, "/");
   if (clean.startsWith("uploads/")) clean = clean.replace(/^uploads[\\/\\\\]/, "");
   return `${BASE_URL}/uploads/${clean}?t=${Date.now()}`;

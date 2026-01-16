@@ -262,6 +262,13 @@ const AdminPhotoDisplay: React.FC<AdminPhotoDisplayProps> = ({
     let cleanFilename = filename.trim();
     if (!cleanFilename) return "";
     
+    // Check if it's already a Cloudinary URL or other full URL
+    if (cleanFilename.startsWith("http://") || cleanFilename.startsWith("https://")) {
+      // Use Cloudinary URL or other full URL directly
+      console.log('Image URL (Cloudinary):', { original: filename, final: cleanFilename });
+      return cleanFilename;
+    }
+    
     // Remove any existing uploads/ prefix to avoid double paths
     cleanFilename = cleanFilename.replace(/^uploads[\/\\]/, "");
     // Convert Windows backslashes to forward slashes
