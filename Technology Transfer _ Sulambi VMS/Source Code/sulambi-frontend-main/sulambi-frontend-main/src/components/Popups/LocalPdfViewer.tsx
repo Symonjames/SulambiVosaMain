@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Document, Page } from "react-pdf";
-import { pdfjs } from "../../utils/pdfjsWorker";
+import { Document, Page, pdfjs } from "react-pdf";
+// Import worker config for side effects (sets up worker before use)
+import "../../utils/pdfjsWorker";
 import { Box, IconButton, Typography, CircularProgress, Alert } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";

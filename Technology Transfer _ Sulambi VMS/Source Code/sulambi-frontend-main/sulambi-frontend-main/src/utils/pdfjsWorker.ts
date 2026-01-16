@@ -21,5 +21,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 console.log(`[PDFJS_WORKER] Configured worker: ${workerUrl}`);
 console.log(`[PDFJS_WORKER] PDF.js version: ${pdfjsVersion}`);
 
-export default pdfjs;
+// This file is imported for side effects only (worker configuration)
+// No exports needed
 
