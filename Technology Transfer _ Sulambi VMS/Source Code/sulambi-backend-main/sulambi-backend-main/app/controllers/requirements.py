@@ -4,7 +4,6 @@ from ..models.ExternalEventModel import ExternalEventModel
 from ..models.InternalEventModel import InternalEventModel
 from ..models.EvaluationModel import EvaluationModel
 from ..models.MembershipModel import MembershipModel
-from ..utils.multipartFileWriter import basicFileWriter
 from ..modules.CallbackTimer import executeDelayedAction
 from ..modules.Mailer import threadedHtmlMailer, htmlMailer
 
@@ -164,8 +163,10 @@ def createNewRequirement(eventId: int):
     print(f"[REQUIREMENTS_CREATE] Request form keys: {list(request.form.keys())}")
     print(f"[REQUIREMENTS_CREATE] Request files keys: {list(request.files.keys())}")
     
-    resultingPaths = basicFileWriter(["medCert", "waiver"])
-    print(f"[REQUIREMENTS_CREATE] File paths: {resultingPaths}")
+    # Use Cloudinary for file uploads (validates PDF and images only)
+    from app.utils.multipartFileWriter import cloudinaryFileWriter
+    resultingPaths = cloudinaryFileWriter(["medCert", "waiver"], folder="requirements")
+    print(f"[REQUIREMENTS_CREATE] Cloudinary URLs: {resultingPaths}")
     
     # Only check for duplicates if email is provided
     email = request.form.get("email")

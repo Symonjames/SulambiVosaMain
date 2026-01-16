@@ -12,27 +12,88 @@ def testFunction():
 
 # Create Flask app (needed for both dev and production)
 Server = Flask(__name__)
-CORS(Server, resources={r"/*": {
-  "origins": "*",
-  "allow_headers": "*",
-  "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  "supports_credentials": True
-}})
 
-# Add after_request handler to ensure CORS headers are always present
-# Note: flask-cors already handles CORS, but we add this as a fallback for error responses
-# We check if headers already exist to avoid duplicates
+# Allow common development and production origins
+# Get production frontend URL from environment or use default
+PRODUCTION_FRONTEND_URL = os.getenv("FRONTEND_URL", "https://sulambi-vosa.onrender.com")
+
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+    "http://localhost:8080",
+    PRODUCTION_FRONTEND_URL,  # Production frontend (configurable via FRONTEND_URL env var)
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:3000"
+]
+
+# Configure CORS - must use specific origins (not wildcard) when credentials are enabled
+# Allow all methods and headers for development
+CORS(Server, 
+     resources={r"/*": {
+         "origins": allowed_origins,
+         "allow_headers": "*",
+         "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+         "supports_credentials": True,
+         "expose_headers": "*"
+     }},
+     supports_credentials=True)
+
+# Handle CORS preflight (OPTIONS) requests explicitly
+@Server.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        from flask import jsonify, make_response
+        origin = request.headers.get('Origin')
+        if origin in allowed_origins:
+            response = make_response(jsonify({"status": "ok"}), 200)
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+            response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Max-Age'] = '3600'
+            return response
+
+# Add CORS headers to all responses (including errors)
+# Must use specific origin, not wildcard, when credentials are enabled
 @Server.after_request
 def after_request(response):
-    """Ensure CORS headers are always present on all responses (only if not already set by flask-cors)"""
-    # Only add headers if they don't already exist (to avoid duplicates)
-    if 'Access-Control-Allow-Origin' not in response.headers:
-        origin = request.headers.get('Origin', '*')
+    origin = request.headers.get('Origin', '')
+    # Use the request origin if it's in allowed list
+    if origin in allowed_origins:
         response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Access-Control-Max-Age'] = '3600'
+    elif allowed_origins:
+        # Default to first allowed origin if origin not found
+        response.headers['Access-Control-Allow-Origin'] = allowed_origins[0]
+    else:
+        response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
+
+# Handle errors and ensure CORS headers are set even on exceptions
+@Server.errorhandler(Exception)
+def handle_error(error):
+    from flask import jsonify
+    origin = request.headers.get('Origin', '') if request else ''
+    response = jsonify({
+        'message': str(error),
+        'error': type(error).__name__
+    })
+    response.status_code = 500 if not hasattr(error, 'code') else error.code
+    
+    # Set CORS headers even on errors
+    if origin in allowed_origins:
+        response.headers['Access-Control-Allow-Origin'] = origin
+    elif allowed_origins:
+        response.headers['Access-Control-Allow-Origin'] = allowed_origins[0]
+    else:
+        response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
     return response
 
 @Server.route("/uploads/<path:path>")

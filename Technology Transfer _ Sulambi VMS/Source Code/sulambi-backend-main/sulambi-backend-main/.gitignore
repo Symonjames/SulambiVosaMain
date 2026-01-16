@@ -2,3 +2,13 @@ __pycache__
 app/database/database.db
 *.bak
 uploads/*
+.env
+.env.local
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+ENV/
+.venv

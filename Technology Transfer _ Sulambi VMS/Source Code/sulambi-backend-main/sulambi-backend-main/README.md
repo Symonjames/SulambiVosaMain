@@ -19,9 +19,17 @@ DEBUG=True
 DB_PATH="app/database/database.db"
 AUTOMAILER_EMAIL=
 AUTOMAILER_PASSW=
+
+# Cloudinary Configuration (Required for file uploads)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 ```
 
-**Note:** Make sure to fill the `AUTOMAILER_EMAIL` and `AUTOMAILER_PASSW` variables for the automatic mailing to work.
+**Notes:**
+- Make sure to fill the `AUTOMAILER_EMAIL` and `AUTOMAILER_PASSW` variables for the automatic mailing to work.
+- **Cloudinary Configuration is required** for requirements document uploads. Get your credentials from [Cloudinary Dashboard](https://cloudinary.com/console).
+- Requirements documents can only be PDF or image files (jpg, jpeg, png, gif, bmp, webp, svg, ico, tiff).
 
 ### Initialization of Tables
 
