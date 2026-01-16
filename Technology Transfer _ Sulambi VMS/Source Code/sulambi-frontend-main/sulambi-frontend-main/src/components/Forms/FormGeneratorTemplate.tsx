@@ -543,33 +543,54 @@ const FormGeneratorTemplate = ({
                 width="100%"
               >
                 <Typography>{value.message}</Typography>
-                <PrimaryButton
-                  label="View Uploaded File"
-                  startIcon={<RemoveRedEyeIcon />}
-                  onClick={() => {
-                    if (value.id && formData[value.id]) {
-                      const base = (BASE_API_URL as string).replace("/api", "");
-                      const rootUri = `${base}/uploads`;
-
-                      // Backend may store paths like "uploads/<file>" or "uploads\\<file>".
-                      // Normalize into a URL path relative to /uploads/<path>
+                {value.id && formData[value.id] && String(formData[value.id]).trim() !== "" && String(formData[value.id]) !== "N/A" ? (
+                  <PrimaryButton
+                    label="View Uploaded File"
+                    startIcon={<RemoveRedEyeIcon />}
+                    onClick={() => {
                       const raw = String(formData[value.id]);
-                      const normalized = raw.replace(/\\/g, "/");
-                      const relative = normalized.startsWith("uploads/")
-                        ? normalized.slice("uploads/".length)
-                        : normalized;
+                      
+                      // Check if it's a Cloudinary URL or other full URL
+                      const isFullUrl = raw.startsWith("http://") || raw.startsWith("https://");
+                      
+                      let fileSource: string;
+                      let isPdf: boolean;
+                      
+                      if (isFullUrl) {
+                        // Use Cloudinary URL or other full URL directly
+                        fileSource = raw;
+                        // Check if URL ends with .pdf (case insensitive)
+                        const lower = raw.toLowerCase();
+                        isPdf = lower.includes(".pdf") || lower.includes("pdf");
+                      } else {
+                        // Handle local uploads
+                        const base = (BASE_API_URL as string).replace("/api", "");
+                        const rootUri = `${base}/uploads`;
 
-                      const lower = relative.toLowerCase();
-                      const isPdf = lower.endsWith(".pdf");
+                        // Backend may store paths like "uploads/<file>" or "uploads\\<file>".
+                        // Normalize into a URL path relative to /uploads/<path>
+                        const normalized = raw.replace(/\\/g, "/");
+                        const relative = normalized.startsWith("uploads/")
+                          ? normalized.slice("uploads/".length)
+                          : normalized;
+
+                        fileSource = `${rootUri}/${relative}`;
+                        const lower = relative.toLowerCase();
+                        isPdf = lower.endsWith(".pdf");
+                      }
 
                       setFileDetails({
-                        source: `${rootUri}/${relative}`,
+                        source: fileSource,
                         type: isPdf ? "pdf" : "image",
                       });
                       setOpenViewer(true);
-                    }
-                  }}
-                />
+                    }}
+                  />
+                ) : (
+                  <Typography color="text.secondary" sx={{ fontStyle: "italic", padding: "8px" }}>
+                    No file uploaded
+                  </Typography>
+                )}
               </FlexBox>
             );
 

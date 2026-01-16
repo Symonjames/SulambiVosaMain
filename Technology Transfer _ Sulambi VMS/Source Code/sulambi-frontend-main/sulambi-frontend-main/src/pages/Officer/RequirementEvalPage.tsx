@@ -22,6 +22,8 @@ import RequirementForm from "../../components/Forms/RequirementForm";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import CustomDropdown from "../../components/Inputs/CustomDropdown";
 import { useNavigate } from "react-router-dom";
+import LoadingSpinner from "../../components/Loading/LoadingSpinner";
+import { Typography } from "@mui/material";
 
 const RequirementEvalPage = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
@@ -32,17 +34,28 @@ const RequirementEvalPage = () => {
   const [searchVal, setSearchVal] = useState("");
   const [tableData, setTableData] = useState<any[]>([]);
   const [forceRefresh, setForceRefresh] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const [selectedFormData, setSelectedFormData] = useState<any>({});
   const [viewFormData, setViewFormData] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
     getAllRequirements()
       .then((response) => {
+        console.log("Full API response:", response);
+        console.log("Response data:", response?.data);
+        
         // Ensure response has the expected structure
         if (!response?.data?.data) {
           console.warn("Invalid response structure:", response);
+          console.warn("Response keys:", Object.keys(response?.data || {}));
           setTableData([]);
+          setLoading(false);
+          showSnackbarMessage(
+            "Invalid response format from server",
+            "error"
+          );
           return;
         }
 
@@ -51,12 +64,23 @@ const RequirementEvalPage = () => {
         // Check if requirementsData is an array
         if (!Array.isArray(requirementsData)) {
           console.warn("Requirements data is not an array:", requirementsData);
+          console.warn("Type of requirementsData:", typeof requirementsData);
           setTableData([]);
+          setLoading(false);
+          showSnackbarMessage(
+            "Requirements data format error",
+            "error"
+          );
           return;
         }
 
-        console.log("Fetched requirements:", requirementsData.length, "items");
-        console.log("Raw requirements data:", requirementsData);
+        console.log("✅ Fetched requirements:", requirementsData.length, "items");
+        if (requirementsData.length > 0) {
+          console.log("Sample requirement keys:", Object.keys(requirementsData[0]));
+          console.log("Sample requirement:", requirementsData[0]);
+          console.log("eventId value:", requirementsData[0].eventId);
+          console.log("eventid value:", (requirementsData[0] as any).eventid);
+        }
         console.log("Current search filter:", { searchVal, searchStatus });
 
       const chipMap = {
@@ -67,12 +91,41 @@ const RequirementEvalPage = () => {
         rejected: <Chip bgcolor="#c10303" label="rejected" color="white" />,
       };
 
+      // Normalize data - handle both camelCase and lowercase column names
+      // Also ensure eventId is properly formatted
+      const normalizedData = requirementsData.map((req: any) => {
+        // Handle eventId - could be object, number, or lowercase key
+        let eventId = req.eventId || req.eventid;
+        
+        // If eventId is still a number, it means backend didn't process it
+        // Create a placeholder object
+        if (typeof eventId === 'number' || typeof eventId === 'string') {
+          eventId = {
+            id: eventId,
+            title: `Event ID ${eventId}`,
+            status: "unknown"
+          };
+        }
+        
+        // Ensure accepted is properly typed (null, 0, 1, or undefined)
+        let accepted = req.accepted;
+        if (accepted === undefined && req.accepted === null) {
+          accepted = null;
+        }
+        
+        return {
+          ...req,
+          eventId: eventId,
+          accepted: accepted,
+        };
+      });
+
       // Log each requirement before filtering
-      requirementsData.forEach((req, index) => {
+      normalizedData.forEach((req, index) => {
         console.log(`Requirement ${index}:`, {
           id: req.id,
           eventId: req.eventId,
-          eventTitle: req.eventId?.title,
+          eventTitle: typeof req.eventId === 'object' ? req.eventId?.title : 'N/A',
           fullname: req.fullname,
           email: req.email,
           type: req.type,
@@ -80,7 +133,7 @@ const RequirementEvalPage = () => {
         });
       });
 
-      const afterSearchFilter = requirementsData
+      const afterSearchFilter = normalizedData
           .filter((req) => {
             // If searchVal is empty, show all items
             if (!searchVal || searchVal.trim() === "") return true;
@@ -212,19 +265,32 @@ const RequirementEvalPage = () => {
             ),
           ]);
 
-      console.log("Final processed table data:", filteredAndMappedData.length, "rows");
+      console.log("✅ Final processed table data:", filteredAndMappedData.length, "rows");
+      
+      if (filteredAndMappedData.length === 0 && requirementsData.length > 0) {
+        console.warn("⚠️ All requirements filtered out!");
+        console.warn("Total requirements:", requirementsData.length);
+        console.warn("After search filter:", afterSearchFilter.length);
+        console.warn("After status filter:", afterStatusFilter.length);
+        console.warn("Search status:", searchStatus);
+        console.warn("Search value:", searchVal);
+      }
+      
       setTableData(filteredAndMappedData);
+      setLoading(false);
       })
       .catch((err) => {
-        console.error("Error fetching requirements:", err);
+        console.error("❌ Error fetching requirements:", err);
         console.error("Error details:", err.response?.data || err.message);
+        console.error("Error stack:", err.stack);
         setTableData([]);
+        setLoading(false);
         showSnackbarMessage(
-          "An error occurred while fetching requirements",
+          `An error occurred while fetching requirements: ${err.message || "Unknown error"}`,
           "error"
         );
       });
-  }, [forceRefresh, searchVal, searchStatus, showSnackbarMessage]);
+  }, [forceRefresh, searchVal, searchStatus, showSnackbarMessage, setFormData]);
 
   const ModRightComponents = [
     <CustomDropdown
@@ -243,6 +309,16 @@ const RequirementEvalPage = () => {
     />,
   ];
 
+  if (loading) {
+    return (
+      <PageLayout page="requirement-evaluation">
+        <TextHeader>REQUIREMENT EVALUATION</TextHeader>
+        <TextSubHeader>Evaluate participant requirements here</TextSubHeader>
+        <LoadingSpinner message="Loading requirements..." />
+      </PageLayout>
+    );
+  }
+
   return (
     <>
       <RequirementForm
@@ -256,14 +332,39 @@ const RequirementEvalPage = () => {
       <PageLayout page="requirement-evaluation">
         <TextHeader>REQUIREMENT EVALUATION</TextHeader>
         <TextSubHeader>Evaluate participant requirements here</TextSubHeader>
-        <DataTable
-          title="Participant Requirements"
-          fields={["Event Title", "Participant Name", "Status", "Actions"]}
-          data={tableData}
-          onSearch={(key) => setSearchVal(key.toLowerCase())}
-          componentBeforeSearch={ModRightComponents}
-          // componentOnLeft={ModLeftComponents}
-        />
+        {tableData.length === 0 ? (
+          <div style={{ 
+            padding: "40px", 
+            textAlign: "center",
+            color: "var(--text-landing, #666)"
+          }}>
+            <Typography variant="h6" style={{ marginBottom: "10px" }}>
+              No requirements found
+            </Typography>
+            <Typography variant="body2" style={{ marginBottom: "20px" }}>
+              {searchVal || searchStatus !== 3
+                ? "Try adjusting your search or filter criteria"
+                : "No requirements have been submitted yet"}
+            </Typography>
+            <Typography variant="caption" style={{ 
+              display: "block",
+              marginTop: "10px",
+              color: "#999",
+              fontSize: "0.85rem"
+            }}>
+              Check browser console for detailed debugging information
+            </Typography>
+          </div>
+        ) : (
+          <DataTable
+            title="Participant Requirements"
+            fields={["Event Title", "Participant Name", "Status", "Actions"]}
+            data={tableData}
+            onSearch={(key) => setSearchVal(key.toLowerCase())}
+            componentBeforeSearch={ModRightComponents}
+            // componentOnLeft={ModLeftComponents}
+          />
+        )}
       </PageLayout>
     </>
   );

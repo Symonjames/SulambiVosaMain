@@ -42,6 +42,7 @@ import FeedbackForm from "../../components/Forms/FeedbackForm";
 import ReportForm from "../../components/Forms/ReportForm";
 import SignatoriesForm from "../../components/Forms/SignatoriesForm";
 import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
+import LoadingSpinner from "../../components/Loading/LoadingSpinner";
 
 const EventProposal = () => {
   const { formData, setFormData } = useContext(FormDataContext);
@@ -55,6 +56,7 @@ const EventProposal = () => {
 
   const [tableData, setTableData] = useState<any>([]);
   const [refreshTable, setRefreshTable] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const [openProposalForm, setOpenProposalForm] = useState(false);
   const [editProposal, setEditProposal] = useState(false);
@@ -140,6 +142,7 @@ const EventProposal = () => {
   useEffect(() => {
     (async function () {
       try {
+        setLoading(true);
         const events = await getAllEvents();
         const sortedEventData: (
           | ExternalEventProposalType
@@ -264,8 +267,10 @@ const EventProposal = () => {
               ),
             ])
         );
+        setLoading(false);
       } catch (err: any) {
         console.log(err);
+        setLoading(false);
       }
     })();
   }, [refreshTable, searchFilter, searchVal, searchStatus]);
@@ -545,16 +550,20 @@ const EventProposal = () => {
       <PageLayout page="event-proposal">
         <TextHeader>EVENT PROPOSAL</TextHeader>
         <TextSubHeader>Track and Create your proposal here</TextSubHeader>
-        <DataTable
-          title="Event Proposals"
-          fields={["Event title", "Type", "Status", "Public Status", "Actions"]}
-          data={tableData}
-          componentBeforeSearch={ModRightComponents}
-          componentOnLeft={ModLeftComponents}
-          onSearch={(key) => {
-            setSearchVal(key.toLowerCase());
-          }}
-        />
+        {loading ? (
+          <LoadingSpinner message="Loading event proposals..." />
+        ) : (
+          <DataTable
+            title="Event Proposals"
+            fields={["Event title", "Type", "Status", "Public Status", "Actions"]}
+            data={tableData}
+            componentBeforeSearch={ModRightComponents}
+            componentOnLeft={ModLeftComponents}
+            onSearch={(key) => {
+              setSearchVal(key.toLowerCase());
+            }}
+          />
+        )}
       </PageLayout>
     </>
   );

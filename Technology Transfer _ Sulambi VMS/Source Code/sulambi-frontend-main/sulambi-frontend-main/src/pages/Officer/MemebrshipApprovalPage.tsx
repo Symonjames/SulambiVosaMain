@@ -22,6 +22,7 @@ import { FormDataContext } from "../../contexts/FormDataProvider";
 import Chip from "../../components/Chips/Chip";
 import CustomDropdown from "../../components/Inputs/CustomDropdown";
 import { useSearchParams } from "react-router-dom";
+import LoadingSpinner from "../../components/Loading/LoadingSpinner";
 
 const MemebrshipApprovalPage = () => {
   const { setFormData } = useContext(FormDataContext);
@@ -38,6 +39,7 @@ const MemebrshipApprovalPage = () => {
   const [membershipData, setMembershipData] = useState<any[]>([]);
   const [openViewer, setOpenViewer] = useState(false);
   const [refreshTable, setRefreshTable] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const approveCallback = (memberId: number) => {
     return () => {
@@ -109,6 +111,7 @@ const MemebrshipApprovalPage = () => {
   };
 
   useEffect(() => {
+    setLoading(true);
     console.log("Fetching membership data...");
     console.log("Current filters - Status:", searchStatus, "Account Status:", searchAccStatus, "Search:", searchVal);
     getAllMembers().then((response) => {
@@ -117,10 +120,25 @@ const MemebrshipApprovalPage = () => {
       console.log("Raw membership data count:", membershipResponseData.length);
       console.log("Sample member:", membershipResponseData[0]);
       
+      // Debug: Check pending members specifically
+      const pendingMembers = membershipResponseData.filter(m => m.accepted === null || m.accepted === undefined);
+      console.log(`[MEMBERSHIP_FILTER] Found ${pendingMembers.length} members with accepted=null/undefined`);
+      if (pendingMembers.length > 0) {
+        console.log(`[MEMBERSHIP_FILTER] Sample pending member:`, pendingMembers[0]);
+        console.log(`[MEMBERSHIP_FILTER] accepted value:`, pendingMembers[0].accepted, `type:`, typeof pendingMembers[0].accepted);
+      }
+      
       const filteredData = membershipResponseData
         .filter((member) => {
           if (searchStatus === 3) return true;
-          if (searchStatus === 2) return member.accepted === null;
+          // Check for both null and undefined (JSON null might be either)
+          if (searchStatus === 2) {
+            const isPending = member.accepted === null || member.accepted === undefined;
+            if (isPending) {
+              console.log(`[MEMBERSHIP_FILTER] Including pending member: ID ${member.id}, accepted=${member.accepted}`);
+            }
+            return isPending;
+          }
           if (searchStatus === 0) return member.accepted === 0;
           return member.accepted === searchStatus;
         })
@@ -231,11 +249,23 @@ const MemebrshipApprovalPage = () => {
             ),
           ])
       );
+      setLoading(false);
     }).catch((error) => {
       console.error("Error fetching membership data:", error);
       setMembershipData([]);
+      setLoading(false);
     });
   }, [refreshTable, searchVal, searchStatus, searchAccStatus]);
+
+  if (loading) {
+    return (
+      <PageLayout page="membership-approval">
+        <TextHeader>MEMBERSHIP APPROVAL</TextHeader>
+        <TextSubHeader>Evaluate membership requirements here</TextSubHeader>
+        <LoadingSpinner message="Loading membership data..." />
+      </PageLayout>
+    );
+  }
 
   return (
     <>
