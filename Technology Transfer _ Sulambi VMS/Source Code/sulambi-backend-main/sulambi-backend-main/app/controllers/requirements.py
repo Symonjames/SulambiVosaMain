@@ -21,45 +21,127 @@ EvaluationDb = EvaluationModel()
 MembershipDb = MembershipModel()
 
 def getAllRequirements():
+  import time
+  start_time = time.time()
+  
   try:
     print("[REQUIREMENTS_GET_ALL] ========================================")
     print("[REQUIREMENTS_GET_ALL] Fetching all requirements...")
     
+    step_start = time.time()
     requirements = RequirementsDb.getAll()
-    print(f"[REQUIREMENTS_GET_ALL] Retrieved {len(requirements)} requirements from database")
+    step_time = time.time() - step_start
+    print(f"[REQUIREMENTS_GET_ALL] Retrieved {len(requirements)} requirements from database ({step_time:.2f}s)")
 
-    # manual joining of data (this implementation is just restarted, my bad...)
-    for index, requirement in enumerate(requirements):
-      # Backfill participant details if missing (common when older uploads only sent files)
+    # OPTIMIZATION: Batch fetch all events to avoid opening hundreds of database connections
+    # Collect all unique event IDs first
+    external_event_ids = set()
+    internal_event_ids = set()
+    
+    for requirement in requirements:
+      eventType = requirement.get("type", "external")
+      eventIdValue = requirement.get("eventId")
+      
+      if eventIdValue is not None:
+        if eventType == "external":
+          external_event_ids.add(eventIdValue)
+        elif eventType == "internal":
+          internal_event_ids.add(eventIdValue)
+    
+    print(f"[REQUIREMENTS_GET_ALL] Found {len(external_event_ids)} unique external events and {len(internal_event_ids)} unique internal events")
+    
+    # OPTIMIZATION: Batch fetch only needed events
+    step_start = time.time()
+    external_events_cache = {}
+    if external_event_ids:
       try:
-        if (not requirements[index].get("fullname")):
+        all_external_events = ExternalEventDb.getAll()
+        for event in all_external_events:
+          if event and event.get("id") in external_event_ids:
+            external_events_cache[event["id"]] = event
+        step_time = time.time() - step_start
+        print(f"[REQUIREMENTS_GET_ALL] Cached {len(external_events_cache)}/{len(external_event_ids)} external events ({step_time:.2f}s)")
+      except Exception as e:
+        print(f"[REQUIREMENTS_GET_ALL] Warning: Failed to batch fetch external events: {e}")
+    
+    # Batch fetch all internal events
+    step_start = time.time()
+    internal_events_cache = {}
+    if internal_event_ids:
+      try:
+        all_internal_events = InternalEventDb.getAll()
+        for event in all_internal_events:
+          if event and event.get("id") in internal_event_ids:
+            internal_events_cache[event["id"]] = event
+        step_time = time.time() - step_start
+        print(f"[REQUIREMENTS_GET_ALL] Cached {len(internal_events_cache)}/{len(internal_event_ids)} internal events ({step_time:.2f}s)")
+      except Exception as e:
+        print(f"[REQUIREMENTS_GET_ALL] Warning: Failed to batch fetch internal events: {e}")
+
+    # OPTIMIZATION: Batch fetch members for backfilling to avoid individual queries
+    step_start = time.time()
+    emails_to_lookup = set()
+    srcodes_to_lookup = set()
+    requirements_needing_backfill = []
+    
+    for index, requirement in enumerate(requirements):
+      if not requirement.get("fullname"):
+        email = requirement.get("email")
+        srcode = requirement.get("srcode")
+        if email and str(email).strip():
+          emails_to_lookup.add(str(email).strip())
+        if srcode and str(srcode).strip():
+          srcodes_to_lookup.add(str(srcode).strip())
+        requirements_needing_backfill.append(index)
+    
+    # Batch fetch members by email and srcode
+    members_by_email = {}
+    members_by_srcode = {}
+    
+    if emails_to_lookup or srcodes_to_lookup:
+      try:
+        all_members = MembershipDb.getAll()
+        for member in all_members:
+          member_email = member.get("email")
+          member_srcode = member.get("srcode")
+          if member_email and str(member_email).strip() in emails_to_lookup:
+            members_by_email[str(member_email).strip()] = member
+          if member_srcode and str(member_srcode).strip() in srcodes_to_lookup:
+            members_by_srcode[str(member_srcode).strip()] = member
+        step_time = time.time() - step_start
+        print(f"[REQUIREMENTS_GET_ALL] Cached {len(members_by_email)} members by email, {len(members_by_srcode)} by srcode ({step_time:.2f}s)")
+      except Exception as e:
+        print(f"[REQUIREMENTS_GET_ALL] Warning: Failed to batch fetch members: {e}")
+    
+    # Now process requirements using cached events and members (no additional DB connections)
+    step_start = time.time()
+    for index, requirement in enumerate(requirements):
+      # Backfill participant details if missing using cached members
+      if index in requirements_needing_backfill:
+        try:
           email = requirements[index].get("email")
           srcode = requirements[index].get("srcode")
-
+          
           member = None
-          if (email != None and str(email).strip() != ""):
-            matches = MembershipDb.getAndSearch(["email"], (str(email).strip(),))
-            if (len(matches) > 0):
-              member = matches[0]
-          if (member == None and srcode != None and str(srcode).strip() != ""):
-            matches = MembershipDb.getAndSearch(["srcode"], (str(srcode).strip(),))
-            if (len(matches) > 0):
-              member = matches[0]
-
-          if (member != None):
+          if email and str(email).strip() in members_by_email:
+            member = members_by_email[str(email).strip()]
+          elif srcode and str(srcode).strip() in members_by_srcode:
+            member = members_by_srcode[str(srcode).strip()]
+          
+          if member:
             requirements[index]["fullname"] = member.get("fullname") or requirements[index].get("fullname")
             requirements[index]["email"] = member.get("email") or requirements[index].get("email")
             requirements[index]["srcode"] = member.get("srcode") or requirements[index].get("srcode")
             requirements[index]["collegeDept"] = member.get("collegeDept") or requirements[index].get("collegeDept")
-      except Exception as e:
-        # Non-fatal: still return requirements list
-        print("[requirements] Warning: failed to backfill member details:", e)
+        except Exception as e:
+          # Non-fatal: still return requirements list
+          print("[requirements] Warning: failed to backfill member details:", e)
 
       eventType = requirements[index].get("type", "external")
-      eventIdValue = requirements[index]["eventId"]
+      eventIdValue = requirements[index].get("eventId")
       
       if (eventType == "external"):
-        matchedEvent = ExternalEventDb.get(eventIdValue)
+        matchedEvent = external_events_cache.get(eventIdValue) if eventIdValue is not None else None
         if (matchedEvent == None):
           # If event doesn't exist, provide a placeholder event object
           requirements[index]["eventId"] = {
@@ -70,7 +152,7 @@ def getAllRequirements():
         else:
           requirements[index]["eventId"] = matchedEvent
       elif (eventType == "internal"):
-        matchedEvent = InternalEventDb.get(eventIdValue)
+        matchedEvent = internal_events_cache.get(eventIdValue) if eventIdValue is not None else None
         if (matchedEvent == None):
           # If event doesn't exist, provide a placeholder event object
           requirements[index]["eventId"] = {
@@ -87,8 +169,13 @@ def getAllRequirements():
           "title": f"Unknown Event Type: {eventType}",
           "status": "unknown"
         }
-
+    
+    processing_time = time.time() - step_start
+    print(f"[REQUIREMENTS_GET_ALL] Processed {len(requirements)} requirements ({processing_time:.2f}s)")
+    
+    total_time = time.time() - start_time
     print(f"[REQUIREMENTS_GET_ALL] ✅ Successfully processed {len(requirements)} requirements")
+    print(f"[REQUIREMENTS_GET_ALL] ⏱️ Total time: {total_time:.2f}s")
     print("[REQUIREMENTS_GET_ALL] ========================================")
     
     return {

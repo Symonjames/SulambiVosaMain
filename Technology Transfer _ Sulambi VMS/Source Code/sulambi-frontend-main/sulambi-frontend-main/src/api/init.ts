@@ -12,6 +12,12 @@ axios.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token && config.headers) {
     config.headers["Authorization"] = "Bearer " + token;
+  } else {
+    // Log when token is missing for protected routes
+    if (config.url && (config.url.includes("/requirements") || config.url.includes("/accounts") || config.url.includes("/membership"))) {
+      console.warn('[API_REQUEST] ⚠️ No token found for protected route:', config.url);
+      console.warn('[API_REQUEST] Token in localStorage:', !!token);
+    }
   }
 
   // If data is FormData, remove Content-Type header to let browser/axios set it with boundary
@@ -28,7 +34,9 @@ axios.interceptors.request.use((config) => {
     url: `${config.baseURL}${config.url}`,
     fullUrl: `${config.baseURL}${config.url}`,
     hasData: !!config.data,
-    dataKeys: config.data && typeof config.data === 'object' ? Object.keys(config.data) : 'N/A'
+    dataKeys: config.data && typeof config.data === 'object' ? Object.keys(config.data) : 'N/A',
+    hasToken: !!token,
+    tokenLength: token ? token.length : 0
   });
   
   return config;

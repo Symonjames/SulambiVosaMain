@@ -39,6 +39,29 @@ const RequirementEvalPage = () => {
   const [selectedFormData, setSelectedFormData] = useState<any>({});
   const [viewFormData, setViewFormData] = useState(false);
 
+  // Check authentication on mount
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const accountType = localStorage.getItem("accountType");
+    
+    if (!token || !accountType) {
+      console.warn("⚠️ No authentication token found, redirecting to login");
+      showSnackbarMessage("Please log in to access this page", "warning");
+      navigate("/login");
+      return;
+    }
+    
+    // Verify account type is officer or admin
+    if (accountType !== "officer" && accountType !== "admin") {
+      console.warn("⚠️ Insufficient permissions, redirecting to login");
+      showSnackbarMessage("You don't have permission to access this page", "error");
+      navigate("/login");
+      return;
+    }
+    
+    console.log("✅ Authentication check passed:", { accountType, hasToken: !!token });
+  }, [navigate, showSnackbarMessage]);
+
   useEffect(() => {
     setLoading(true);
     getAllRequirements()
@@ -283,12 +306,39 @@ const RequirementEvalPage = () => {
         console.error("❌ Error fetching requirements:", err);
         console.error("Error details:", err.response?.data || err.message);
         console.error("Error stack:", err.stack);
+        console.error("Error status:", err.response?.status);
+        
+        // Check if it's an authentication error
+        if (err.response?.status === 403) {
+          const errorMessage = err.response?.data?.message || "Unauthorized";
+          console.error("⚠️ Authentication error - user may not be logged in or token expired");
+          console.error("Token in localStorage:", !!localStorage.getItem("token"));
+          
+          // Show user-friendly error message
+          if (errorMessage.includes("Unauthorized") || errorMessage.includes("Token")) {
+            showSnackbarMessage(
+              "Please log in to view requirements. Your session may have expired.",
+              "error"
+            );
+            // Optionally redirect to login after a delay
+            setTimeout(() => {
+              navigate("/login");
+            }, 2000);
+          } else {
+            showSnackbarMessage(
+              `Access denied: ${errorMessage}`,
+              "error"
+            );
+          }
+        } else {
+          showSnackbarMessage(
+            `An error occurred while fetching requirements: ${err.message || "Unknown error"}`,
+            "error"
+          );
+        }
+        
         setTableData([]);
         setLoading(false);
-        showSnackbarMessage(
-          `An error occurred while fetching requirements: ${err.message || "Unknown error"}`,
-          "error"
-        );
       });
   }, [forceRefresh, searchVal, searchStatus, showSnackbarMessage, setFormData]);
 
