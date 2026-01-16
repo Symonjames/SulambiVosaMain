@@ -212,70 +212,72 @@ const MemebrshipApprovalPage = () => {
               : member.active === 1
               ? chipMap.active
               : chipMap.notActive,
-            member.accepted === null ? (
-              <MenuButtonTemplate
-                items={[
-                  {
-                    label: "View Requirements",
-                    icon: <RemoveRedEyeIcon />,
-                    onClick: () => {
-                      setFormData(member);
-                      setOpenViewer(true);
-                    },
+            // Always show action buttons - at minimum "View Requirements"
+            (() => {
+              const baseActions = [
+                {
+                  label: "View Requirements",
+                  icon: <RemoveRedEyeIcon />,
+                  onClick: () => {
+                    setFormData(member);
+                    setOpenViewer(true);
                   },
-                  {
-                    label: "Approve Membership",
-                    icon: <ThumbUpIcon />,
-                    onClick: approveCallback(member.id),
-                  },
-                  {
-                    label: "Reject/Disable",
-                    icon: <ThumbDownIcon />,
-                    onClick: rejectCallback(member.id),
-                  },
-                ]}
-              />
-            ) : member.accepted === 0 ? (
-              <></>
-            ) : member.accepted === 1 && member.active === 1 ? (
-              <MenuButtonTemplate
-                items={[
-                  {
-                    label: "View Requirements",
-                    icon: <RemoveRedEyeIcon />,
-                    onClick: () => {
-                      setFormData(member);
-                      setOpenViewer(true);
-                    },
-                  },
-                  {
-                    label: "Deactivate",
-                    icon: <ToggleOffIcon />,
-                    onClick: deactivateCallback(member.id),
-                  },
-                ]}
-              />
-            ) : member.accepted === 1 && member.active === 0 ? (
-              <MenuButtonTemplate
-                items={[
-                  {
-                    label: "View Requirements",
-                    icon: <RemoveRedEyeIcon />,
-                    onClick: () => {
-                      setFormData(member);
-                      setOpenViewer(true);
-                    },
-                  },
-                  {
-                    label: "Reactivate",
-                    icon: <ToggleOnIcon />,
-                    onClick: activateCallback(member.id),
-                  },
-                ]}
-              />
-            ) : (
-              <></>
-            ),
+                },
+              ];
+
+              // Add status-specific actions
+              if (member.accepted === null || member.accepted === undefined) {
+                // Not evaluated - show approve/reject
+                return (
+                  <MenuButtonTemplate
+                    items={[
+                      ...baseActions,
+                      {
+                        label: "Approve Membership",
+                        icon: <ThumbUpIcon />,
+                        onClick: approveCallback(member.id),
+                      },
+                      {
+                        label: "Reject/Disable",
+                        icon: <ThumbDownIcon />,
+                        onClick: rejectCallback(member.id),
+                      },
+                    ]}
+                  />
+                );
+              } else if (member.accepted === 1 && member.active === 1) {
+                // Approved and active - show deactivate
+                return (
+                  <MenuButtonTemplate
+                    items={[
+                      ...baseActions,
+                      {
+                        label: "Deactivate",
+                        icon: <ToggleOffIcon />,
+                        onClick: deactivateCallback(member.id),
+                      },
+                    ]}
+                  />
+                );
+              } else if (member.accepted === 1 && member.active === 0) {
+                // Approved but inactive - show reactivate
+                return (
+                  <MenuButtonTemplate
+                    items={[
+                      ...baseActions,
+                      {
+                        label: "Reactivate",
+                        icon: <ToggleOnIcon />,
+                        onClick: activateCallback(member.id),
+                      },
+                    ]}
+                  />
+                );
+              } else {
+                // Rejected (accepted === 0) or other status - show view only
+                return <MenuButtonTemplate items={baseActions} />;
+              }
+            })(),
           ])
       );
       setLoading(false);

@@ -10,8 +10,18 @@ import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 
-// Set up PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Set up PDF.js worker with reliable CDN
+// react-pdf 9.1.1 uses PDF.js 4.8.69
+// Use unpkg.com which is more reliable than cdnjs for this version
+const pdfjsVersion = pdfjs.version || "4.8.69";
+
+// Use .js format as it's more compatible across browsers
+// unpkg.com is generally more reliable and up-to-date than cdnjs
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
+
+// Log worker configuration for debugging
+console.log(`[PDF_VIEWER] PDF.js version: ${pdfjsVersion}`);
+console.log(`[PDF_VIEWER] Worker source: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
 
 interface Props {
   url: string;
@@ -100,7 +110,17 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
 
   const onDocumentLoadError = (error: Error) => {
     console.error("PDF load error:", error);
-    setError("Failed to parse PDF. The file may be corrupted.");
+    console.error("Error details:", error.message);
+    
+    // Check if it's a worker error
+    if (error.message.includes("worker") || error.message.includes("Failed to fetch") || error.message.includes("dynamically imported")) {
+      setError(
+        "PDF viewer worker failed to load. The PDF file is valid, but the viewer cannot initialize. " +
+        "Please try downloading the file instead using the download button."
+      );
+    } else {
+      setError("Failed to parse PDF. The file may be corrupted.");
+    }
     setLoading(false);
   };
 
