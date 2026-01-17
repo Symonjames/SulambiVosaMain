@@ -24,6 +24,14 @@ def createExternalReportRoute(eventId):
 def createInternalReportRoute(eventId):
   return reports.createReport(eventId, "internal")
 
+@ReportsBlueprint.put("/external/<reportId>")
+def updateExternalReportRoute(reportId):
+  return reports.updateReport(int(reportId), "external")
+
+@ReportsBlueprint.put("/internal/<reportId>")
+def updateInternalReportRoute(reportId):
+  return reports.updateReport(int(reportId), "internal")
+
 @ReportsBlueprint.delete("/external/<reportId>")
 def deleteExternalReportRoute(reportId):
   return reports.deleteReport(int(reportId), "external")
@@ -35,7 +43,7 @@ def deleteInternalReportRoute(reportId):
 @ReportsBlueprint.before_request
 def reportsMiddleware():
   if (request.method != "OPTIONS"):
-    if (request.method not in ["GET", "DELETE", "PATCH"]):
+    if (request.method not in ["GET", "DELETE", "PATCH", "PUT"]):
       missingParams = None
 
       # external report creation

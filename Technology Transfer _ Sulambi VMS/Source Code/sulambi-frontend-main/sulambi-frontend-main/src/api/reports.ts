@@ -25,6 +25,18 @@ export const createReport = (
   });
 };
 
+export const updateReport = (
+  reportId: number,
+  type: "external" | "internal",
+  reportData: FormData
+) => {
+  return axios.put(`${basePath}/${type}/${reportId}`, reportData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
 export const deleteReport = (
   reportId: number,
   type: "external" | "internal"

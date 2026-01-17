@@ -393,6 +393,96 @@ def createReport(eventId: int, eventType: str):
       "message": "Successfully submitted report"
     }
 
+def updateReport(reportId: int, reportType: str):
+  """Update a report by ID and type"""
+  try:
+    print(f"Attempting to update {reportType} report with ID: {reportId}")
+    
+    photoPath = basicFileWriter([])
+    photoNames = ",".join([photoPath[key] for key in photoPath])
+    
+    # Extract photo captions from form data
+    photoCaptions = []
+    for key in photoPath:
+      captionKey = f"photo_caption_{list(photoPath.keys()).index(key)}"
+      caption = request.form.get(captionKey, "")
+      photoCaptions.append(caption)
+    photoCaptionsStr = ",".join(photoCaptions)
+    
+    if reportType == "external":
+      # Check if report exists
+      existingReport = ExternalReportDb.get(reportId)
+      if not existingReport:
+        print(f"External report with ID {reportId} not found")
+        return ({"message": "External report not found"}, 404)
+      
+      # Update specific fields - only update photos/captions if new photos were uploaded
+      updateFields = ["narrative"]
+      updateValues = [request.form.get("narrative")]
+      
+      # Only update photos if new photos were uploaded
+      if photoNames:
+        updateFields.extend(["photos", "photoCaptions"])
+        updateValues.extend([photoNames, photoCaptionsStr])
+      
+      ExternalReportDb.updateSpecific(reportId, updateFields, tuple(updateValues))
+      
+      updatedReport = ExternalReportDb.get(reportId)
+      updatedReport["eventId"] = ExternalEventDb.get(updatedReport["eventId"])
+      updatedReport["signatoriesId"] = SignatoriesDb.get(updatedReport["signatoriesId"])
+      updatedReport["photos"] = updatedReport["photos"].split(",") if updatedReport["photos"] else []
+      updatedReport["photoCaptions"] = updatedReport["photoCaptions"].split(",") if updatedReport.get("photoCaptions") else []
+      
+      return {
+        "data": updatedReport,
+        "message": "External report updated successfully"
+      }
+    
+    elif reportType == "internal":
+      # Check if report exists
+      existingReport = InternalReportDb.get(reportId)
+      if not existingReport:
+        print(f"Internal report with ID {reportId} not found")
+        return ({"message": "Internal report not found"}, 404)
+      
+      # Update specific fields
+      updateFields = ["narrative", "budgetUtilized", "budgetUtilizedSrc", "psAttribution", "psAttributionSrc"]
+      updateValues = [
+        request.form.get("narrative"),
+        request.form.get("budgetUtilized") or "",
+        request.form.get("budgetUtilizedSrc") or "",
+        request.form.get("psAttribution") or "",
+        request.form.get("psAttributionSrc") or ""
+      ]
+      
+      # Only update photos if new photos were uploaded
+      if photoNames:
+        updateFields.extend(["photos", "photoCaptions"])
+        updateValues.extend([photoNames, photoCaptionsStr])
+      
+      InternalReportDb.updateSpecific(reportId, updateFields, tuple(updateValues))
+      
+      updatedReport = InternalReportDb.get(reportId)
+      updatedReport["eventId"] = InternalEventDb.get(updatedReport["eventId"])
+      updatedReport["signatoriesId"] = SignatoriesDb.get(updatedReport["signatoriesId"])
+      updatedReport["photos"] = updatedReport["photos"].split(",") if updatedReport["photos"] else []
+      updatedReport["photoCaptions"] = updatedReport["photoCaptions"].split(",") if updatedReport.get("photoCaptions") else []
+      
+      return {
+        "data": updatedReport,
+        "message": "Internal report updated successfully"
+      }
+    
+    else:
+      print(f"Invalid report type: {reportType}")
+      return ({"message": "Invalid report type"}, 400)
+      
+  except Exception as e:
+    print(f"Error updating {reportType} report with ID {reportId}: {str(e)}")
+    import traceback
+    traceback.print_exc()
+    return ({"message": f"Error updating report: {str(e)}"}, 500)
+
 def deleteReport(reportId: int, reportType: str):
   """Delete a report by ID and type"""
   try:

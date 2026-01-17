@@ -9,7 +9,7 @@ import ConfirmModal from "../Modal/ConfirmModal";
 import PhotoUploadWithCaptions from "../Inputs/PhotoUploadWithCaptions";
 import { useContext, useEffect, useState } from "react";
 import { FormDataContext } from "../../contexts/FormDataProvider";
-import { createReport } from "../../api/reports";
+import { createReport, updateReport } from "../../api/reports";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
 
 interface Props {
@@ -20,6 +20,8 @@ interface Props {
   onSubmit?: () => void;
   hideSubmit?: boolean;
   componentsBeforeSubmit?: React.ReactNode;
+  reportId?: number; // For edit mode
+  initialData?: any; // Pre-filled data for edit mode
 }
 
 const ReportForm: React.FC<Props> = (props) => {
@@ -31,6 +33,8 @@ const ReportForm: React.FC<Props> = (props) => {
     componentsBeforeSubmit,
     hideSubmit,
     setOpen,
+    reportId,
+    initialData,
   } = props;
   const { formData, setFormData } = useContext(FormDataContext);
   const { showSnackbarMessage } = useContext(SnackbarContext);
@@ -38,18 +42,42 @@ const ReportForm: React.FC<Props> = (props) => {
   const [openConfirmModal, setOpenConfirmModal] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<string[]>([]);
   const [formRefreshKey, setFormRefreshKey] = useState(0);
+  const isEditMode = !!reportId && !!initialData;
 
-  // initial form state - reset when form is opened
+  // initial form state - reset when form is opened or pre-fill for edit mode
   useEffect(() => {
     if (open) {
-      // Always reset form data when opening to ensure clean state
-      setFormData({});
+      if (isEditMode && initialData) {
+        // Pre-fill form data for edit mode
+        const photosWithCaptions = [];
+        if (initialData.photos && Array.isArray(initialData.photos)) {
+          const captions = initialData.photoCaptions || [];
+          initialData.photos.forEach((photo: string, index: number) => {
+            photosWithCaptions.push({
+              file: null, // Existing photos don't have File objects
+              url: photo, // URL to existing photo
+              caption: captions[index] || "",
+            });
+          });
+        }
+        setFormData({
+          narrative: initialData.narrative || "",
+          photos: photosWithCaptions,
+          budgetUtilized: initialData.budgetUtilized || "",
+          budgetUtilizedSrc: initialData.budgetUtilizedSrc || "",
+          psAttribution: initialData.psAttribution || "",
+          psAttributionSrc: initialData.psAttributionSrc || "",
+        });
+      } else {
+        // Reset form data when creating new report
+        setFormData({});
+      }
       setFieldErrors([]);
       setOpenConfirmModal(false);
       // Force refresh the form template to clear any residual state
       setFormRefreshKey(prev => prev + 1);
     }
-  }, [open]);
+  }, [open, isEditMode, initialData]);
 
   const submitAction = () => {
     setOpenConfirmModal(true);
@@ -60,9 +88,10 @@ const ReportForm: React.FC<Props> = (props) => {
     formUploadable.append("eventId", eventId.toString());
     formUploadable.append("narrative", formData.narrative ?? "");
 
-    // Handle photos with captions
+    // Handle photos with captions - only include new photos (with file property)
     if (formData.photos && Array.isArray(formData.photos)) {
       formData.photos.forEach((photoWithCaption: any, index: number) => {
+        // Only upload if it's a new file (not an existing URL)
         if (photoWithCaption.file) {
           formUploadable.append(`photo_${index}`, photoWithCaption.file);
           formUploadable.append(`photo_caption_${index}`, photoWithCaption.caption || "");
@@ -83,22 +112,31 @@ const ReportForm: React.FC<Props> = (props) => {
       );
     }
 
-    createReport(eventId, type, formUploadable)
+    const submitPromise = isEditMode && reportId
+      ? updateReport(reportId, type, formUploadable)
+      : createReport(eventId, type, formUploadable);
+
+    submitPromise
       .then(() => {
-        showSnackbarMessage("Successfully submitted report", "success");
+        showSnackbarMessage(
+          isEditMode 
+            ? "Successfully updated report" 
+            : "Successfully submitted report",
+          "success"
+        );
         setOpen && setOpen(false);
         setFormData({});
       })
       .catch((err) => {
-        if (err.response.data) {
+        if (err.response?.data) {
           const message = err.response.data.message;
           const errors = err.response.data.fieldError ?? [];
 
           setFieldErrors(errors);
-          showSnackbarMessage(`Error Occured: ${message}`, "error");
+          showSnackbarMessage(`Error Occurred: ${message}`, "error");
         } else {
           showSnackbarMessage(
-            "An error Occured when registering membership",
+            "An error occurred when submitting the report",
             "error"
           );
         }
@@ -195,8 +233,12 @@ const ReportForm: React.FC<Props> = (props) => {
   return (
     <>
       <ConfirmModal
-        title="Report Submission"
-        message="Are you sure you want to submit this report? (No updates/edits can be done after submission)"
+        title={isEditMode ? "Update Report" : "Report Submission"}
+        message={
+          isEditMode
+            ? "Are you sure you want to update this report?"
+            : "Are you sure you want to submit this report?"
+        }
         acceptText="Yes"
         declineText="No"
         open={openConfirmModal}
@@ -206,7 +248,7 @@ const ReportForm: React.FC<Props> = (props) => {
       />
       <PopupModal
         header="Report Forms"
-        subHeader="Submit your event report here"
+        subHeader={isEditMode ? "Edit your event report here" : "Submit your event report here"}
         open={open}
         setOpen={setOpen}
         width="25vw"
@@ -245,7 +287,7 @@ const ReportForm: React.FC<Props> = (props) => {
             {componentsBeforeSubmit}
             {!hideSubmit && (
               <PrimaryButton
-                label="Submit"
+                label={isEditMode ? "Update" : "Submit"}
                 icon={<SendIcon />}
                 size="small"
                 onClick={submitAction}

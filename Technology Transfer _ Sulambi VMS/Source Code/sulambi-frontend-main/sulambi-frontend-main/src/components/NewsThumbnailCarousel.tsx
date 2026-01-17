@@ -225,10 +225,14 @@ const buildImageUrl = (filename?: string) => {
   }
   let clean = filename.trim();
   try { clean = decodeURIComponent(clean); } catch {}
+  // Trim again after decoding in case decoding added whitespace
+  clean = clean.trim();
   
-  // Check if it's already a Cloudinary URL or other full URL
-  if (clean.startsWith("http://") || clean.startsWith("https://")) {
+  // Check if it's already a Cloudinary URL or other full URL (more robust check)
+  const isFullUrl = clean.startsWith("http://") || clean.startsWith("https://") || clean.startsWith("//");
+  if (isFullUrl) {
     // Use Cloudinary URL or other full URL directly
+    console.log('[NewsThumbnailCarousel] Using full URL:', clean);
     return clean;
   }
   

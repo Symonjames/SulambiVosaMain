@@ -11,6 +11,7 @@ import { getAllReports, deleteReport } from "../../api/reports";
 import { ExternalReportType, InternalReportType } from "../../interface/types";
 import dayjs from "dayjs";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import EditIcon from "@mui/icons-material/Edit";
 import MenuButtonTemplate from "../../components/Menu/MenuButtonTemplate";
 import FormDataLoaderModal from "../../components/Modal/FormDataLoaderModal";
 import PrimaryButton from "../../components/Buttons/PrimaryButton";
@@ -21,6 +22,7 @@ import { SnackbarContext } from "../../contexts/SnackbarProvider";
 import ConfirmModal from "../../components/Modal/ConfirmModal";
 import { useCachedFetch } from "../../hooks/useCachedFetch";
 import { CACHE_TIMES } from "../../utils/apiCache";
+import ReportForm from "../../components/Forms/ReportForm";
 
 const ReportPage = () => {
   const { setFormData, resetFormData } = useContext(FormDataContext);
@@ -32,6 +34,7 @@ const ReportPage = () => {
   const [openUpdateSignatories, setOpenUpdateSignatories] = useState(false);
   const [openFormDataLoader, setOpenFormDataLoader] = useState(false);
   const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false);
+  const [openEditForm, setOpenEditForm] = useState(false);
   const [reportType, setReportType] = useState<
     "externalReport" | "internalReport"
   >("externalReport");
@@ -42,6 +45,10 @@ const ReportPage = () => {
     id: number;
     type: "external" | "internal";
     title: string;
+  } | null>(null);
+  const [reportToEdit, setReportToEdit] = useState<{
+    report: ExternalReportType | InternalReportType;
+    type: "external" | "internal";
   } | null>(null);
 
   // Use cached fetch - data persists when navigating away and coming back!
@@ -66,6 +73,24 @@ const ReportPage = () => {
     setReportType("internalReport");
     setSelectedReport(rowData);
     setOpenFormDataLoader(true);
+  };
+
+  const editExternalReportAction = (rowData: ExternalReportType) => {
+    resetFormData();
+    setReportToEdit({
+      report: rowData,
+      type: "external",
+    });
+    setOpenEditForm(true);
+  };
+
+  const editInternalReportAction = (rowData: InternalReportType) => {
+    resetFormData();
+    setReportToEdit({
+      report: rowData,
+      type: "internal",
+    });
+    setOpenEditForm(true);
   };
 
   const handleDeleteReport = (report: ExternalReportType | InternalReportType, type: "external" | "internal") => {
@@ -153,6 +178,11 @@ const ReportPage = () => {
                     onClick: () => viewExternalReportAction(report),
                   },
                   {
+                    label: "Edit Report",
+                    icon: <EditIcon />,
+                    onClick: () => editExternalReportAction(report),
+                  },
+                  {
                     label: "Delete Report",
                     icon: <DeleteForeverIcon />,
                     onClick: () => handleDeleteReport(report, "external"),
@@ -183,6 +213,11 @@ const ReportPage = () => {
                     icon: <RemoveRedEyeIcon />,
                     onClick: () => viewInternalReportAction(report),
                   },
+                  {
+                    label: "Edit Report",
+                    icon: <EditIcon />,
+                    onClick: () => editInternalReportAction(report),
+                  },
                   { 
                     label: "Delete Report", 
                     icon: <DeleteForeverIcon />,
@@ -205,6 +240,25 @@ const ReportPage = () => {
 
   return (
     <>
+      {reportToEdit && (
+        <ReportForm
+          type={reportToEdit.type}
+          eventId={reportToEdit.report.eventId?.id || 0}
+          open={openEditForm}
+          setOpen={(open) => {
+            setOpenEditForm(open);
+            if (!open) {
+              setReportToEdit(null);
+              resetFormData();
+            }
+          }}
+          reportId={(reportToEdit.report as any).id}
+          initialData={reportToEdit.report}
+          onSubmit={() => {
+            refetchReports();
+          }}
+        />
+      )}
       {selectedReport && (
         <SignatoriesForm
           signatoryId={selectedReport?.signatoriesId?.id}
@@ -242,6 +296,26 @@ const ReportPage = () => {
         }}
         beforePrintComponent={[
           <PrimaryButton
+            key="edit-report"
+            label="Edit Report"
+            startIcon={<EditIcon />}
+            sx={{
+              backgroundColor: "#1976d2",
+            }}
+            onClick={() => {
+              // Close the view modal
+              setOpenFormDataLoader(false);
+              // Open edit form with the selected report data
+              const reportType = selectedReport && 'budgetUtilized' in selectedReport ? "internal" : "external";
+              setReportToEdit({
+                report: selectedReport!,
+                type: reportType as "external" | "internal",
+              });
+              setOpenEditForm(true);
+            }}
+          />,
+          <PrimaryButton
+            key="align-text"
             label={`Align text to ${textPos === "left" ? "Justify" : "Left"}`}
             startIcon={<HistoryEduIcon />}
             sx={{
@@ -254,6 +328,7 @@ const ReportPage = () => {
             }}
           />,
           <PrimaryButton
+            key="update-signatories"
             label="Update Signatories"
             startIcon={<HistoryEduIcon />}
             onClick={() => {

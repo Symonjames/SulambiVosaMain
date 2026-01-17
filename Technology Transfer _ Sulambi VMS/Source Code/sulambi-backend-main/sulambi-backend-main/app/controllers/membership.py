@@ -18,8 +18,19 @@ def getAllMembership():
   rejected_count = sum(1 for m in all_members if m.get('accepted') is False or m.get('accepted') == 0)
   print(f"[MEMBERSHIP API] Status breakdown - Pending: {pending_count}, Approved: {approved_count}, Rejected: {rejected_count}")
   
+  # Show sample of pending members for debugging
+  pending_members = [m for m in all_members if m.get('accepted') is None]
+  if pending_members:
+    print(f"[MEMBERSHIP API] Found {len(pending_members)} pending members:")
+    for member in pending_members[:5]:  # Show first 5
+      print(f"  - ID: {member.get('id')}, Name: {member.get('fullname')}, Email: {member.get('email')}, accepted={member.get('accepted')} (type: {type(member.get('accepted')).__name__})")
+  
   if len(all_members) > 0:
-    print(f"[MEMBERSHIP API] Sample member: {all_members[0].get('fullname', 'N/A')}, accepted={all_members[0].get('accepted')}")
+    print(f"[MEMBERSHIP API] Sample member: {all_members[0].get('fullname', 'N/A')}, accepted={all_members[0].get('accepted')} (type: {type(all_members[0].get('accepted')).__name__})")
+    print(f"[MEMBERSHIP API] Sample member keys: {list(all_members[0].keys())[:10]}")
+  
+  # Ensure None values are properly serialized (Flask should handle this, but let's be explicit)
+  # Convert None to None (which JSON serializes to null) - this should already happen, but let's ensure
   return {
     "message": "Successfully retrieved membership data",
     "data": all_members

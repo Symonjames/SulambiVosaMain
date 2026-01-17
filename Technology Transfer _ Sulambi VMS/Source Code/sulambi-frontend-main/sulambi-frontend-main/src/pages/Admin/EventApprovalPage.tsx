@@ -126,7 +126,7 @@ const EventApproval = () => {
       })
       .map((event: any) => {
         return [
-          event.createdBy.username,
+          event.createdBy?.username || "Unknown",
           event.title,
           event.eventTypeIndicator,
           chipMap[
