@@ -276,7 +276,7 @@ def evaluateByRequirement(requirementId):
     if is_postgresql:
       check_query = """
         SELECT id FROM "satisfactionSurveys" 
-        WHERE "requirementId" = %s AND "respondentEmail" = %s
+        WHERE requirementid = %s AND respondentemail = %s
       """
     else:
       check_query = """
@@ -492,27 +492,28 @@ def submitBeneficiaryEvaluation():
     requirement_id = str(uuid.uuid4())
     
     # Check if PostgreSQL and use appropriate syntax
-    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders
+    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders, convert_boolean_value
     is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
     
+    # Get table name with proper quoting
+    table_name = quote_identifier('satisfactionSurveys')
+    
     if is_postgresql:
-      # PostgreSQL: Use quoted mixed-case column names to match what analytics.py uses
-      # The table has mixed-case columns (eventId, submittedAt as BIGINT, etc.) based on analytics.py queries
-      table_name = quote_identifier('satisfactionSurveys')
+      # PostgreSQL: Use lowercase column names (unquoted = lowercase in PostgreSQL)
       insert_query = f"""
         INSERT INTO {table_name} (
-          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
-          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
-          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
+          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
+          overallsatisfaction, volunteerrating, beneficiaryrating,
+          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
           q13, q14, comment, recommendations,
-          "wouldRecommend", "areasForImprovement", "positiveAspects",
-          "submittedAt", finalized
+          wouldrecommend, areasforimprovement, positiveaspects,
+          submittedat, finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:
       # SQLite: use unquoted identifiers and ? placeholders
-      insert_query = """
-        INSERT INTO satisfactionSurveys (
+      insert_query = f"""
+        INSERT INTO {table_name} (
           eventId, eventType, requirementId, respondentType, respondentEmail, respondentName,
           overallSatisfaction, volunteerRating, beneficiaryRating,
           organizationRating, communicationRating, venueRating, materialsRating, supportRating,
@@ -523,7 +524,6 @@ def submitBeneficiaryEvaluation():
       """
     
     # Convert boolean for database compatibility
-    from ..database.connection import convert_boolean_value
     finalized_value = convert_boolean_value(True)
     would_recommend = convert_boolean_value(overall_satisfaction >= 4 if overall_satisfaction > 0 else None)
     
