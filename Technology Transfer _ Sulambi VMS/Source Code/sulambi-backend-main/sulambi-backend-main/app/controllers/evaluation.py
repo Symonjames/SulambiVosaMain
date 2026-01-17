@@ -587,31 +587,32 @@ def submitBeneficiaryEvaluation():
       traceback.print_exc()
       
       # Provide more specific error message
+      param_details = {
+        "event_id": event_id,
+        "event_id_type": type(event_id).__name__ if event_id is not None else "None",
+        "submitted_at": submitted_at,
+        "submitted_at_type": type(submitted_at).__name__ if 'submitted_at' in locals() else "unknown",
+        "overall_satisfaction": overall_satisfaction_val if 'overall_satisfaction_val' in locals() else "unknown",
+        "beneficiary_rating": beneficiary_rating_val if 'beneficiary_rating_val' in locals() else "unknown",
+      }
+      
       if "integer out of range" in error_msg.lower():
-        # Log all parameter values for debugging
-        param_details = {
-          "event_id": event_id,
-          "event_id_type": type(event_id).__name__,
-          "event_id_range_check": f"INTEGER range: -2147483648 to 2147483647, value: {event_id}",
-          "submitted_at": submitted_at,
-          "submitted_at_type": type(submitted_at).__name__,
-          "submitted_at_range_check": f"BIGINT range: -9223372036854775808 to 9223372036854775807, value: {submitted_at}",
-          "overall_satisfaction": overall_satisfaction_val,
-          "beneficiary_rating": beneficiary_rating_val,
-        }
+        param_details["event_id_range_check"] = f"INTEGER range: -2147483648 to 2147483647, value: {event_id}"
+        param_details["submitted_at_range_check"] = f"BIGINT range: -9223372036854775808 to 9223372036854775807, value: {submitted_at}"
         print(f"[DEBUG] Integer out of range error details: {param_details}")
         
-      return {
-        "message": f"Database error: {error_msg}",
-        "success": False,
-        "error": error_msg,
-        "details": param_details
-      }, 500
+        return {
+          "message": f"Database error: {error_msg}",
+          "success": False,
+          "error": error_msg,
+          "details": param_details
+        }, 500
       
       return {
         "message": f"Error submitting beneficiary evaluation: {error_msg}",
         "success": False,
-        "error": error_msg
+        "error": error_msg,
+        "details": param_details
       }, 500
     
   except Exception as e:
