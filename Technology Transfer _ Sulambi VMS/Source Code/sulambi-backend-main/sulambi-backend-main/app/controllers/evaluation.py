@@ -499,15 +499,15 @@ def submitBeneficiaryEvaluation():
     table_name = quote_identifier('satisfactionSurveys')
     
     if is_postgresql:
-      # PostgreSQL: Use quoted mixed-case column names - EXACT same as evaluateByRequirement
+      # PostgreSQL: Use lowercase unquoted column names (actual column names from database)
       insert_query = """
         INSERT INTO "satisfactionSurveys" (
-          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
-          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
-          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
+          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
+          overallsatisfaction, volunteerrating, beneficiaryrating,
+          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
           q13, q14, comment, recommendations,
-          "wouldRecommend", "areasForImprovement", "positiveAspects",
-          "submittedAt", finalized
+          wouldrecommend, areasforimprovement, positiveaspects,
+          submittedat, finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:
