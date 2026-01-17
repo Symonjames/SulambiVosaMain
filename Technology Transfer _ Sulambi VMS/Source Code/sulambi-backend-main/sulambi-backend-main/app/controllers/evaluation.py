@@ -532,17 +532,18 @@ def submitBeneficiaryEvaluation():
       would_recommend_val = overall_satisfaction >= 4 if overall_satisfaction > 0 else None
     
     # Execute INSERT - SAME parameter order as evaluateByRequirement
-    cursor.execute(insert_query, (
-      event_id, event_type, requirement_id, "Beneficiary",
-      request.json.get("email", "") or "", request.json.get("name", "") or "",
-      overall_satisfaction, None, beneficiary_rating,
-      organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
-      q13, q14, comment, recommendations,
-      would_recommend_val,
-      None,  # Areas for improvement
-      comment if overall_satisfaction >= 4 else None,  # Positive aspects
-      submitted_at, finalized_val
-    ))
+    try:
+      cursor.execute(insert_query, (
+        event_id, event_type, requirement_id, "Beneficiary",
+        request.json.get("email", "") or "", request.json.get("name", "") or "",
+        overall_satisfaction, None, beneficiary_rating,
+        organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
+        q13, q14, comment, recommendations,
+        would_recommend_val,
+        None,  # Areas for improvement
+        comment if overall_satisfaction >= 4 else None,  # Positive aspects
+        submitted_at, finalized_val
+      ))
       conn.commit()
       conn.close()
       
