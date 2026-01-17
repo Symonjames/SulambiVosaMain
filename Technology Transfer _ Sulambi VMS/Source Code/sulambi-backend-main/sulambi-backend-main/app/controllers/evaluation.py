@@ -276,7 +276,7 @@ def evaluateByRequirement(requirementId):
     if is_postgresql:
       check_query = """
         SELECT id FROM "satisfactionSurveys" 
-        WHERE "requirementId" = %s AND "respondentEmail" = %s
+        WHERE requirementid = %s AND respondentemail = %s
       """
     else:
       check_query = """
@@ -291,16 +291,16 @@ def evaluateByRequirement(requirementId):
       submitted_at = int(datetime.now().timestamp() * 1000)
       
       if is_postgresql:
-        # PostgreSQL: Use quoted identifiers to match the actual table schema
-        # The table has mixed-case columns (eventId, submittedAt as BIGINT, etc.)
+        # PostgreSQL: Use lowercase column names (unquoted identifiers are lowercased by PostgreSQL)
+        # The table has lowercase columns (eventid, submittedat as BIGINT, etc.)
         insert_query = """
           INSERT INTO "satisfactionSurveys" (
-            "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
-            "overallSatisfaction", "volunteerRating", "beneficiaryRating",
-            "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
+            eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
+            overallsatisfaction, volunteerrating, beneficiaryrating,
+            organizationrating, communicationrating, venuerating, materialsrating, supportrating,
             q13, q14, comment, recommendations,
-            "wouldRecommend", "areasForImprovement", "positiveAspects",
-            "submittedAt", finalized
+            wouldrecommend, areasforimprovement, positiveaspects,
+            submittedat, finalized
           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         finalized_val = convert_boolean_value(True)
@@ -496,17 +496,17 @@ def submitBeneficiaryEvaluation():
     is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
     
     if is_postgresql:
-      # PostgreSQL: Use quoted identifiers to match the actual table schema
-      # The table has mixed-case columns (eventId, submittedAt as BIGINT, etc.)
+      # PostgreSQL: Use lowercase column names (unquoted identifiers are lowercased by PostgreSQL)
+      # The table has lowercase columns (eventid, submittedat as BIGINT, etc.)
       table_name = quote_identifier('satisfactionSurveys')
       insert_query = f"""
         INSERT INTO {table_name} (
-          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
-          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
-          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
+          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
+          overallsatisfaction, volunteerrating, beneficiaryrating,
+          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
           q13, q14, comment, recommendations,
-          "wouldRecommend", "areasForImprovement", "positiveAspects",
-          "submittedAt", finalized
+          wouldrecommend, areasforimprovement, positiveaspects,
+          submittedat, finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:
