@@ -249,8 +249,14 @@ const FormDataLoaderModal: React.FC<Props> = ({
           }
           
           @page:first {
-            @bottom-center {
+            @bottom-left {
               content: "Tracking No. : ___________";
+              font-family: "Times New Roman", Times, serif;
+              font-size: 10pt;
+              color: black;
+            }
+            @bottom-right {
+              content: "Page " counter(page);
               font-family: "Times New Roman", Times, serif;
               font-size: 10pt;
               color: black;
@@ -268,12 +274,17 @@ const FormDataLoaderModal: React.FC<Props> = ({
             }
             
             @page {
-              @bottom-center {
+              @bottom-left {
                 content: "Tracking No. : ___________";
                 font-family: "Times New Roman", Times, serif;
                 font-size: 10pt;
                 color: black;
-                margin-bottom: 0.1in;
+              }
+              @bottom-right {
+                content: "Page " counter(page);
+                font-family: "Times New Roman", Times, serif;
+                font-size: 10pt;
+                color: black;
               }
             }
             
