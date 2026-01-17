@@ -406,25 +406,51 @@ def submitBeneficiaryEvaluation():
     import uuid
     requirement_id = str(uuid.uuid4())
     
-    cursor.execute("""
-      INSERT INTO satisfactionSurveys (
-        eventId, eventType, requirementId, respondentType, respondentEmail, respondentName,
-        overallSatisfaction, volunteerRating, beneficiaryRating,
-        organizationRating, communicationRating, venueRating, materialsRating, supportRating,
-        q13, q14, comment, recommendations,
-        wouldRecommend, areasForImprovement, positiveAspects,
-        submittedAt, finalized
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
+    # Check if PostgreSQL and use appropriate syntax
+    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders
+    is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+    
+    if is_postgresql:
+      # PostgreSQL: use quoted identifiers and %s placeholders
+      table_name = quote_identifier('satisfactionSurveys')
+      insert_query = f"""
+        INSERT INTO {table_name} (
+          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
+          q13, q14, comment, recommendations,
+          "wouldRecommend", "areasForImprovement", "positiveAspects",
+          "submittedAt", finalized
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+      """
+    else:
+      # SQLite: use unquoted identifiers and ? placeholders
+      insert_query = """
+        INSERT INTO satisfactionSurveys (
+          eventId, eventType, requirementId, respondentType, respondentEmail, respondentName,
+          overallSatisfaction, volunteerRating, beneficiaryRating,
+          organizationRating, communicationRating, venueRating, materialsRating, supportRating,
+          q13, q14, comment, recommendations,
+          wouldRecommend, areasForImprovement, positiveAspects,
+          submittedAt, finalized
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      """
+    
+    # Convert boolean for database compatibility
+    from ..database.connection import convert_boolean_value
+    finalized_value = convert_boolean_value(True)
+    would_recommend = convert_boolean_value(overall_satisfaction >= 4 if overall_satisfaction > 0 else None)
+    
+    cursor.execute(insert_query, (
       int(event_id), event_type, requirement_id, "Beneficiary", 
       request.json.get("email", ""), request.json.get("name", ""),
       overall_satisfaction, None, beneficiary_rating or overall_satisfaction,
       organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
       "", q14 or str(overall_satisfaction), comment, recommendations,
-      overall_satisfaction >= 4 if overall_satisfaction > 0 else None,
+      would_recommend,
       None,
       comment if overall_satisfaction >= 4 else None,
-      submitted_at, True
+      submitted_at, finalized_value
     ))
     conn.commit()
     conn.close()
