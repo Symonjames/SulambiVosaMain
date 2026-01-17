@@ -356,13 +356,29 @@ def submitBeneficiaryEvaluation():
     event_id = request.json.get("eventId")
     event_type = request.json.get("eventType", "external")
     criteria_data = request.json.get("criteria", {})
-    comment = request.json.get("comment", "")
-    recommendations = request.json.get("recommendations", "")
-    q13 = request.json.get("q13", "")
-    q14 = request.json.get("q14", "")
+    comment = request.json.get("comment", "") or ""
+    recommendations = request.json.get("recommendations", "") or ""
+    q13 = request.json.get("q13", "") or ""
+    q14 = request.json.get("q14", "") or ""
+    
+    # Validate event_id
+    try:
+      event_id = int(event_id) if event_id else None
+      if event_id is None or event_id <= 0:
+        return {
+          "message": "Invalid event ID",
+          "success": False,
+          "error": "eventId is required and must be a positive integer"
+        }, 400
+    except (ValueError, TypeError):
+      return {
+        "message": "Invalid event ID",
+        "success": False,
+        "error": "eventId must be a valid integer"
+      }, 400
     
     # Beneficiary data
-    overall_satisfaction = 0
+    overall_satisfaction = 0.0
     if isinstance(criteria_data, str):
       try:
         criteria_data = json.loads(criteria_data) if criteria_data.startswith('{') else eval(criteria_data)
@@ -379,24 +395,24 @@ def submitBeneficiaryEvaluation():
     }
     
     if isinstance(criteria_data, dict):
-      overall_satisfaction = rating_map.get(criteria_data.get('overall', ''), 0)
-      organization_rating = rating_map.get(criteria_data.get('appropriateness', ''), 0)
-      communication_rating = rating_map.get(criteria_data.get('expectations', ''), 0)
-      materials_rating = rating_map.get(criteria_data.get('materials', ''), 0)
-      support_rating = rating_map.get(criteria_data.get('session', ''), 0)
-      venue_rating = rating_map.get(criteria_data.get('venue', ''), 0)
+      overall_satisfaction = float(rating_map.get(criteria_data.get('overall', ''), 0))
+      organization_rating = float(rating_map.get(criteria_data.get('appropriateness', ''), 0))
+      communication_rating = float(rating_map.get(criteria_data.get('expectations', ''), 0))
+      materials_rating = float(rating_map.get(criteria_data.get('materials', ''), 0))
+      support_rating = float(rating_map.get(criteria_data.get('session', ''), 0))
+      venue_rating = float(rating_map.get(criteria_data.get('venue', ''), 0))
     else:
-      organization_rating = 0
-      communication_rating = 0
-      materials_rating = 0
-      support_rating = 0
-      venue_rating = 0
+      organization_rating = 0.0
+      communication_rating = 0.0
+      materials_rating = 0.0
+      support_rating = 0.0
+      venue_rating = 0.0
     
     # Use q14 or calculated overall satisfaction
-    if not overall_satisfaction and q14:
+    if overall_satisfaction == 0.0 and q14:
       try:
         overall_satisfaction = float(q14)
-      except:
+      except (ValueError, TypeError):
         pass
     
     # For beneficiaries, q14 should contain the satisfaction rating
@@ -405,13 +421,13 @@ def submitBeneficiaryEvaluation():
     if q14:
       try:
         beneficiary_rating = float(q14)
-        if not overall_satisfaction:
+        if overall_satisfaction == 0.0:
           overall_satisfaction = beneficiary_rating
-      except:
+      except (ValueError, TypeError):
         pass
     
-    if not overall_satisfaction:
-      overall_satisfaction = 0
+    if overall_satisfaction == 0.0:
+      overall_satisfaction = 0.0
     
     conn, cursor = cursorInstance()
     
@@ -472,12 +488,33 @@ def submitBeneficiaryEvaluation():
     finalized_value = convert_boolean_value(True)
     would_recommend = convert_boolean_value(overall_satisfaction >= 4 if overall_satisfaction > 0 else None)
     
+    # Ensure proper types for PostgreSQL
+    # event_id is already validated and converted to int above
+    
+    # Ensure submitted_at is within BIGINT range (PostgreSQL BIGINT: -9223372036854775808 to 9223372036854775807)
+    # Current timestamp in milliseconds is well within this range, but ensure it's an integer
+    submitted_at = int(submitted_at)
+    if submitted_at > 9223372036854775807:
+      submitted_at = 9223372036854775807
+    elif submitted_at < -9223372036854775808:
+      submitted_at = -9223372036854775808
+    
+    # Ensure REAL values are properly typed (float, can be None for optional fields)
+    # PostgreSQL REAL can handle None/NULL values
+    overall_satisfaction_val = float(overall_satisfaction) if overall_satisfaction else 0.0
+    beneficiary_rating_val = float(beneficiary_rating) if beneficiary_rating is not None else (float(overall_satisfaction) if overall_satisfaction else None)
+    organization_rating_val = float(organization_rating) if organization_rating else None
+    communication_rating_val = float(communication_rating) if communication_rating else None
+    venue_rating_val = float(venue_rating) if venue_rating else None
+    materials_rating_val = float(materials_rating) if materials_rating else None
+    support_rating_val = float(support_rating) if support_rating else None
+    
     cursor.execute(insert_query, (
-      int(event_id), event_type, requirement_id, "Beneficiary", 
-      request.json.get("email", ""), request.json.get("name", ""),
-      overall_satisfaction, None, beneficiary_rating or overall_satisfaction,
-      organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
-      "", q14 or str(overall_satisfaction), comment, recommendations,
+      event_id, event_type, requirement_id, "Beneficiary", 
+      request.json.get("email", "") or "", request.json.get("name", "") or "",
+      overall_satisfaction_val, None, beneficiary_rating_val,
+      organization_rating_val, communication_rating_val, venue_rating_val, materials_rating_val, support_rating_val,
+      q13 or "", q14 or str(overall_satisfaction) if overall_satisfaction else "", comment or "", recommendations or "",
       would_recommend,
       None,
       comment if overall_satisfaction >= 4 else None,
