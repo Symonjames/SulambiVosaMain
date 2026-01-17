@@ -161,8 +161,8 @@ class EvaluationAnalyticsService {
 
     // Submit to backend API
     try {
-      const axios = (await import('axios')).default;
-      const response = await axios.post('/api/evaluation/beneficiary', {
+      const axios = (await import('../api/init')).default;
+      const response = await axios.post('/evaluation/beneficiary', {
         eventId: parseInt(eventId),
         eventType: eventType,
         criteria: criteria,
