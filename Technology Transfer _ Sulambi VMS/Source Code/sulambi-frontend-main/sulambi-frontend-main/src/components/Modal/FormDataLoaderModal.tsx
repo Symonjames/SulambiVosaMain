@@ -225,7 +225,7 @@ const FormDataLoaderModal: React.FC<Props> = ({
       style.id = "print-hide-style";
       style.textContent = `
           @page {
-            margin-top: 0.6in;
+            margin-top: 0.1in;
             margin-bottom: 0.7in;
             margin-left: 0.7in;
             margin-right: 0.8in;
@@ -245,7 +245,7 @@ const FormDataLoaderModal: React.FC<Props> = ({
           }
           
           @page:first {
-            margin-top: 0.6in;
+            margin-top: 0.1in;
             margin-bottom: 0.7in;
             margin-left: 0.7in;
             margin-right: 0.8in;
