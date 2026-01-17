@@ -276,7 +276,7 @@ def evaluateByRequirement(requirementId):
     if is_postgresql:
       check_query = """
         SELECT id FROM "satisfactionSurveys" 
-        WHERE requirementid = %s AND respondentemail = %s
+        WHERE "requirementId" = %s AND "respondentEmail" = %s
       """
     else:
       check_query = """
@@ -291,16 +291,16 @@ def evaluateByRequirement(requirementId):
       submitted_at = int(datetime.now().timestamp() * 1000)
       
       if is_postgresql:
-        # PostgreSQL: Use lowercase column names (unquoted identifiers are lowercased by PostgreSQL)
-        # The table has lowercase columns (eventid, submittedat as BIGINT, etc.)
+        # PostgreSQL: Use quoted mixed-case column names to match what analytics.py uses
+        # The table has mixed-case columns (eventId, submittedAt as BIGINT, etc.) based on analytics.py queries
         insert_query = """
           INSERT INTO "satisfactionSurveys" (
-            eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-            overallsatisfaction, volunteerrating, beneficiaryrating,
-            organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+            "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+            "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+            "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
             q13, q14, comment, recommendations,
-            wouldrecommend, areasforimprovement, positiveaspects,
-            submittedat, finalized
+            "wouldRecommend", "areasForImprovement", "positiveAspects",
+            "submittedAt", finalized
           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         finalized_val = convert_boolean_value(True)
@@ -496,17 +496,17 @@ def submitBeneficiaryEvaluation():
     is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
     
     if is_postgresql:
-      # PostgreSQL: Use lowercase column names (unquoted identifiers are lowercased by PostgreSQL)
-      # The table has lowercase columns (eventid, submittedat as BIGINT, etc.)
+      # PostgreSQL: Use quoted mixed-case column names to match what analytics.py uses
+      # The table has mixed-case columns (eventId, submittedAt as BIGINT, etc.) based on analytics.py queries
       table_name = quote_identifier('satisfactionSurveys')
       insert_query = f"""
         INSERT INTO {table_name} (
-          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-          overallsatisfaction, volunteerrating, beneficiaryrating,
-          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
           q13, q14, comment, recommendations,
-          wouldrecommend, areasforimprovement, positiveaspects,
-          submittedat, finalized
+          "wouldRecommend", "areasForImprovement", "positiveAspects",
+          "submittedAt", finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:
@@ -590,12 +590,12 @@ def submitBeneficiaryEvaluation():
         }
         print(f"[DEBUG] Integer out of range error details: {param_details}")
         
-        return {
-          "message": "Database error: One of the values is out of range. Please check event ID and timestamp values.",
-          "success": False,
-          "error": error_msg,
-          "details": param_details
-        }, 500
+      return {
+        "message": f"Database error: {error_msg}",
+        "success": False,
+        "error": error_msg,
+        "details": param_details
+      }, 500
       
       return {
         "message": f"Error submitting beneficiary evaluation: {error_msg}",
