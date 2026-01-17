@@ -925,8 +925,9 @@ def getSatisfactionAnalytics(year=None):
             
             # Get event dates and submission dates for satisfactionSurveys
             # Include both Volunteers and Beneficiaries, and use submittedAt for year filtering
-            # Use lowercase column names (actual column names in PostgreSQL)
+            # Use lowercase column names (actual column names in PostgreSQL - unquoted identifiers are lowercased)
             if is_postgresql:
+                # PostgreSQL: All unquoted identifiers are lowercased
                 survey_query = f"""
                     SELECT ss.id, ss.requirementid, ss.respondenttype, ss.overallsatisfaction, 
                            ss.volunteerrating, ss.beneficiaryrating, ss.q13, ss.q14, ss.comment, ss.recommendations,
@@ -934,7 +935,7 @@ def getSatisfactionAnalytics(year=None):
                            CASE 
                                WHEN ss.eventtype = 'internal' THEN ei.durationstart
                                ELSE ee.durationstart
-                           END as eventDate
+                           END as eventdate
                     FROM {satisfaction_surveys_table} ss
                     LEFT JOIN {internal_events_table} ei ON ss.eventid = ei.id AND ss.eventtype = 'internal'
                     LEFT JOIN {external_events_table} ee ON ss.eventid = ee.id AND ss.eventtype = 'external'
