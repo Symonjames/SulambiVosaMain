@@ -58,6 +58,8 @@ const PublicForm = () => {
     if (id) {
       try {
         await createEvaluation(id, formData);
+        // Dispatch event to refresh satisfaction analytics chart
+        window.dispatchEvent(new CustomEvent('satisfaction-rating-submitted'));
         navigate("/feedback-message");
       } catch (err: any) {
         if (err.response.data) {

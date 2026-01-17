@@ -18,6 +18,9 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   const [averageScore, setAverageScore] = useState(0);
   const [volunteerScore, setVolunteerScore] = useState(0);
   const [beneficiaryScore, setBeneficiaryScore] = useState(0);
+  const [volunteerCount, setVolunteerCount] = useState(0);
+  const [beneficiaryCount, setBeneficiaryCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Note: eventsLoading is now controlled by cached fetch
@@ -97,7 +100,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   }, [selectedEventForAnalytics, isAdmin]);
 
   // Use cached fetch for satisfaction analytics - prevents reloading when navigating
-  const { data: satisfactionResponse, loading: satisfactionLoading, error: satisfactionError } = useCachedFetch({
+  const { data: satisfactionResponse, loading: satisfactionLoading, error: satisfactionError, refetch: refetchSatisfaction } = useCachedFetch({
     cacheKey: `satisfaction_analytics_${selectedYear || 'all'}`,
     fetchFn: async () => {
       try {
@@ -156,6 +159,31 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       }
     }
   }, []);
+
+  // Listen for rating submission events to refresh data
+  useEffect(() => {
+    const handleRatingSubmitted = () => {
+      console.log('[Satisfaction Analytics] Rating submitted, refreshing data...');
+      refetchSatisfaction();
+    };
+
+    // Listen for custom event when rating is submitted
+    window.addEventListener('satisfaction-rating-submitted', handleRatingSubmitted);
+    
+    // Also listen for storage events (when localStorage changes from another tab)
+    window.addEventListener('storage', handleRatingSubmitted);
+    
+    // Poll every 30 seconds as a fallback (cache is 30 seconds, matches cache expiration)
+    const pollInterval = setInterval(() => {
+      refetchSatisfaction();
+    }, 30000); // Poll every 30 seconds (matches cache time)
+
+    return () => {
+      window.removeEventListener('satisfaction-rating-submitted', handleRatingSubmitted);
+      window.removeEventListener('storage', handleRatingSubmitted);
+      clearInterval(pollInterval);
+    };
+  }, [refetchSatisfaction, selectedYear]);
 
   // Process satisfaction data when response changes
   useEffect(() => {
@@ -237,6 +265,14 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             // Calculate volunteer and beneficiary averages
             setVolunteerScore(avgVol);
             setBeneficiaryScore(avgBen);
+            
+            // Extract counts from response data
+            const responseData = satisfactionResponse;
+            if (responseData?.data) {
+              setVolunteerCount(responseData.data.volunteerCount || 0);
+              setBeneficiaryCount(responseData.data.beneficiaryCount || 0);
+              setTotalCount(responseData.data.totalCount || 0);
+            }
 
             // Extract available years from data (semester format: YYYY-#)
             const currentYear = new Date().getFullYear();
@@ -273,6 +309,9 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             setAverageScore(0);
             setVolunteerScore(0);
             setBeneficiaryScore(0);
+            setVolunteerCount(0);
+            setBeneficiaryCount(0);
+            setTotalCount(0);
             
             // Keep all years 2020-2026 available even if no data
             const currentYear = new Date().getFullYear();
@@ -413,9 +452,9 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   // Admin comparison removed: no comparison effect
 
   const interpretationLines = [
-    `Overall Satisfaction: ${averageScore}/5.0 — ${currentTrend} trend`,
-    `Volunteers: ${volunteerScore}/5.0`,
-    `Beneficiaries: ${beneficiaryScore}/5.0`
+    `Overall Satisfaction: ${averageScore}/5.0 (${totalCount} rating${totalCount !== 1 ? 's' : ''}) — ${currentTrend} trend`,
+    `Volunteers: ${volunteerScore}/5.0 (${volunteerCount} rating${volunteerCount !== 1 ? 's' : ''})`,
+    `Beneficiaries: ${beneficiaryScore}/5.0 (${beneficiaryCount} rating${beneficiaryCount !== 1 ? 's' : ''})`
   ];
   const predictionText = `Prediction: Satisfaction expected to remain ${currentTrend.toLowerCase()} next semester.`;
 
@@ -476,7 +515,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             <FlexBox justifyContent="space-between" alignItems="center" mb={0.5}>
               <Typography variant="body2">Overall: {averageScore}/5.0</Typography>
               <Typography variant="body2" color="text.secondary">
-                {filteredData.length} semester(s)
+                {totalCount > 0 ? `${totalCount} rating${totalCount !== 1 ? 's' : ''}` : `${filteredData.length} semester(s)`}
               </Typography>
             </FlexBox>
             <LinearProgress 
@@ -949,7 +988,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                   <FlexBox justifyContent="space-between" alignItems="center" mb={0.5}>
                     <Typography variant="body2">Overall: {averageScore}/5.0</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {filteredData.length} semester(s)
+                      {totalCount > 0 ? `${totalCount} rating${totalCount !== 1 ? 's' : ''}` : `${filteredData.length} semester(s)`}
                     </Typography>
                   </FlexBox>
                   <LinearProgress 
@@ -961,6 +1000,9 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                 <Box mb={1}>
                   <FlexBox justifyContent="space-between" alignItems="center" mb={0.5}>
                     <Typography variant="body2">Volunteers: {volunteerScore}/5.0</Typography>
+                    <Typography variant="caption" color="text.secondary" fontSize="0.75rem">
+                      {volunteerCount} rating{volunteerCount !== 1 ? 's' : ''}
+                    </Typography>
                   </FlexBox>
                   <LinearProgress 
                     variant="determinate" 
@@ -972,6 +1014,9 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                 <Box mb={1}>
                   <FlexBox justifyContent="space-between" alignItems="center" mb={0.5}>
                     <Typography variant="body2">Beneficiaries: {beneficiaryScore}/5.0</Typography>
+                    <Typography variant="caption" color="text.secondary" fontSize="0.75rem">
+                      {beneficiaryCount} rating{beneficiaryCount !== 1 ? 's' : ''}
+                    </Typography>
                   </FlexBox>
                   <LinearProgress 
                     variant="determinate" 

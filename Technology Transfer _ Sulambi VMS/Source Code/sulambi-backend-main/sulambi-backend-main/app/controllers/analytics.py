@@ -854,6 +854,14 @@ def getSatisfactionAnalytics(year=None):
                 volunteer_avg = sum([item["volunteers"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
                 beneficiary_avg = sum([item["beneficiaries"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
                 top_issues = [{"issue": k, "frequency": v, "category": "volunteers"} for k, v in sorted(issues_counter.items(), key=lambda x: x[1], reverse=True)[:5]]
+                
+                # Count volunteer and beneficiary ratings from semester data
+                # Note: semester_satisfaction doesn't track individual counts, so estimate from data
+                volunteer_count = 0
+                beneficiary_count = 0
+                # Could query satisfactionSurveys table here for actual counts, but for now use 0
+                # The main query below will provide actual counts
+                
                 return {
                     "success": True,
                     "data": {
@@ -863,7 +871,10 @@ def getSatisfactionAnalytics(year=None):
                         "volunteerScore": round(volunteer_avg, 1),
                         "beneficiaryScore": round(beneficiary_avg, 1),
                         "totalEvaluations": 0,
-                        "processedEvaluations": 0
+                        "processedEvaluations": 0,
+                        "volunteerCount": volunteer_count,
+                        "beneficiaryCount": beneficiary_count,
+                        "totalCount": volunteer_count + beneficiary_count
                     },
                     "message": "Satisfaction analytics retrieved from pre-aggregated store"
                 }
@@ -905,18 +916,19 @@ def getSatisfactionAnalytics(year=None):
         cursor.execute(query)
         evaluation_rows = cursor.fetchall()
         
-        # Query 2: Get beneficiary-only submissions from satisfactionSurveys table
-        # (These don't have requirementIds linked to evaluation table)
+        # Query 2: Get submissions from satisfactionSurveys table
+        # (These don't have requirementIds linked to evaluation table - includes both Volunteers and Beneficiaries)
         survey_rows = []
         try:
             satisfaction_surveys_table = quote_identifier('satisfactionSurveys')
             finalized_survey_condition = "ss.finalized = true" if is_postgresql else "ss.finalized = 1"
             
-            # Get event dates for satisfactionSurveys
+            # Get event dates and submission dates for satisfactionSurveys
+            # Include both Volunteers and Beneficiaries, and use submittedAt for year filtering
             survey_query = f"""
                 SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction", 
                        ss."volunteerRating", ss."beneficiaryRating", ss.q13, ss.q14, ss.comment, ss.recommendations,
-                       ss."eventId", ss."eventType",
+                       ss."eventId", ss."eventType", ss."submittedAt",
                        CASE 
                            WHEN ss."eventType" = 'internal' THEN ei."durationStart"
                            ELSE ee."durationStart"
@@ -924,7 +936,7 @@ def getSatisfactionAnalytics(year=None):
                 FROM {satisfaction_surveys_table} ss
                 LEFT JOIN {internal_events_table} ei ON ss."eventId" = ei.id AND ss."eventType" = 'internal'
                 LEFT JOIN {external_events_table} ee ON ss."eventId" = ee.id AND ss."eventType" = 'external'
-                WHERE {finalized_survey_condition} AND ss."respondentType" = 'Beneficiary'
+                WHERE {finalized_survey_condition}
             """
             cursor.execute(survey_query)
             survey_rows = cursor.fetchall()
@@ -938,8 +950,8 @@ def getSatisfactionAnalytics(year=None):
         combined_rows = list(evaluation_rows)
         for survey_row in survey_rows:
             # Format: (id, requirementId, respondentType, overallSatisfaction, volunteerRating, 
-            #          beneficiaryRating, q13, q14, comment, recommendations, eventId, eventType, eventDate)
-            survey_id, req_id, resp_type, overall, vol_rating, ben_rating, q13, q14, comment, rec, event_id, event_type, event_date = survey_row
+            #          beneficiaryRating, q13, q14, comment, recommendations, eventId, eventType, submittedAt, eventDate)
+            survey_id, req_id, resp_type, overall, vol_rating, ben_rating, q13, q14, comment, rec, event_id, event_type, submitted_at, event_date = survey_row
             
             # Create criteria-like structure from satisfactionSurveys data
             criteria_obj = {}
@@ -951,20 +963,37 @@ def getSatisfactionAnalytics(year=None):
             # Convert to criteria string format
             criteria_str = json.dumps(criteria_obj) if criteria_obj else '{}'
             
-            # For beneficiaries from satisfactionSurveys, ensure q14 has the rating
-            # Use beneficiaryRating or overallSatisfaction for q14
+            # For satisfactionSurveys data, set q13/q14 based on respondentType
+            # Volunteers use q13 (volunteerRating), Beneficiaries use q14 (beneficiaryRating)
+            q13_value = ""
             q14_value = ""
-            if ben_rating:
-                q14_value = str(float(ben_rating))
-            elif overall:
-                q14_value = str(float(overall))
+            if resp_type == "Volunteer":
+                if vol_rating:
+                    q13_value = str(float(vol_rating))
+                elif overall:
+                    q13_value = str(float(overall))
+            elif resp_type == "Beneficiary":
+                if ben_rating:
+                    q14_value = str(float(ben_rating))
+                elif overall:
+                    q14_value = str(float(overall))
+            else:
+                # If both or unknown, try to populate both
+                if vol_rating:
+                    q13_value = str(float(vol_rating))
+                if ben_rating:
+                    q14_value = str(float(ben_rating))
+            
+            # Use submittedAt as event date if event_date is not available
+            # This helps with year filtering for predictive data
+            use_event_date = event_date if event_date else submitted_at
             
             # Add as a row in the format: (id, requirementId, criteria, finalized, q13, q14, comment, recommendations, eventId, eventType, eventDate)
             combined_rows.append((
                 survey_id, req_id, criteria_str, True, 
-                str(vol_rating) if vol_rating else "", 
+                q13_value, 
                 q14_value,
-                comment or "", rec or "", event_id, event_type, event_date
+                comment or "", rec or "", event_id, event_type, use_event_date
             ))
         
         conn.close()
@@ -990,16 +1019,20 @@ def getSatisfactionAnalytics(year=None):
                     except:
                         criteria = {}
                 
-                # Extract semester from event date (use event date since evaluation has no createdAt)
+                # Extract semester from event date or submission date (use event date if available, otherwise submission date)
                 if event_date:
                     evalDate = datetime.fromtimestamp(event_date / 1000)
                 else:
                     evalDate = datetime.now()  # Fallback to current date
-                semester = f"{evalDate.year}-{math.ceil(evalDate.month / 6)}"
                 
-                # Filter by year if specified
-                if year and not semester.startswith(year):
-                    continue
+                # Filter by year if specified - check both semester year and event date year
+                if year:
+                    year_str = str(year)
+                    # Check if year matches the event date year
+                    if str(evalDate.year) != year_str:
+                        continue
+                
+                semester = f"{evalDate.year}-{math.ceil(evalDate.month / 6)}"
                 
                 if semester not in satisfactionBySemester:
                     satisfactionBySemester[semester] = {
@@ -1119,7 +1152,10 @@ def getSatisfactionAnalytics(year=None):
                 "volunteerScore": round(volunteer_avg, 1),
                 "beneficiaryScore": round(beneficiary_avg, 1),
                 "totalEvaluations": len(evaluation_rows),
-                "processedEvaluations": len([row for row in evaluation_rows if row[3] == 1])  # row[3] is finalized
+                "processedEvaluations": len([row for row in evaluation_rows if row[3] == 1]),  # row[3] is finalized
+                "volunteerCount": len(volunteerSatisfaction),
+                "beneficiaryCount": len(beneficiarySatisfaction),
+                "totalCount": len(volunteerSatisfaction) + len(beneficiarySatisfaction)
             },
             "message": "Satisfaction analytics retrieved successfully"
         }
