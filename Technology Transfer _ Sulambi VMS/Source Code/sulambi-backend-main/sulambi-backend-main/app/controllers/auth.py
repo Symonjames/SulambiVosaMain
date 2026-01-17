@@ -265,8 +265,15 @@ def testEmail():
         "smtp_test": None
       }
     
-    # Test SMTP connection
-    validation = validateEmailConfig()
+    # Test SMTP connection (with timeout protection)
+    try:
+      validation = validateEmailConfig()
+    except Exception as e:
+      # If validation itself throws an exception, catch it
+      validation = {
+        "configured": False,
+        "message": f"Email validation error: {str(e)}"
+      }
     
     # Get test email from query parameter or use the configured email
     test_email = request.args.get('email', None)

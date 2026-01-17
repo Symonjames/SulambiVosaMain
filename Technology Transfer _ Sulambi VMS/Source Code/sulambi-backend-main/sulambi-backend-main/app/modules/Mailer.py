@@ -24,15 +24,28 @@ def validateEmailConfig():
     }
   
   try:
-    # Test SMTP connection
+    # Test SMTP connection with timeout
+    import socket
+    socket.setdefaulttimeout(10)  # 10 second timeout
+    
     smtp = SMTP("smtp.gmail.com", 587)
+    smtp.set_debuglevel(0)  # Disable debug output
     smtp.ehlo()
     smtp.starttls()
     smtp.login(EMAIL, PASSW)
     smtp.close()
+    
+    # Reset timeout
+    socket.setdefaulttimeout(None)
+    
     return {
       "configured": True,
       "message": "Email configuration is valid"
+    }
+  except socket.timeout:
+    return {
+      "configured": False,
+      "message": "Email configuration test timed out. SMTP connection to smtp.gmail.com:587 timed out after 10 seconds."
     }
   except Exception as e:
     return {
