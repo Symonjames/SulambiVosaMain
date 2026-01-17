@@ -147,13 +147,11 @@ def htmlMailer(mailTo: str, subject: str, htmlRendered: str):
       
       response = resend.Emails.send(params)
       
-      # Resend returns the email data on success, raises exception on error
-      if response and hasattr(response, "id"):
-        print(f"[EMAIL SUCCESS] Email sent via Resend to {mailTo} (id: {response.id})")
-        return True
-      else:
-        print(f"[EMAIL ERROR] Resend did not return expected response: {response}")
-        return False
+      # Resend returns email data on success (with 'id' field), raises exception on error
+      # If we reach here without exception, email was sent successfully
+      email_id = getattr(response, "id", "unknown")
+      print(f"[EMAIL SUCCESS] Email sent via Resend to {mailTo} (id: {email_id})")
+      return True
     except Exception as e:
       print(f"[EMAIL ERROR] Failed to send email via Resend to {mailTo}: {str(e)}")
       return False
