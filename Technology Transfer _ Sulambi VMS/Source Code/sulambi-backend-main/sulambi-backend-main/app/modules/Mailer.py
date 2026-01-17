@@ -26,28 +26,42 @@ def validateEmailConfig():
   try:
     # Test SMTP connection with timeout
     import socket
+    old_timeout = socket.getdefaulttimeout()
     socket.setdefaulttimeout(10)  # 10 second timeout
     
-    smtp = SMTP("smtp.gmail.com", 587)
-    smtp.set_debuglevel(0)  # Disable debug output
-    smtp.ehlo()
-    smtp.starttls()
-    smtp.login(EMAIL, PASSW)
-    smtp.close()
+    try:
+      smtp = SMTP("smtp.gmail.com", 587)
+      smtp.set_debuglevel(0)  # Disable debug output
+      smtp.ehlo()
+      smtp.starttls()
+      smtp.login(EMAIL, PASSW)
+      smtp.close()
+      
+      return {
+        "configured": True,
+        "message": "Email configuration is valid"
+      }
+    finally:
+      # Always reset timeout
+      socket.setdefaulttimeout(old_timeout)
     
-    # Reset timeout
-    socket.setdefaulttimeout(None)
-    
-    return {
-      "configured": True,
-      "message": "Email configuration is valid"
-    }
-  except socket.timeout:
-    return {
-      "configured": False,
-      "message": "Email configuration test timed out. SMTP connection to smtp.gmail.com:587 timed out after 10 seconds."
-    }
+  except (socket.timeout, TimeoutError, OSError) as e:
+    import socket
+    socket.setdefaulttimeout(None)  # Reset on timeout
+    error_msg = str(e)
+    if "timed out" in error_msg.lower() or "timeout" in error_msg.lower():
+      return {
+        "configured": False,
+        "message": "Email configuration test timed out. SMTP connection to smtp.gmail.com:587 timed out after 10 seconds."
+      }
+    else:
+      return {
+        "configured": False,
+        "message": f"Email configuration test failed: {error_msg}"
+      }
   except Exception as e:
+    import socket
+    socket.setdefaulttimeout(None)  # Reset on any error
     return {
       "configured": False,
       "message": f"Email configuration test failed: {str(e)}"
