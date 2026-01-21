@@ -36,9 +36,12 @@ const CompactEventCalendar: React.FC = () => {
       const externalEvents: ExternalEventProposalType[] = response.data.external || [];
       const internalEvents: InternalEventProposalType[] = response.data.internal || [];
       
-      const allEvents = [...externalEvents, ...internalEvents].filter(
-        (event) => event && event.status === "accepted"
-      );
+      // Match backend "public events" logic: include all non-editing, non-rejected events
+      const allEvents = [...externalEvents, ...internalEvents].filter((event) => {
+        if (!event) return false;
+        const status = String(event.status || "").toLowerCase().trim();
+        return status !== "editing" && status !== "rejected";
+      });
       
       setEvents(allEvents);
     }).catch((error) => {

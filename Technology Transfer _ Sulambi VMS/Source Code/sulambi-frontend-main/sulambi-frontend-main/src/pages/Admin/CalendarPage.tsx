@@ -20,9 +20,13 @@ const CalendarPage = () => {
   });
 
   // Process events data
+  // Match backend "public events" logic: include all non-editing, non-rejected events
   const events = eventsResponse
     ? [...(eventsResponse.external || []), ...(eventsResponse.internal || [])]
-        .filter(event => event.status === "accepted")
+        .filter((event) => {
+          const status = String(event.status || "").toLowerCase().trim();
+          return status !== "editing" && status !== "rejected";
+        })
         .sort((a, b) => a.durationStart - b.durationStart)
     : [];
 
