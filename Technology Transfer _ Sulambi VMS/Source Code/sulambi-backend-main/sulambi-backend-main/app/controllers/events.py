@@ -190,7 +190,7 @@ def getOne(id: int, eventType: str):
         query = f"""
           SELECT activity_name, month 
           FROM {table_name}
-          WHERE "eventId" = ?
+          WHERE eventid = ?
           ORDER BY activity_name, month
         """
         query = convert_placeholders(query)
@@ -674,6 +674,20 @@ def updateEvent(id, eventType: str):
         if eventProposalType is None:
           eventProposalType = matchedEvent.get("eventProposalType", "[]")
 
+        # Convert createdAt to proper format if it's a timestamp (bigint)
+        createdAt = matchedEvent.get("createdAt")
+        if isinstance(createdAt, (int, float)):
+          # Convert timestamp (milliseconds or seconds) to datetime string
+          if createdAt > 1e10:  # milliseconds
+            createdAt = datetime.fromtimestamp(createdAt / 1000).strftime("%Y-%m-%d %H:%M:%S")
+          else:  # seconds
+            createdAt = datetime.fromtimestamp(createdAt).strftime("%Y-%m-%d %H:%M:%S")
+        elif isinstance(createdAt, datetime):
+          createdAt = createdAt.strftime("%Y-%m-%d %H:%M:%S")
+        elif createdAt is None:
+          # Use current time if not set
+          createdAt = datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+
         updatedEvent = InternalEventDb.update(id, (
           title,
           durationStart,
@@ -697,7 +711,7 @@ def updateEvent(id, eventType: str):
           False,
           evaluationSendTime,
           matchedEvent.get("signatoriesId"),
-          matchedEvent.get("createdAt"),
+          createdAt,
           matchedEvent.get("feedback_id"),
           eventProposalType
         ))
