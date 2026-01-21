@@ -465,90 +465,14 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   // Admin comparison removed: no filteredEvents needed
 
-  // Year-based filtering: aggregate semesters by year when a specific year is selected
+  // Year-based filtering: use selected year when set, otherwise all data (keep per-semester items so eventNames/eventCount stay accurate)
   const filteredData = useMemo(() => {
     if (!selectedYear || selectedYear === 'all') {
-      // For "All Years", aggregate semesters by year
-      const yearAggregated: { [key: string]: any } = {};
-      satisfactionData.forEach((item: any) => {
-        const year = String(item.semester).split('-')[0];
-        if (!yearAggregated[year]) {
-          yearAggregated[year] = {
-            semester: year,
-            score: 0,
-            volunteers: null as number | null,
-            beneficiaries: null as number | null,
-            volunteerScores: [] as number[],
-            beneficiaryScores: [] as number[],
-            overallScores: [] as number[],
-          };
-        }
-        yearAggregated[year].overallScores.push(item.score || 0);
-        if (item.volunteers != null && item.volunteers !== undefined) {
-          yearAggregated[year].volunteerScores.push(item.volunteers);
-        }
-        if (item.beneficiaries != null && item.beneficiaries !== undefined) {
-          yearAggregated[year].beneficiaryScores.push(item.beneficiaries);
-        }
-      });
-      
-      // Calculate averages for each year
-      return Object.values(yearAggregated).map((yearData: any) => ({
-        semester: yearData.semester,
-        score: yearData.overallScores.length > 0 
-          ? Number((yearData.overallScores.reduce((a: number, b: number) => a + b, 0) / yearData.overallScores.length).toFixed(1))
-          : 0,
-        volunteers: yearData.volunteerScores.length > 0
-          ? Number((yearData.volunteerScores.reduce((a: number, b: number) => a + b, 0) / yearData.volunteerScores.length).toFixed(1))
-          : null,
-        beneficiaries: yearData.beneficiaryScores.length > 0
-          ? Number((yearData.beneficiaryScores.reduce((a: number, b: number) => a + b, 0) / yearData.beneficiaryScores.length).toFixed(1))
-          : null,
-      }));
+      return satisfactionData;
     }
-    
-    // For a specific year, filter and aggregate semesters within that year
-    const yearData = satisfactionData.filter((item: any) =>
+    return satisfactionData.filter((item: any) =>
       String(item.semester).startsWith(String(selectedYear))
     );
-    
-    if (yearData.length === 0) {
-      return [];
-    }
-    
-    // Aggregate all semesters in the selected year into a single entry
-    const aggregated = {
-      semester: selectedYear,
-      score: 0,
-      volunteers: null as number | null,
-      beneficiaries: null as number | null,
-      volunteerScores: [] as number[],
-      beneficiaryScores: [] as number[],
-      overallScores: [] as number[],
-    };
-    
-    yearData.forEach((item: any) => {
-      aggregated.overallScores.push(item.score || 0);
-      if (item.volunteers != null && item.volunteers !== undefined) {
-        aggregated.volunteerScores.push(item.volunteers);
-      }
-      if (item.beneficiaries != null && item.beneficiaries !== undefined) {
-        aggregated.beneficiaryScores.push(item.beneficiaries);
-      }
-    });
-    
-    return [{
-      semester: selectedYear,
-      score: aggregated.overallScores.length > 0
-        ? Number((aggregated.overallScores.reduce((a: number, b: number) => a + b, 0) / aggregated.overallScores.length).toFixed(1))
-        : 0,
-      volunteers: aggregated.volunteerScores.length > 0
-        ? Number((aggregated.volunteerScores.reduce((a: number, b: number) => a + b, 0) / aggregated.volunteerScores.length).toFixed(1))
-        : null,
-      beneficiaries: aggregated.beneficiaryScores.length > 0
-        ? Number((aggregated.beneficiaryScores.reduce((a: number, b: number) => a + b, 0) / aggregated.beneficiaryScores.length).toFixed(1))
-        : null,
-    }];
   }, [satisfactionData, selectedYear]);
   
   // Recalculate averages and counts based on filtered data and API response when year selection changes
