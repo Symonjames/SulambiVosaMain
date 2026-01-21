@@ -87,7 +87,13 @@ const ReportForm: React.FC<Props> = (props) => {
       type,
       hasFormData: !!formData,
     });
-    setOpenConfirmModal(true);
+    // For edit mode, submit immediately (confirmation modal was not visible for some users)
+    if (isEditMode) {
+      confirmedSubmitAction();
+    } else {
+      // For new reports, still show confirmation
+      setOpenConfirmModal(true);
+    }
   };
 
   const confirmedSubmitAction = () => {
