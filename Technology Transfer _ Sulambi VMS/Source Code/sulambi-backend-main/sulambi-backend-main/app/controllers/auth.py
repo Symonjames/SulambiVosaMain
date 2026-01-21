@@ -202,16 +202,26 @@ def register():
 ######################
 def sendPendingVerificationMail(memberDetails):
   """Send email notification to user that their application is under review"""
-  templateHtml = open("templates/application-under-review.html", "r").read()
-  templateHtml = templateHtml.replace("[name]", memberDetails.get("fullname").split(" ")[0])
-  templateHtml = templateHtml.replace("[application_type]", "membership")
-  templateHtml = templateHtml.replace("[timeframe]", "3-5 business days")
+  try:
+    print(f"[EMAIL] Sending pending verification email to {memberDetails.get('email')}")
+    templateHtml = open("templates/application-under-review.html", "r").read()
+    templateHtml = templateHtml.replace("[name]", memberDetails.get("fullname").split(" ")[0])
+    templateHtml = templateHtml.replace("[application_type]", "membership")
+    templateHtml = templateHtml.replace("[timeframe]", "3-5 business days")
 
-  threadedHtmlMailer(
-    mailTo=memberDetails.get("email"),
-    htmlRendered=templateHtml,
-    subject="Application Received - Pending Officer Verification | Sulambi VOSA"
-  )
+    threadedHtmlMailer(
+      mailTo=memberDetails.get("email"),
+      htmlRendered=templateHtml,
+      subject="Application Received - Pending Officer Verification | Sulambi VOSA"
+    )
+    print(f"[EMAIL] Pending verification email queued for {memberDetails.get('email')}")
+  except FileNotFoundError as e:
+    print(f"[EMAIL ERROR] Template file not found: {e}")
+    print(f"[EMAIL ERROR] Cannot send pending verification email to {memberDetails.get('email')}")
+  except Exception as e:
+    print(f"[EMAIL ERROR] Failed to send pending verification email: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 def checkApplicationStatus():
   """Check membership application status by email"""

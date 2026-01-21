@@ -85,12 +85,27 @@ def sendRejectMembershipMail(memberDetails):
   )
 
 def sendAcceptMembershipMail(memberDetails):
-  templateHtml = open("templates/we-are-pleased-to-inform-membership.html", "r").read()
-  templateHtml = templateHtml.replace("[name]", memberDetails.get("fullname").split(" ")[0])
-  templateHtml = templateHtml.replace("[link]", FRONTEND_APP_URL + "/login")
+  try:
+    print(f"[EMAIL] Sending approval email to {memberDetails.get('email')}")
+    templateHtml = open("templates/we-are-pleased-to-inform-membership.html", "r").read()
+    templateHtml = templateHtml.replace("[name]", memberDetails.get("fullname").split(" ")[0])
+    # Use FRONTEND_APP_URL if set, otherwise use a placeholder
+    login_link = (FRONTEND_APP_URL + "/login") if FRONTEND_APP_URL else "[Login URL - Please set FRONTEND_APP_URL environment variable]"
+    templateHtml = templateHtml.replace("[link]", login_link)
+    
+    if not FRONTEND_APP_URL:
+      print(f"[EMAIL WARNING] FRONTEND_APP_URL not set - approval email will have placeholder login link")
 
-  threadedHtmlMailer(
-    mailTo=memberDetails.get("email"),
-    htmlRendered=templateHtml,
-    subject="SULAMBI - VOSA Membership Application"
-  )
+    threadedHtmlMailer(
+      mailTo=memberDetails.get("email"),
+      htmlRendered=templateHtml,
+      subject="SULAMBI - VOSA Membership Application"
+    )
+    print(f"[EMAIL] Approval email queued for {memberDetails.get('email')}")
+  except FileNotFoundError as e:
+    print(f"[EMAIL ERROR] Template file not found: {e}")
+    print(f"[EMAIL ERROR] Cannot send approval email to {memberDetails.get('email')}")
+  except Exception as e:
+    print(f"[EMAIL ERROR] Failed to send approval email: {str(e)}")
+    import traceback
+    traceback.print_exc()
