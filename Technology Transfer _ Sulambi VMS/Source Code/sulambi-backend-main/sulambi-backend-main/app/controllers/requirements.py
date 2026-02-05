@@ -6,8 +6,7 @@ from ..models.InternalEventModel import InternalEventModel
 from ..models.EvaluationModel import EvaluationModel
 from ..models.MembershipModel import MembershipModel
 from ..modules.CallbackTimer import executeDelayedAction
-from ..modules.Mailer import threadedHtmlMailer, htmlMailer, isEmailConfigured
-from datetime import datetime
+from ..modules.Mailer import threadedHtmlMailer, htmlMailer
 
 from dotenv import load_dotenv
 import os
@@ -15,17 +14,6 @@ import os
 load_dotenv()
 
 FRONTEND_APP_URL = os.getenv("FRONTEND_APP_URL")
-
-
-def _get_requirement_email(requirement_details: dict) -> str:
-  """Get email from requirement; backend may return 'email' or 'Email' depending on DB/driver."""
-  e = requirement_details.get("email") or requirement_details.get("Email")
-  if e:
-    return str(e).strip()
-  for k, v in (list(requirement_details.items()) if requirement_details else []):
-    if k and str(k).lower() == "email" and v:
-      return str(v).strip()
-  return ""
 
 RequirementsDb = RequirementsModel()
 ExternalEventDb = ExternalEventModel()
@@ -203,18 +191,7 @@ def getAllRequirements():
     print(f"[REQUIREMENTS_GET_ALL] Traceback: {traceback.format_exc()}")
     return ({ "message": f"Server error: {str(e)}" }, 500)
 
-def _load_template(name: str) -> str:
-  """Load email template; try CWD then path relative to this file."""
-  for base in (os.getcwd(), os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))):
-    path = os.path.join(base, "templates", name)
-    if os.path.isfile(path):
-      with open(path, "r", encoding="utf-8") as f:
-        return f.read()
-  raise FileNotFoundError(f"Template not found: templates/{name}")
-
-
-def acceptRequirements(id):
-  # Requirement id may be string (UUID) from URL
+def acceptRequirements(id: int):
   existence = RequirementsDb.get(id)
   if (existence == None):
     return ({"message": "Requirement ID entered does not exist"}, 404)
@@ -231,36 +208,37 @@ def acceptRequirements(id):
   # create an evaluation template for user to answer
   createdEval = EvaluationDb.create(id, "", "", "", "", "", False)
 
-  volunteer_email = _get_requirement_email(existence)
-  email_configured = isEmailConfigured()
+  # Determine when to send evaluation email:
+  # - Prefer the later of event durationEnd and evaluationSendTime (both stored as epoch ms)
+  # - This ensures emails are sent only after the event has finished
+  try:
+    duration_end_ms = int(eventDetails.get("durationEnd", 0) or 0)
+  except (TypeError, ValueError):
+    duration_end_ms = 0
 
-  print("[REQUIREMENTS_ACCEPT] volunteer_email=%r email_configured=%s" % (volunteer_email or "(empty)", email_configured))
-  if not email_configured:
-    print("[REQUIREMENTS_ACCEPT] Cannot send emails: set RESEND_API_KEY and RESEND_FROM_EMAIL (or AUTOMAILER_EMAIL and AUTOMAILER_PASSW) in .env")
-  if not volunteer_email:
-    print("[REQUIREMENTS_ACCEPT] No email on requirement; acceptance/revaluation emails will be skipped")
+  try:
+    eval_send_ms = int(eventDetails.get("evaluationSendTime", 0) or 0)
+  except (TypeError, ValueError):
+    eval_send_ms = 0
 
-  # Always send both emails immediately when officer approves (so user gets confirmation + evaluation link right away)
-  if volunteer_email:
-    try:
-      sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails)
-      print("[REQUIREMENTS_ACCEPT] Evaluation email (with token) sent to", volunteer_email)
-    except Exception as e:
-      print("[REQUIREMENTS_ACCEPT] Failed to send evaluation email:", e)
-      import traceback
-      traceback.print_exc()
+  # If evaluationSendTime is not set or is earlier than event end, use event end time
+  target_epoch_ms = max(duration_end_ms, eval_send_ms)
+
+  # If still zero (no timing info), fall back to immediate execution
+  if target_epoch_ms <= 0:
+    print("[REQUIREMENTS_ACCEPT] Warning: No valid durationEnd/evaluationSendTime; sending evaluation email immediately")
+    sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails)
+  else:
+    # Schedule email to be sent after target time (no execAnyway so past times are skipped)
+    executeDelayedAction(
+      target_epoch_ms,
+      lambda: sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails),
+      execAnyway=False
+    )
 
   RequirementsDb.updateSpecific(id, ["accepted"], (True,))
   updatedData = RequirementsDb.get(id)
-
-  if volunteer_email:
-    try:
-      sendAcceptedRequirementsMail(existence, eventDetails)
-      print("[REQUIREMENTS_ACCEPT] Acceptance confirmation email sent to", volunteer_email)
-    except Exception as e:
-      print("[REQUIREMENTS_ACCEPT] Failed to send acceptance email:", e)
-      import traceback
-      traceback.print_exc()
+  sendAcceptedRequirementsMail(existence, eventDetails)
 
   return {
     "message": "Successfully accepted requirement",
@@ -416,162 +394,43 @@ def createNewRequirement(eventId: int):
     print(f"[REQUIREMENTS_CREATE] Traceback: {traceback.format_exc()}")
     return ({ "message": f"Server error: {str(e)}" }, 500)
 
-
-def createPublicEventJoin(eventId: int):
-  """
-  Public endpoint: non-members can join a public event as temporary volunteers.
-  Event must be toPublic, accepted, and in the future. Participation is stored
-  in the same requirements table for analytics (event counts, satisfaction).
-  """
-  try:
-    event_type = request.form.get("type") or "external"
-    event_type = "external" if event_type == "external" else "internal"
-    if event_type == "external":
-      event = ExternalEventDb.get(eventId)
-    else:
-      event = InternalEventDb.get(eventId)
-
-    if not event:
-      return ({ "message": "Event not found" }, 404)
-
-    to_public = event.get("toPublic") in (True, 1, "1")
-    status_lower = str(event.get("status", "")).lower().strip()
-    duration_end = event.get("durationEnd") or 0
-    time_now_ms = int(datetime.now().timestamp() * 1000)
-
-    if not to_public:
-      return ({ "message": "This event is not open for public registration" }, 403)
-    if status_lower != "accepted":
-      return ({ "message": "This event is not available for registration" }, 403)
-    if duration_end <= time_now_ms:
-      return ({ "message": "This event has already ended" }, 403)
-
-    fullname = (request.form.get("fullname") or "").strip()
-    email = (request.form.get("email") or "").strip()
-    if not fullname or not email:
-      return ({ "message": "Full name and email are required" }, 400)
-
-    # Duplicate check
-    existing = RequirementsDb.getAndSearch(
-      ["eventId", "type", "email"],
-      [eventId, event_type, email]
-    )
-    if existing:
-      return ({ "message": "This email is already registered for this event" }, 403)
-
-    from app.utils.multipartFileWriter import cloudinaryFileWriter
-    try:
-      resultingPaths = cloudinaryFileWriter(["medCert", "waiver"], folder="requirements")
-      medCertUrl = resultingPaths.get("medCert") or ""
-      waiverUrl = resultingPaths.get("waiver") or ""
-      if not medCertUrl or not waiverUrl:
-        return ({ "message": "Medical certificate and waiver uploads are required" }, 400)
-      if not medCertUrl.startswith(('http://', 'https://')) or not waiverUrl.startswith(('http://', 'https://')):
-        return ({ "message": "Invalid file upload" }, 400)
-    except BadRequest as e:
-      return ({ "message": str(e) }, 400)
-    except Exception as e:
-      return ({ "message": f"File upload failed: {str(e)}" }, 500)
-
-    age_str = request.form.get("age") or ""
-    age_value = None
-    if age_str.strip():
-      try:
-        age_value = int(age_str.strip())
-      except ValueError:
-        age_value = None
-
-    createdRequirement = RequirementsDb.create(
-      medCertUrl,
-      waiverUrl,
-      eventId,
-      event_type,
-      request.form.get("curriculum") or "",
-      request.form.get("destination") or "",
-      request.form.get("firstAid") or "",
-      request.form.get("fees") or "",
-      request.form.get("personnelInCharge") or "",
-      request.form.get("personnelRole") or "",
-      fullname,
-      email,
-      request.form.get("srcode") or "",
-      age_value,
-      request.form.get("birthday") or "",
-      request.form.get("sex") or "",
-      request.form.get("campus") or "",
-      request.form.get("collegeDept") or "",
-      request.form.get("yrlevelprogram") or "",
-      request.form.get("address") or "",
-      request.form.get("contactNum") or "",
-      request.form.get("fblink") or "",
-      None,
-      "Temporary Volunteer"
-    )
-
-    return {
-      "message": "Successfully registered as volunteer for this event. Your access is limited to this event.",
-      "data": createdRequirement
-    }
-  except Exception as e:
-    import traceback
-    traceback.print_exc()
-    return ({ "message": f"Server error: {str(e)}" }, 500)
-
-
 ######################
 #  Helper Functions  #
 ######################
 def sendRenderedEvaluationMail(requirementDetails: dict, eventDetails: dict):
-  email = _get_requirement_email(requirementDetails)
-  if not email:
-    print("[EMAIL] sendRenderedEvaluationMail skipped: no email on requirement")
-    return
-  if not isEmailConfigured():
-    print("[EMAIL] sendRenderedEvaluationMail skipped: email not configured (check .env)")
-    return
-  templateHtml = _load_template("evaluation-mail-template.html")
-  templateHtml = templateHtml.replace("[name]", requirementDetails.get("fullname") or "Participant")
-  templateHtml = templateHtml.replace("[token]", str(requirementDetails.get("id") or ""))
-  templateHtml = templateHtml.replace("[event-title]", eventDetails.get("title") or "Event")
+  templateHtml = open("templates/evaluation-mail-template.html", "r").read()
+  templateHtml = templateHtml.replace("[name]", requirementDetails.get("fullname"))
+  templateHtml = templateHtml.replace("[token]", requirementDetails.get("id"))
+  templateHtml = templateHtml.replace("[event-title]", eventDetails.get("title"))
+  # Build evaluation link safely, even if FRONTEND_APP_URL is not configured
   base_url = FRONTEND_APP_URL or ""
   link = (base_url + "/evaluation/" + str(requirementDetails.get("id"))) if base_url else "/evaluation/" + str(requirementDetails.get("id"))
   templateHtml = templateHtml.replace("[link]", link)
 
   htmlMailer(
-    mailTo=email,
+    mailTo=requirementDetails.get("email"),
     htmlRendered=templateHtml,
     subject="Evaluation Attendance"
   )
 
 def sendRejectedRequirementsMail(requirementDetails: dict, eventDetails: dict):
-  email = _get_requirement_email(requirementDetails)
-  if not email:
-    print("[EMAIL] sendRejectedRequirementsMail skipped: no email on requirement")
-    return
-  templateHtml = _load_template("we-reject-to-inform-requirements.html")
-  templateHtml = templateHtml.replace("[name]", requirementDetails.get("fullname") or "Participant")
-  templateHtml = templateHtml.replace("[event]", eventDetails.get("title") or "Event")
+  templateHtml = open("templates/we-reject-to-inform-requirements.html", "r").read()
+  templateHtml = templateHtml.replace("[name]", requirementDetails.get("fullname"))
+  templateHtml = templateHtml.replace("[event]", eventDetails.get("title"))
 
   threadedHtmlMailer(
-    mailTo=email,
+    mailTo=requirementDetails.get("email"),
     htmlRendered=templateHtml,
     subject="Requirement Evaluation: Sulambi - VOSA"
   )
 
 def sendAcceptedRequirementsMail(requirementDetails: dict, eventDetails: dict):
-  email = _get_requirement_email(requirementDetails)
-  if not email:
-    print("[EMAIL] sendAcceptedRequirementsMail skipped: no email on requirement")
-    return
-  if not isEmailConfigured():
-    print("[EMAIL] sendAcceptedRequirementsMail skipped: email not configured (set RESEND_API_KEY and RESEND_FROM_EMAIL or AUTOMAILER_EMAIL/AUTOMAILER_PASSW in .env)")
-    return
-  templateHtml = _load_template("we-are-pleased-to-inform-requirements.html")
-  templateHtml = templateHtml.replace("[name]", requirementDetails.get("fullname") or "Participant")
-  templateHtml = templateHtml.replace("[event]", eventDetails.get("title") or "Event")
+  templateHtml = open("templates/we-are-pleased-to-inform-requirements.html", "r").read()
+  templateHtml = templateHtml.replace("[name]", requirementDetails.get("fullname"))
+  templateHtml = templateHtml.replace("[event]", eventDetails.get("title"))
 
   threadedHtmlMailer(
-    mailTo=email,
+    mailTo=requirementDetails.get("email"),
     htmlRendered=templateHtml,
     subject="Requirement Evaluation: Sulambi - VOSA"
   )

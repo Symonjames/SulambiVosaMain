@@ -10,9 +10,8 @@ export const getOneEvent = (id: number, type: "external" | "internal") => {
   return axios.get(`${basePath}/${type}/${id}`);
 };
 
-/** Landing: future events only. Pass { params: { scope: 'evaluation' } } for past events (e.g. beneficiary evaluation). */
-export const getAllPublicEvents = (params?: { scope?: "evaluation" }) => {
-  return axios.get(`${basePath}/public`, { params });
+export const getAllPublicEvents = () => {
+  return axios.get(`${basePath}/public`);
 };
 
 export const createExternalEvent = (formData: any) => {

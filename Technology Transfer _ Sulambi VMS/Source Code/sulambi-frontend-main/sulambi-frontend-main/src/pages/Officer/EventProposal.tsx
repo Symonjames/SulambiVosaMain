@@ -483,21 +483,14 @@ const EventProposal = () => {
         beforePrintComponent={
           <>
             {selectedFormData &&
-            (selectedFormData.status === "accepted" ||
-              selectedFormData.status === "submitted") &&
-            !selectedFormData.toPublic ? (
+            selectedFormData.status === "accepted" &&
+            selectedFormData.toPublic === 0 ? (
               <PrimaryButton
                 label="Make Public"
                 startIcon={<PublicIcon />}
                 onClick={makePublicOnClick}
-                title={
-                  selectedFormData.status === "submitted"
-                    ? "Event will appear on the public page after an admin approves it."
-                    : undefined
-                }
               />
-            ) : null}
-            {selectedFormData && !!selectedFormData.feedback_id ? (
+            ) : selectedFormData && !!selectedFormData.feedback_id ? (
               <>
                 <PrimaryButton
                   label="Edit Form"
@@ -520,8 +513,10 @@ const EventProposal = () => {
                   }}
                 />
               </>
-            ) : null}
-            {selectedFormData && selectedFormData.status === "accepted" && (
+            ) : (
+              <></>
+            )}
+            {selectedFormData && selectedFormData === "accepted" && (
               <>
                 <PrimaryButton
                   label="View Evaluations"

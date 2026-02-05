@@ -228,13 +228,7 @@ const RequirementEvalPage = () => {
                     icon: <RemoveRedEyeIcon />,
                     onClick: () => {
                       setSelectedFormData(req);
-                      // Normalize so waiver/medCert are always available (API may return lowercase keys from PostgreSQL)
-                      const normalized = {
-                        ...req,
-                        medCert: req.medCert ?? (req as any).medcert ?? "",
-                        waiver: req.waiver ?? (req as any).waiver ?? "",
-                      };
-                      setFormData(normalized);
+                      setFormData(req);
                       setViewFormData(true);
                     },
                   },
@@ -290,12 +284,7 @@ const RequirementEvalPage = () => {
                     icon: <RemoveRedEyeIcon />,
                     onClick: () => {
                       setSelectedFormData(req);
-                      const normalized = {
-                        ...req,
-                        medCert: req.medCert ?? (req as any).medcert ?? "",
-                        waiver: req.waiver ?? (req as any).waiver ?? "",
-                      };
-                      setFormData(normalized);
+                      setFormData(req);
                       setViewFormData(true);
                     },
                   },

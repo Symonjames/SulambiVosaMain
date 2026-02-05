@@ -41,12 +41,18 @@ const Landing = () => {
   const [previewData, setPreviewData] = useState<any>({});
 
   const [openConfirm, setOpenConfirm] = useState(false);
-  const [eventType, setEventType] = useState<"external" | "internal">("external");
-  const [selectedEventId, setSelectedEventId] = useState<number | undefined>(undefined);
+  const [eventType] = useState<"external" | "internal">(
+    "external"
+  );
+  const [selectedEventId] = useState<number | undefined>(
+    undefined
+  );
 
   const isMobile = useMediaQuery({
     query: "(max-width: 600px)",
   });
+
+  
 
   const viewDataCallback = (eventData: any) => {
     return () => {
@@ -55,30 +61,15 @@ const Landing = () => {
     };
   };
 
-  /** Join as temporary volunteer (public event from homepage; no membership required) */
-  const joinPublicEventCallback = (eventData: any) => {
-    return () => {
-      const type: "external" | "internal" =
-        (eventData as ExternalEventProposalType).location !== undefined ? "external" : "internal";
-      setEventType(type);
-      setSelectedEventId(eventData.id);
-      setFormData({});
-      setOpenRequirementForm(true);
-    };
-  };
-
   useEffect(() => {
-    getAllPublicEvents()
-      .then((response) => {
-        const externalEvents: ExternalEventProposalType[] =
-          response.data?.external ?? [];
-        const internalEvents: InternalEventProposalType[] =
-          response.data?.internal ?? [];
-        setPublicEvents([...externalEvents, ...internalEvents]);
-      })
-      .catch(() => {
-        setPublicEvents([]);
-      });
+    getAllPublicEvents().then((response) => {
+      const externalEvents: ExternalEventProposalType[] =
+        response.data.external;
+      const internalEvents: InternalEventProposalType[] =
+        response.data.internal;
+
+      setPublicEvents([...externalEvents, ...internalEvents]);
+    });
   }, []);
 
   return (
@@ -104,23 +95,20 @@ const Landing = () => {
           setOpenRequirementForm(true);
         }}
       />
-      <DataPrivacy
-        open={openDataPrivacy}
-        setOpen={setOpenDataPrivacy}
-        onAgree={() => setOpenVolunteerForm(true)}
-      />
-      {selectedEventId !== undefined && (
-        <RequirementForm
-          preventLoadingCache
-          eventId={selectedEventId}
-          open={openRequirementForm}
-          eventType={eventType}
-          setOpen={setOpenRequirementForm}
-          isPublicJoin
-          afterOpen={() => {
-            setFormData({});
-          }}
-        />
+      <DataPrivacy open={openDataPrivacy} setOpen={setOpenDataPrivacy} />
+      {selectedEventId && (
+        <>
+          <RequirementForm
+            preventLoadingCache
+            eventId={selectedEventId}
+            open={openRequirementForm}
+            eventType={eventType}
+            setOpen={setOpenRequirementForm}
+            afterOpen={() => {
+              setFormData({});
+            }}
+          />
+        </>
       )}
       <ConfirmModal
         message="Do you want to apply for a membership before volunteering?"
@@ -138,9 +126,8 @@ const Landing = () => {
       />
       <LandingHeader
         setOpenMembership={(state) => {
-          if (state) {
-            setOpenDataPrivacy(true);
-          }
+          setOpenDataPrivacy(true);
+          setOpenVolunteerForm(state);
         }}
       />
       <Box
@@ -234,19 +221,16 @@ const Landing = () => {
                   cardTitle={event.title}
                   location={event.location ?? event.venue ?? ""}
                   onViewDetails={viewDataCallback(event)}
-                  onVolunteer={joinPublicEventCallback(event)}
                 />
               ))}
             </HorizontalCarousel>
           ) : (
-            publicEvents.map((event, id) => (
+            publicEvents.map((event) => (
               <MediaCard
-                key={id}
                 width={isMobile ? "auto" : "20vw"}
                 cardTitle={event.title}
                 location={event.location ?? event.venue ?? ""}
                 onViewDetails={viewDataCallback(event)}
-                onVolunteer={joinPublicEventCallback(event)}
               />
             ))
           )}

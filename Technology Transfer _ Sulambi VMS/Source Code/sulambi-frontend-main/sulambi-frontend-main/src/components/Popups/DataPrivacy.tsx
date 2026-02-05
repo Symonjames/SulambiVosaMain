@@ -7,11 +7,10 @@ import PrimaryButton from "../Buttons/PrimaryButton";
 interface Props {
   open: boolean;
   setOpen?: (state: boolean) => void;
-  onAgree?: () => void;
   onDecline?: () => void;
 }
 
-const DataPrivacy: React.FC<Props> = ({ open, onDecline, onAgree, setOpen }) => {
+const DataPrivacy: React.FC<Props> = ({ open, onDecline, setOpen }) => {
   return (
     <PopupModal
       hideCloseButton
@@ -47,7 +46,6 @@ const DataPrivacy: React.FC<Props> = ({ open, onDecline, onAgree, setOpen }) => 
         <PrimaryButton
           label="I Agree"
           onClick={() => {
-            onAgree && onAgree();
             setOpen && setOpen(false);
           }}
         />

@@ -7,7 +7,6 @@ from ..models.SignatoriesModel import SignatoriesModel
 from ..models.AccountModel import AccountModel
 from ..models.RequirementsModel import RequirementsModel
 from ..models.EvaluationModel import EvaluationModel
-from ..models.MembershipModel import MembershipModel
 
 from ..modules.LSIAlgorithm import LSICosineSimilarityMatch
 
@@ -23,7 +22,6 @@ RequirementsDb  = RequirementsModel()
 SignatoriesDb = SignatoriesModel()
 EvaluationDb = EvaluationModel()
 AccountDb = AccountModel()
-MembershipDb = MembershipModel()
 
 def getAll():
   try:
@@ -47,19 +45,6 @@ def getAll():
       timeNow = int(datetime.now().timestamp() * 1000)
       externalEvents = [event for event in externalEvents if event.get("status") == "accepted" and event.get("durationEnd", 0) - timeNow > 0]
       internalEvents = [event for event in internalEvents if event.get("status") == "accepted" and event.get("durationEnd", 0) - timeNow > 0]
-      # Exclude events the member has already joined (submitted participation) to prevent duplicate submissions
-      member_email = None
-      membership_id = accountSessionInfo.get("membershipId")
-      if membership_id:
-        member = MembershipDb.get(membership_id)
-        if member and member.get("email"):
-          member_email = member.get("email").strip()
-      if member_email:
-        member_reqs = RequirementsDb.getAndSearch(["email"], [member_email])
-        joined_external_ids = {r["eventId"] for r in member_reqs if r.get("type") == "external"}
-        joined_internal_ids = {r["eventId"] for r in member_reqs if r.get("type") == "internal"}
-        externalEvents = [e for e in externalEvents if e.get("id") not in joined_external_ids]
-        internalEvents = [e for e in internalEvents if e.get("id") not in joined_internal_ids]
 
     # Batch fetch all related data to avoid N+1 queries
     # Collect all unique IDs
@@ -253,59 +238,53 @@ def getOne(id: int, eventType: str):
       "message": f"Error retrieving event: {str(e)}"
     }, 500)
 
-def _is_public(to_public_val):
-  """Treat 1, True, '1', 'true' as public."""
-  if to_public_val is None:
-    return False
-  if to_public_val is True or to_public_val == 1:
-    return True
-  return str(to_public_val).strip().lower() in ("1", "true")
-
-
 def getPublicEvents():
   # Public route - no authentication required
-  # scope=future (default): landing page - future events that are public (accepted or submitted)
-  # scope=evaluation: beneficiary evaluation page - past events only
-  from flask import request
-  scope = (request.args.get("scope") or "future").strip().lower()
+  # Get all events that are approved (status == "accepted")
   allExternalEvents = ExternalEventDb.getAll()
   allInternalEvents = InternalEventDb.getAll()
-  time_now_ms = int(datetime.now().timestamp() * 1000)
-
-  future_only = scope != "evaluation"
-  # Homepage: only show events that are public AND approved (accepted) by admin
-  allowed_statuses = ("accepted",)
-
+  
+  # Debug: Log all events to see what statuses exist
+  print("=== DEBUG: All External Events ===")
+  for event in allExternalEvents:
+    print(f"ID: {event['id']}, Title: {event['title']}, Status: {event['status']}")
+  
+  print("=== DEBUG: All Internal Events ===")
+  for event in allInternalEvents:
+    print(f"ID: {event['id']}, Title: {event['title']}, Status: {event['status']}")
+  
+  # Return ALL approved events (both ongoing and finished) for public access
+  # This allows beneficiaries to evaluate finished events - no account/membership required
+  # Show events with status "accepted" OR "submitted" (in case admin approved but status wasn't updated)
+  # Also check for case-insensitive status matching
+  # Filter out only "editing" and "rejected" statuses
   externalEvents = []
   for event in allExternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
-    to_public = _is_public(event.get("toPublic"))
-    duration_end = event.get("durationEnd") or 0
-    if status_lower not in allowed_statuses or not to_public:
-      continue
-    if future_only and duration_end <= time_now_ms:
-      continue
-    if not future_only and duration_end > time_now_ms:
-      continue
-    externalEvents.append(event)
-
+    # Include events that are not in editing or rejected state
+    if status_lower not in ["editing", "rejected"]:
+      externalEvents.append(event)
+      print(f"✅ Including External Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}'")
+    else:
+      print(f"❌ Excluding External Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}'")
+  
   internalEvents = []
   for event in allInternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
-    to_public = _is_public(event.get("toPublic"))
-    duration_end = event.get("durationEnd") or 0
-    if status_lower not in allowed_statuses or not to_public:
-      continue
-    if future_only and duration_end <= time_now_ms:
-      continue
-    if not future_only and duration_end > time_now_ms:
-      continue
-    internalEvents.append(event)
-
+    # Include events that are not in editing or rejected state
+    if status_lower not in ["editing", "rejected"]:
+      internalEvents.append(event)
+      print(f"✅ Including Internal Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}'")
+    else:
+      print(f"❌ Excluding Internal Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}'")
+  
+  print(f"=== DEBUG: Filtered External Events (accepted/submitted): {len(externalEvents)} ===")
+  print(f"=== DEBUG: Filtered Internal Events (accepted/submitted): {len(internalEvents)} ===")
+  
   return {
     "external": externalEvents,
     "internal": internalEvents,
-    "message": "Successfully retrieved public events"
+    "message": "Successfully retrieved all public events"
   }
 
 def getAnalysis(id: int, eventType: str):

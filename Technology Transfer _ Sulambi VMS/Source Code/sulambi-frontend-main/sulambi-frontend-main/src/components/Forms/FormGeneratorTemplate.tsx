@@ -535,14 +535,7 @@ const FormGeneratorTemplate = ({
               />
             );
 
-          if (viewOnly && value.type === "file") {
-            // API may return medCert/waiver (camelCase) or medcert/waiver (lowercase from PostgreSQL)
-            const fileValue =
-              (value.id && (formData[value.id] ?? (formData as Record<string, unknown>)[value.id?.toLowerCase?.() ?? ""]));
-            const hasFile =
-              fileValue != null &&
-              String(fileValue).trim() !== "" &&
-              String(fileValue) !== "N/A";
+          if (viewOnly && value.type === "file")
             return (
               <FlexBox
                 flexDirection="column"
@@ -550,12 +543,12 @@ const FormGeneratorTemplate = ({
                 width="100%"
               >
                 <Typography>{value.message}</Typography>
-                {value.id && hasFile ? (
+                {value.id && formData[value.id] && String(formData[value.id]).trim() !== "" && String(formData[value.id]) !== "N/A" ? (
                   <PrimaryButton
                     label="View Uploaded File"
                     startIcon={<RemoveRedEyeIcon />}
                     onClick={() => {
-                      const raw = String(fileValue);
+                      const raw = String(formData[value.id]);
                       
                       // Check if it's a Cloudinary URL or other full URL
                       const isFullUrl = raw.startsWith("http://") || raw.startsWith("https://");
@@ -614,7 +607,6 @@ const FormGeneratorTemplate = ({
                 )}
               </FlexBox>
             );
-          }
 
           if (value.type === "break") return <br key={`break-${index}`} />;
 

@@ -43,7 +43,7 @@ const BeneficiaryEvaluationPage = () => {
     const fetchEligibleEvents = async () => {
       setEventsLoading(true);
       try {
-        const response = await getAllPublicEvents({ scope: "evaluation" });
+        const response = await getAllPublicEvents();
         const externalEvents: PublicEvent[] = response.data.external ?? [];
         const internalEvents: PublicEvent[] = response.data.internal ?? [];
         const combined: PublicEvent[] = [...externalEvents, ...internalEvents];

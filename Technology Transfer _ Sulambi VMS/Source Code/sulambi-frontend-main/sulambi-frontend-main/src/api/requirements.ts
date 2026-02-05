@@ -10,16 +10,9 @@ export const uploadRequirements = (
   eventId: number,
   multiPartData: FormData
 ) => {
+  // The axios interceptor will automatically remove Content-Type for FormData
+  // so axios/browser can set multipart/form-data with boundary automatically
   return axios.post(`${basePath}/${eventId}`, multiPartData);
-};
-
-/** Public endpoint: join a public event as temporary volunteer (no auth). */
-export const uploadRequirementsPublicEvent = (
-  eventId: number,
-  eventType: "external" | "internal",
-  multiPartData: FormData
-) => {
-  return axios.post(`${basePath}/public-event/${eventId}/join`, multiPartData);
 };
 
 export const acceptRequirement = (id: number) => {
