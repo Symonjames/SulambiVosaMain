@@ -294,22 +294,12 @@ def createNewRequirement(eventId: int):
     print(f"[REQUIREMENTS_CREATE] Request form keys: {list(request.form.keys())}")
     print(f"[REQUIREMENTS_CREATE] Request files keys: {list(request.files.keys())}")
     
-    # Use Cloudinary when configured; otherwise save to local uploads/ (for development)
-    from app.utils.multipartFileWriter import (
-      cloudinaryFileWriter,
-      localFileWriter,
-      is_cloudinary_configured,
-    )
+    # Use Cloudinary for file uploads (validates PDF and images only). Local storage is disabled.
+    from app.utils.multipartFileWriter import cloudinaryFileWriter
 
-    resultingPaths = {}
     try:
-      if is_cloudinary_configured():
-        resultingPaths = cloudinaryFileWriter(["medCert", "waiver"], folder="requirements")
-        print(f"[REQUIREMENTS_CREATE] ✅ Cloudinary uploads successful")
-      else:
-        print(f"[REQUIREMENTS_CREATE] Cloudinary not configured; using local uploads")
-        resultingPaths = localFileWriter(["medCert", "waiver"], subfolder="requirements")
-        print(f"[REQUIREMENTS_CREATE] ✅ Local uploads successful")
+      resultingPaths = cloudinaryFileWriter(["medCert", "waiver"], folder="requirements")
+      print(f"[REQUIREMENTS_CREATE] ✅ Cloudinary uploads successful")
 
       medCertUrl = resultingPaths.get("medCert", "")
       waiverUrl = resultingPaths.get("waiver", "")
@@ -319,7 +309,11 @@ def createNewRequirement(eventId: int):
       if not waiverUrl:
         return ({ "message": "Waiver file is required" }, 400)
 
-      # When using Cloudinary, values are full URLs; when local, they are paths like uploads/requirements/...
+      if not medCertUrl.startswith(('http://', 'https://')):
+        return ({ "message": "Medical certificate must be uploaded to Cloudinary" }, 400)
+      if not waiverUrl.startswith(('http://', 'https://')):
+        return ({ "message": "Waiver must be uploaded to Cloudinary" }, 400)
+
       print(f"[REQUIREMENTS_CREATE] medCert: {medCertUrl[:80]}...")
       print(f"[REQUIREMENTS_CREATE] waiver: {waiverUrl[:80]}...")
 
@@ -327,10 +321,10 @@ def createNewRequirement(eventId: int):
       print(f"[REQUIREMENTS_CREATE] ❌ BadRequest: {str(e)}")
       return ({ "message": str(e) }, 400)
     except Exception as e:
-      error_msg = f"Failed to upload files: {str(e)}"
+      error_msg = f"Failed to upload files to Cloudinary: {str(e)}"
       print(f"[REQUIREMENTS_CREATE] ❌ ERROR: {error_msg}")
       return ({ "message": error_msg }, 500)
-    
+
     # Only check for duplicates if email is provided
     email = request.form.get("email")
     if email and email.strip():
@@ -358,7 +352,7 @@ def createNewRequirement(eventId: int):
     medCertUrl = resultingPaths.get("medCert") or ""
     waiverUrl = resultingPaths.get("waiver") or ""
 
-    print(f"[REQUIREMENTS_CREATE] Saving file paths/URLs to database:")
+    print(f"[REQUIREMENTS_CREATE] Saving Cloudinary URLs to database:")
     print(f"  medCert: {medCertUrl[:80]}...")
     print(f"  waiver: {waiverUrl[:80]}...")
 

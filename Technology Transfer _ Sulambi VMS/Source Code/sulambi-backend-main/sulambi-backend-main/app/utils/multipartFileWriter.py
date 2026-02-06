@@ -24,14 +24,6 @@ ALLOWED_MIME_TYPES = {
     'image/tiff', 'image/x-tiff'
 }
 
-def is_cloudinary_configured() -> bool:
-    """Return True if all Cloudinary env vars are set (non-empty)."""
-    return bool(
-        os.getenv("CLOUDINARY_CLOUD_NAME")
-        and os.getenv("CLOUDINARY_API_KEY")
-        and os.getenv("CLOUDINARY_API_SECRET")
-    )
-
 def is_allowed_file(filename: str, content_type: str) -> bool:
     """
     Check if file is allowed based on extension and MIME type.
@@ -151,37 +143,6 @@ def cloudinaryFileWriter(keys: list[str], folder: str = "requirements"):
             print(f"[CLOUDINARY_UPLOAD] ❌ Local storage fallback is disabled. Upload must succeed in Cloudinary.")
             raise BadRequest(error_msg)
     
-    return keyPaths
-
-def localFileWriter(keys: list[str], subfolder: str = "requirements"):
-    """
-    Save uploaded files to local uploads folder with same validation as Cloudinary.
-    Use when Cloudinary is not configured (e.g. local development).
-    Returns paths like "uploads/requirements/uuid_filename.ext" (forward slashes).
-    """
-    keyPaths = {}
-    filenames = list(request.files)
-    os.makedirs(BASIC_WRITER_PATH, exist_ok=True)
-    target_dir = os.path.join(BASIC_WRITER_PATH, subfolder)
-    os.makedirs(target_dir, exist_ok=True)
-
-    for k in filenames:
-        if k not in keys:
-            continue
-        file = request.files.get(k)
-        if file is None or not file.filename:
-            continue
-        if not is_allowed_file(file.filename, file.content_type):
-            raise BadRequest(
-                f"File '{file.filename}' is not allowed. "
-                "Only PDF and image files (jpg, jpeg, png, gif, bmp, webp, svg, ico, tiff) are allowed."
-            )
-        unique_filename = f"{uuid4()}_{file.filename}"
-        fwpath = os.path.join(target_dir, unique_filename)
-        file.save(fwpath)
-        # Store path with forward slashes for URLs (e.g. uploads/requirements/xxx.pdf)
-        keyPaths[k] = f"{BASIC_WRITER_PATH}/{subfolder}/{unique_filename}".replace("\\", "/")
-        print(f"[LOCAL_UPLOAD] Saved {k}: {file.filename} -> {keyPaths[k]}")
     return keyPaths
 
 def basicFileWriter(keys: list[str]):
