@@ -191,26 +191,34 @@ def getAllRequirements():
     print(f"[REQUIREMENTS_GET_ALL] Traceback: {traceback.format_exc()}")
     return ({ "message": f"Server error: {str(e)}" }, 500)
 
-def acceptRequirements(id: int):
+def acceptRequirements(id):
+  # id can be string (UUID, REQ-xxx) or int - requirements table uses string primary key
   existence = RequirementsDb.get(id)
   if (existence == None):
     return ({"message": "Requirement ID entered does not exist"}, 404)
 
-  # get evaluation send time details to automate mailing
+  # Update requirement to accepted FIRST so status always persists
+  # (mailing is best-effort; missing event must not block accept)
+  RequirementsDb.updateSpecific(id, ["accepted"], (True,))
+  updatedData = RequirementsDb.get(id)
+
+  # Get event details only for mailing (optional)
   if (existence["type"] == "external"):
     eventDetails = ExternalEventDb.get(existence["eventId"])
   else:
     eventDetails = InternalEventDb.get(existence["eventId"])
 
   if (eventDetails == None):
-    return ({"message": "An error occured in automating mailing"}, 500)
+    print("[REQUIREMENTS_ACCEPT] Warning: No event found for requirement; acceptance saved, mailing skipped")
+    return {
+      "message": "Successfully accepted requirement",
+      "data": updatedData
+    }
 
   # create an evaluation template for user to answer
-  createdEval = EvaluationDb.create(id, "", "", "", "", "", False)
+  EvaluationDb.create(id, "", "", "", "", "", False)
 
-  # Determine when to send evaluation email:
-  # - Prefer the later of event durationEnd and evaluationSendTime (both stored as epoch ms)
-  # - This ensures emails are sent only after the event has finished
+  # Determine when to send evaluation email
   try:
     duration_end_ms = int(eventDetails.get("durationEnd", 0) or 0)
   except (TypeError, ValueError):
@@ -221,23 +229,18 @@ def acceptRequirements(id: int):
   except (TypeError, ValueError):
     eval_send_ms = 0
 
-  # If evaluationSendTime is not set or is earlier than event end, use event end time
   target_epoch_ms = max(duration_end_ms, eval_send_ms)
 
-  # If still zero (no timing info), fall back to immediate execution
   if target_epoch_ms <= 0:
     print("[REQUIREMENTS_ACCEPT] Warning: No valid durationEnd/evaluationSendTime; sending evaluation email immediately")
     sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails)
   else:
-    # Schedule email to be sent after target time (no execAnyway so past times are skipped)
     executeDelayedAction(
       target_epoch_ms,
       lambda: sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails),
       execAnyway=False
     )
 
-  RequirementsDb.updateSpecific(id, ["accepted"], (True,))
-  updatedData = RequirementsDb.get(id)
   sendAcceptedRequirementsMail(existence, eventDetails)
 
   return {
@@ -245,7 +248,7 @@ def acceptRequirements(id: int):
     "data": updatedData
   }
 
-def rejectRequirements(id: int):
+def rejectRequirements(id):
   existence = RequirementsDb.get(id)
   if (existence == None):
     return ({"message": "Requirement ID entered does not exist"}, 404)
@@ -258,10 +261,10 @@ def rejectRequirements(id: int):
   else:
     eventDetails = InternalEventDb.get(existence["eventId"])
 
-  if (eventDetails == None):
-    return ({"message": "An error occured in automating mailing"}, 500)
-
-  sendRejectedRequirementsMail(existence, eventDetails)
+  if (eventDetails != None):
+    sendRejectedRequirementsMail(existence, eventDetails)
+  else:
+    print("[REQUIREMENTS_REJECT] Warning: No event found; rejection saved, mailing skipped")
 
   return {
     "message": "Successfully rejected requirement",

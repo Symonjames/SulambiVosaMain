@@ -15,6 +15,7 @@ def uploadRequirementsRoute(eventId):
 
 @RequirementsBlueprint.patch("/accept/<requirementId>")
 def acceptRequirementsRoute(requirementId):
+  # ID can be string (UUID or REQ-xxx) or int depending on requirements table
   return requirements.acceptRequirements(requirementId)
 
 @RequirementsBlueprint.patch("/reject/<requirementId>")
