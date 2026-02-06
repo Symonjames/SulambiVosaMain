@@ -294,50 +294,40 @@ def createNewRequirement(eventId: int):
     print(f"[REQUIREMENTS_CREATE] Request form keys: {list(request.form.keys())}")
     print(f"[REQUIREMENTS_CREATE] Request files keys: {list(request.files.keys())}")
     
-    # Use Cloudinary for file uploads (validates PDF and images only)
-    # IMPORTANT: All uploads MUST go to Cloudinary - local storage is disabled
-    from app.utils.multipartFileWriter import cloudinaryFileWriter
-    
+    # Use Cloudinary when configured; otherwise save to local uploads/ (for development)
+    from app.utils.multipartFileWriter import (
+      cloudinaryFileWriter,
+      localFileWriter,
+      is_cloudinary_configured,
+    )
+
+    resultingPaths = {}
     try:
-      resultingPaths = cloudinaryFileWriter(["medCert", "waiver"], folder="requirements")
-      print(f"[REQUIREMENTS_CREATE] ✅ Cloudinary uploads successful")
-      print(f"[REQUIREMENTS_CREATE] Cloudinary URLs: {resultingPaths}")
-      print(f"[REQUIREMENTS_CREATE] medCert URL: {resultingPaths.get('medCert', 'NOT FOUND')}")
-      print(f"[REQUIREMENTS_CREATE] waiver URL: {resultingPaths.get('waiver', 'NOT FOUND')}")
-      
-      # Verify both files were uploaded to Cloudinary
+      if is_cloudinary_configured():
+        resultingPaths = cloudinaryFileWriter(["medCert", "waiver"], folder="requirements")
+        print(f"[REQUIREMENTS_CREATE] ✅ Cloudinary uploads successful")
+      else:
+        print(f"[REQUIREMENTS_CREATE] Cloudinary not configured; using local uploads")
+        resultingPaths = localFileWriter(["medCert", "waiver"], subfolder="requirements")
+        print(f"[REQUIREMENTS_CREATE] ✅ Local uploads successful")
+
       medCertUrl = resultingPaths.get("medCert", "")
       waiverUrl = resultingPaths.get("waiver", "")
-      
+
       if not medCertUrl:
-        error_msg = "Medical certificate file was not uploaded to Cloudinary"
-        print(f"[REQUIREMENTS_CREATE] ❌ ERROR: {error_msg}")
-        return ({ "message": error_msg }, 400)
-      
+        return ({ "message": "Medical certificate file is required" }, 400)
       if not waiverUrl:
-        error_msg = "Waiver file was not uploaded to Cloudinary"
-        print(f"[REQUIREMENTS_CREATE] ❌ ERROR: {error_msg}")
-        return ({ "message": error_msg }, 400)
-      
-      # Verify URLs are Cloudinary URLs (not local paths)
-      if not medCertUrl.startswith(('http://', 'https://')):
-        error_msg = f"Invalid medical certificate URL format. Expected Cloudinary URL, got: {medCertUrl[:50]}..."
-        print(f"[REQUIREMENTS_CREATE] ❌ ERROR: {error_msg}")
-        return ({ "message": "Medical certificate must be uploaded to Cloudinary" }, 400)
-      
-      if not waiverUrl.startswith(('http://', 'https://')):
-        error_msg = f"Invalid waiver URL format. Expected Cloudinary URL, got: {waiverUrl[:50]}..."
-        print(f"[REQUIREMENTS_CREATE] ❌ ERROR: {error_msg}")
-        return ({ "message": "Waiver must be uploaded to Cloudinary" }, 400)
-      
-      print(f"[REQUIREMENTS_CREATE] ✅ Both files verified as Cloudinary URLs")
-      
+        return ({ "message": "Waiver file is required" }, 400)
+
+      # When using Cloudinary, values are full URLs; when local, they are paths like uploads/requirements/...
+      print(f"[REQUIREMENTS_CREATE] medCert: {medCertUrl[:80]}...")
+      print(f"[REQUIREMENTS_CREATE] waiver: {waiverUrl[:80]}...")
+
     except BadRequest as e:
-      # Re-raise BadRequest from cloudinaryFileWriter (Cloudinary config issues, validation errors, etc.)
-      print(f"[REQUIREMENTS_CREATE] ❌ BadRequest from Cloudinary upload: {str(e)}")
+      print(f"[REQUIREMENTS_CREATE] ❌ BadRequest: {str(e)}")
       return ({ "message": str(e) }, 400)
     except Exception as e:
-      error_msg = f"Failed to upload files to Cloudinary: {str(e)}"
+      error_msg = f"Failed to upload files: {str(e)}"
       print(f"[REQUIREMENTS_CREATE] ❌ ERROR: {error_msg}")
       return ({ "message": error_msg }, 500)
     
@@ -365,17 +355,16 @@ def createNewRequirement(eventId: int):
       except ValueError:
         age_value = None
     
-    # Get file URLs - both should already be Cloudinary URLs (verified above)
     medCertUrl = resultingPaths.get("medCert") or ""
     waiverUrl = resultingPaths.get("waiver") or ""
-    
-    print(f"[REQUIREMENTS_CREATE] Saving Cloudinary URLs to database:")
+
+    print(f"[REQUIREMENTS_CREATE] Saving file paths/URLs to database:")
     print(f"  medCert: {medCertUrl[:80]}...")
     print(f"  waiver: {waiverUrl[:80]}...")
-    
+
     createdRequirement = RequirementsDb.create(
-      medCertUrl,  # Cloudinary URL
-      waiverUrl,   # Cloudinary URL
+      medCertUrl,
+      waiverUrl,
       eventId,
       request.form.get("type") or "external",
       request.form.get("curriculum") or "",

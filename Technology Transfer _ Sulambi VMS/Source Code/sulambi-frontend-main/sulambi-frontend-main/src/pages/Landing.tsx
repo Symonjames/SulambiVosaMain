@@ -115,18 +115,16 @@ const Landing = () => {
         </>
       )}
       <ConfirmModal
-        message="Do you want to apply for a membership before volunteering?"
+        message="Submit requirements to join this event?"
         open={openConfirm}
         setOpen={setOpenConfirm}
         onAccept={() => {
           setFormData({});
           setOpenConfirm(false);
-          setOpenVolunteerForm(true);
-          setOpenDataPrivacy(true);
-        }}
-        onCancel={() => {
           setOpenDataPrivacy(true);
           setOpenRequirementForm(true);
+        }}
+        onCancel={() => {
           setOpenConfirm(false);
         }}
       />

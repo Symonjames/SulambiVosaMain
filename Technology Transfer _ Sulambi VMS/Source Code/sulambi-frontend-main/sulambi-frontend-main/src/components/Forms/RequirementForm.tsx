@@ -4,6 +4,10 @@ import FlexBox from "../FlexBox";
 import PopupModal from "../Modal/PopupModal";
 import FormGeneratorTemplate from "./FormGeneratorTemplate";
 import SendIcon from "@mui/icons-material/Send";
+import PersonIcon from "@mui/icons-material/Person";
+import EmailIcon from "@mui/icons-material/Email";
+import LockIcon from "@mui/icons-material/Lock";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import { uploadRequirements } from "../../api/requirements";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
@@ -54,33 +58,33 @@ const RequirementForm: React.FC<Props> = ({
     const formUploadable = new FormData();
     formUploadable.append("type", eventType);
 
-    // Attach member details when available (used by Requirement Evaluation table)
-    // This is optional server-side, but without it officers will see "N/A" for participant name.
+    // Personal details: use form fields first, then membership cache
+    let member: Partial<MembershipType> = {};
     try {
       const cache = localStorage.getItem("membershipCache");
-      if (cache) {
-        const member: Partial<MembershipType> = JSON.parse(cache);
-        if (member.fullname) formUploadable.append("fullname", String(member.fullname));
-        if (member.email) formUploadable.append("email", String(member.email));
-        if (member.srcode) formUploadable.append("srcode", String(member.srcode));
-        if (member.age !== undefined) formUploadable.append("age", String(member.age));
-        if (member.birthday) formUploadable.append("birthday", String(member.birthday));
-        if (member.sex) formUploadable.append("sex", String(member.sex));
-        if (member.campus) formUploadable.append("campus", String(member.campus));
-        if (member.collegeDept) formUploadable.append("collegeDept", String(member.collegeDept));
-        if (member.yrlevelprogram) formUploadable.append("yrlevelprogram", String(member.yrlevelprogram));
-        if (member.address) formUploadable.append("address", String(member.address));
-        if (member.contactNum) formUploadable.append("contactNum", String(member.contactNum));
-        if (member.fblink) formUploadable.append("fblink", String(member.fblink));
-        // Backend expects affiliation; membership has it
-        if ((member as any).affiliation) {
-          formUploadable.append("affiliation", String((member as any).affiliation));
-        }
-      }
-    } catch (e) {
-      // Non-fatal: still allow uploading requirements files
-      console.warn("RequirementForm: failed to read membershipCache for participant details", e);
-    }
+      if (cache) member = JSON.parse(cache);
+    } catch (_) {}
+    const fullname = formData.fullname ?? member.fullname;
+    const email = formData.email ?? member.email;
+    const srcode = formData.srcode ?? member.srcode;
+    const age = formData.age ?? member.age;
+    const birthday = formData.birthday ?? member.birthday;
+    const sex = formData.sex ?? member.sex;
+    if (fullname) formUploadable.append("fullname", String(fullname));
+    if (email) formUploadable.append("email", String(email));
+    if (srcode) formUploadable.append("srcode", String(srcode));
+    if (age !== undefined && age !== "") formUploadable.append("age", String(age));
+    if (birthday) formUploadable.append("birthday", String(birthday));
+    if (sex) formUploadable.append("sex", String(sex));
+    try {
+      if (member.campus) formUploadable.append("campus", String(member.campus));
+      if (member.collegeDept) formUploadable.append("collegeDept", String(member.collegeDept));
+      if (member.yrlevelprogram) formUploadable.append("yrlevelprogram", String(member.yrlevelprogram));
+      if (member.address) formUploadable.append("address", String(member.address));
+      if (member.contactNum) formUploadable.append("contactNum", String(member.contactNum));
+      if (member.fblink) formUploadable.append("fblink", String(member.fblink));
+      if ((member as any).affiliation) formUploadable.append("affiliation", String((member as any).affiliation));
+    } catch (_) {}
 
     // Only append medCert and waiver files
     if (formData.medCert instanceof File) {
@@ -181,6 +185,65 @@ const RequirementForm: React.FC<Props> = ({
                       }}
                     />
                   ),
+                },
+              ],
+              { type: "section", message: "Personal Details" },
+              [
+                {
+                  id: "fullname",
+                  required: true,
+                  type: "text",
+                  message: "Name (Lastname, Firstname, Middle Initial)",
+                  icon: <PersonIcon />,
+                },
+              ],
+              [
+                {
+                  id: "email",
+                  flex: 2,
+                  type: "text",
+                  required: true,
+                  message: "GSuite Email",
+                  icon: <EmailIcon />,
+                },
+                {
+                  id: "srcode",
+                  flex: 1,
+                  type: "text",
+                  required: true,
+                  message: "SR-Code",
+                  icon: <LockIcon />,
+                },
+              ],
+              [
+                {
+                  id: "birthday",
+                  flex: 5,
+                  required: true,
+                  type: "text",
+                  message: "Birth Date (Example: January 7, 2023)",
+                  icon: <CalendarMonthIcon />,
+                },
+                {
+                  id: "age",
+                  required: true,
+                  type: "number",
+                  message: "Age",
+                  onUse: (event: any) => {
+                    const raw = String(event?.target?.value ?? "");
+                    const digitsOnly = raw.replace(/\D+/g, "").slice(0, 2);
+                    setFormData({ ...formData, age: digitsOnly });
+                  },
+                },
+                {
+                  id: "sex",
+                  required: true,
+                  type: "dropdown",
+                  message: "Sex",
+                  menu: [
+                    { key: "Male", value: "male" },
+                    { key: "Female", value: "female" },
+                  ],
                 },
               ],
             ]}

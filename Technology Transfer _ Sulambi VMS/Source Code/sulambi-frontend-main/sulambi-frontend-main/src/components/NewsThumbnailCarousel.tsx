@@ -121,15 +121,17 @@ const IndicatorContainer = styled(Box)({
   marginTop: "20px",
 });
 
-const Indicator = styled(Box)<{ $active: boolean }>(({ $active }) => ({
-  width: $active ? "24px" : "8px",
+const Indicator = styled(Box, {
+  shouldForwardProp: (prop) => prop !== "isActive",
+})<{ isActive: boolean }>(({ isActive }) => ({
+  width: isActive ? "24px" : "8px",
   height: "8px",
   borderRadius: "4px",
-  backgroundColor: $active ? "#4F624F" : "#d0d0d0",
+  backgroundColor: isActive ? "#4F624F" : "#d0d0d0",
   transition: "all 0.3s ease",
   cursor: "pointer",
   "&:hover": {
-    backgroundColor: $active ? "#4F624F" : "#a0a0a0",
+    backgroundColor: isActive ? "#4F624F" : "#a0a0a0",
   },
 }));
 
@@ -219,30 +221,15 @@ const Excerpt = styled(Typography)({
 type CombinedReport = (InternalReportType | ExternalReportType) & Record<string, any>;
 
 const buildImageUrl = (filename?: string) => {
-  if (!filename) {
-    console.log('[NewsThumbnailCarousel] No filename provided');
-    return "";
-  }
+  if (!filename) return "";
   let clean = filename.trim();
   try { clean = decodeURIComponent(clean); } catch {}
-  // Trim again after decoding in case decoding added whitespace
   clean = clean.trim();
-  
-  // Check if it's already a Cloudinary URL or other full URL (more robust check)
   const isFullUrl = clean.startsWith("http://") || clean.startsWith("https://") || clean.startsWith("//");
-  if (isFullUrl) {
-    // Use Cloudinary URL or other full URL directly
-    console.log('[NewsThumbnailCarousel] Using full URL:', clean);
-    return clean;
-  }
-  
-  // Convert Windows backslashes to forward slashes
+  if (isFullUrl) return clean;
   clean = clean.replace(/\\/g, "/");
-  // Remove any leading "uploads/" or "uploads\" to avoid double uploads
   clean = clean.replace(/^uploads[\/\\]/, "");
-  const finalUrl = `${BASE_URL}/uploads/${clean}?t=${Date.now()}`;
-  console.log('[NewsThumbnailCarousel] Built image URL:', { original: filename, cleaned: clean, final: finalUrl });
-  return finalUrl;
+  return `${BASE_URL}/uploads/${clean}?t=${Date.now()}`;
 };
 
 const truncate = (t?: string, n = 120) => {
@@ -543,7 +530,7 @@ const NewsThumbnailCarousel: React.FC<Props> = ({ title = "Latest News", limit =
               {items.map((_, index) => (
                 <Indicator
                   key={index}
-                  $active={index === currentIndex}
+                  isActive={index === currentIndex}
                   onClick={() => goToSlide(index)}
                   aria-label={`Go to event ${index + 1}`}
                 />
