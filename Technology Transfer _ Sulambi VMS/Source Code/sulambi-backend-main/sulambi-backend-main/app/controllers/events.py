@@ -244,39 +244,31 @@ def getPublicEvents():
   allExternalEvents = ExternalEventDb.getAll()
   allInternalEvents = InternalEventDb.getAll()
   
-  # Debug: Log all events to see what statuses exist
-  print("=== DEBUG: All External Events ===")
-  for event in allExternalEvents:
-    print(f"ID: {event['id']}, Title: {event['title']}, Status: {event['status']}")
-  
-  print("=== DEBUG: All Internal Events ===")
-  for event in allInternalEvents:
-    print(f"ID: {event['id']}, Title: {event['title']}, Status: {event['status']}")
-  
-  # Homepage / public route: show only events that are approved AND explicitly made public (toPublic=True).
-  # Officers use "Make Public" to control which events appear on the landing page.
+  # Homepage: only public events that are not yet finished (durationEnd > now).
+  # Non-participants join from here; finished events are hidden.
+  time_now_ms = int(datetime.now().timestamp() * 1000)
   externalEvents = []
   for event in allExternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
     to_public = event.get("toPublic") in (True, 1, "true", "1")
-    if status_lower not in ["editing", "rejected"] and to_public:
+    duration_end = int(event.get("durationEnd") or 0)
+    not_finished = duration_end > time_now_ms
+    if status_lower not in ["editing", "rejected"] and to_public and not_finished:
+      event["eventTypeIndicator"] = "external"
       externalEvents.append(event)
-      print(f"✅ Including External Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}', toPublic={event.get('toPublic')}")
     else:
-      print(f"❌ Excluding External Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}', toPublic={event.get('toPublic')}")
-  
+      pass  # excluded
   internalEvents = []
   for event in allInternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
     to_public = event.get("toPublic") in (True, 1, "true", "1")
-    if status_lower not in ["editing", "rejected"] and to_public:
+    duration_end = int(event.get("durationEnd") or 0)
+    not_finished = duration_end > time_now_ms
+    if status_lower not in ["editing", "rejected"] and to_public and not_finished:
+      event["eventTypeIndicator"] = "internal"
       internalEvents.append(event)
-      print(f"✅ Including Internal Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}', toPublic={event.get('toPublic')}")
     else:
-      print(f"❌ Excluding Internal Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}', toPublic={event.get('toPublic')}")
-  
-  print(f"=== DEBUG: Filtered External Events (accepted/submitted): {len(externalEvents)} ===")
-  print(f"=== DEBUG: Filtered Internal Events (accepted/submitted): {len(internalEvents)} ===")
+      pass  # excluded
   
   return {
     "external": externalEvents,

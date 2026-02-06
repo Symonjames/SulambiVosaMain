@@ -41,12 +41,8 @@ const Landing = () => {
   const [previewData, setPreviewData] = useState<any>({});
 
   const [openConfirm, setOpenConfirm] = useState(false);
-  const [eventType] = useState<"external" | "internal">(
-    "external"
-  );
-  const [selectedEventId] = useState<number | undefined>(
-    undefined
-  );
+  const [eventType, setEventType] = useState<"external" | "internal">("external");
+  const [selectedEventId, setSelectedEventId] = useState<number | undefined>(undefined);
 
   const isMobile = useMediaQuery({
     query: "(max-width: 600px)",
@@ -58,6 +54,14 @@ const Landing = () => {
     return () => {
       setPreviewData(eventData);
       setOpenPreview(true);
+    };
+  };
+
+  const joinCallback = (eventData: any) => {
+    return () => {
+      setSelectedEventId(eventData.id);
+      setEventType(eventData.eventTypeIndicator === "internal" ? "internal" : "external");
+      setOpenConfirm(true);
     };
   };
 
@@ -116,12 +120,14 @@ const Landing = () => {
         setOpen={setOpenConfirm}
         onAccept={() => {
           setFormData({});
+          setOpenConfirm(false);
           setOpenVolunteerForm(true);
           setOpenDataPrivacy(true);
         }}
         onCancel={() => {
           setOpenDataPrivacy(true);
           setOpenRequirementForm(true);
+          setOpenConfirm(false);
         }}
       />
       <LandingHeader
@@ -221,16 +227,19 @@ const Landing = () => {
                   cardTitle={event.title}
                   location={event.location ?? event.venue ?? ""}
                   onViewDetails={viewDataCallback(event)}
+                  onVolunteer={joinCallback(event)}
                 />
               ))}
             </HorizontalCarousel>
           ) : (
-            publicEvents.map((event) => (
+            publicEvents.map((event, id) => (
               <MediaCard
+                key={id}
                 width={isMobile ? "auto" : "20vw"}
                 cardTitle={event.title}
                 location={event.location ?? event.venue ?? ""}
                 onViewDetails={viewDataCallback(event)}
+                onVolunteer={joinCallback(event)}
               />
             ))
           )}
