@@ -253,30 +253,27 @@ def getPublicEvents():
   for event in allInternalEvents:
     print(f"ID: {event['id']}, Title: {event['title']}, Status: {event['status']}")
   
-  # Return ALL approved events (both ongoing and finished) for public access
-  # This allows beneficiaries to evaluate finished events - no account/membership required
-  # Show events with status "accepted" OR "submitted" (in case admin approved but status wasn't updated)
-  # Also check for case-insensitive status matching
-  # Filter out only "editing" and "rejected" statuses
+  # Homepage / public route: show only events that are approved AND explicitly made public (toPublic=True).
+  # Officers use "Make Public" to control which events appear on the landing page.
   externalEvents = []
   for event in allExternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
-    # Include events that are not in editing or rejected state
-    if status_lower not in ["editing", "rejected"]:
+    to_public = event.get("toPublic") in (True, 1, "true", "1")
+    if status_lower not in ["editing", "rejected"] and to_public:
       externalEvents.append(event)
-      print(f"✅ Including External Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}'")
+      print(f"✅ Including External Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}', toPublic={event.get('toPublic')}")
     else:
-      print(f"❌ Excluding External Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}'")
+      print(f"❌ Excluding External Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}', toPublic={event.get('toPublic')}")
   
   internalEvents = []
   for event in allInternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
-    # Include events that are not in editing or rejected state
-    if status_lower not in ["editing", "rejected"]:
+    to_public = event.get("toPublic") in (True, 1, "true", "1")
+    if status_lower not in ["editing", "rejected"] and to_public:
       internalEvents.append(event)
-      print(f"✅ Including Internal Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}'")
+      print(f"✅ Including Internal Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}', toPublic={event.get('toPublic')}")
     else:
-      print(f"❌ Excluding Internal Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}'")
+      print(f"❌ Excluding Internal Event: ID={event['id']}, Title={event['title']}, Status='{event['status']}', toPublic={event.get('toPublic')}")
   
   print(f"=== DEBUG: Filtered External Events (accepted/submitted): {len(externalEvents)} ===")
   print(f"=== DEBUG: Filtered Internal Events (accepted/submitted): {len(internalEvents)} ===")

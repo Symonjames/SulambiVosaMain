@@ -229,6 +229,28 @@ const EventProposal = () => {
                         setShowFormPreview(true);
                       },
                     },
+                    ...(eventdata.status === "accepted" && !eventdata.toPublic
+                      ? [
+                          {
+                            label: "Make Public",
+                            icon: <PublicIcon />,
+                            onClick: async () => {
+                              try {
+                                if (eventdata.eventTypeIndicator === "internal") {
+                                  await publicizeInternalEvent(eventdata.id);
+                                } else {
+                                  await publicizeExternalEvent(eventdata.id);
+                                }
+                                showSnackbarMessage("Successfully made the event public", "success");
+                                setRefreshTable((r) => r + 1);
+                              } catch {
+                                showSnackbarMessage("An error occurred while making this event public", "error");
+                                setRefreshTable((r) => r + 1);
+                              }
+                            },
+                          },
+                        ]
+                      : []),
                     {
                       label: "View Evaluations",
                       icon: <FindInPageIcon />,
@@ -484,7 +506,7 @@ const EventProposal = () => {
           <>
             {selectedFormData &&
             selectedFormData.status === "accepted" &&
-            selectedFormData.toPublic === 0 ? (
+            !selectedFormData.toPublic ? (
               <PrimaryButton
                 label="Make Public"
                 startIcon={<PublicIcon />}
