@@ -127,22 +127,22 @@ const BeneficiaryEvaluationPage = () => {
         rowGap="30px"
         sx={{
           minHeight: "80vh",
-          background: "linear-gradient(135deg, #9c27b0 0%, #e91e63 100%)",
+          background: "linear-gradient(135deg, #f4d03f 0%, #f9e79f 50%, #fef9e7 100%)",
           borderRadius: "20px",
           padding: "40px 20px",
-          boxShadow: "0 10px 30px rgba(156, 39, 176, 0.3)",
+          boxShadow: "0 10px 30px rgba(212, 168, 75, 0.35)",
         }}
       >
         {/* Header Section */}
         <FlexBox flexDirection="column" alignItems="center" rowGap="20px">
           <FlexBox alignItems="center" gap="15px">
-            <People sx={{ fontSize: 60, color: "white" }} />
+            <People sx={{ fontSize: 60, color: "#5d4e37" }} />
             <Box>
               <Typography 
                 variant="h3" 
                 component="h1" 
                 sx={{ 
-                  color: "white", 
+                  color: "#3d3428", 
                   fontWeight: "bold",
                   textAlign: "center"
                 }}
@@ -152,7 +152,7 @@ const BeneficiaryEvaluationPage = () => {
               <Typography 
                 variant="h6" 
                 sx={{ 
-                  color: "rgba(255, 255, 255, 0.9)",
+                  color: "rgba(61, 52, 40, 0.85)",
                   textAlign: "center"
                 }}
               >
@@ -164,8 +164,8 @@ const BeneficiaryEvaluationPage = () => {
           <Chip 
             label="BENEFICIARY FORM" 
             sx={{ 
-              backgroundColor: "rgba(255, 255, 255, 0.2)",
-              color: "white",
+              backgroundColor: "rgba(212, 168, 75, 0.4)",
+              color: "#3d3428",
               fontWeight: "bold",
               fontSize: "0.9rem",
               px: 2,
@@ -189,7 +189,7 @@ const BeneficiaryEvaluationPage = () => {
             <Typography
               variant="h6"
               gutterBottom
-              sx={{ fontWeight: "bold", color: "#7b1fa2" }}
+              sx={{ fontWeight: "bold", color: "#b8860b" }}
             >
               About This Evaluation
             </Typography>
@@ -220,10 +220,10 @@ const BeneficiaryEvaluationPage = () => {
             </Box>
 
             <FlexBox gap={1} flexWrap="wrap" mt={3}>
-              <Chip label="Impact Assessment" size="small" color="secondary" />
-              <Chip label="Service Quality" size="small" color="secondary" />
-              <Chip label="Accessibility" size="small" color="secondary" />
-              <Chip label="Community Impact" size="small" color="secondary" />
+              <Chip label="Impact Assessment" size="small" sx={{ backgroundColor: "#d4a84b", color: "#fff" }} />
+              <Chip label="Service Quality" size="small" sx={{ backgroundColor: "#d4a84b", color: "#fff" }} />
+              <Chip label="Accessibility" size="small" sx={{ backgroundColor: "#d4a84b", color: "#fff" }} />
+              <Chip label="Community Impact" size="small" sx={{ backgroundColor: "#d4a84b", color: "#fff" }} />
             </FlexBox>
           </CardContent>
         </Card>
@@ -244,9 +244,10 @@ const BeneficiaryEvaluationPage = () => {
               setOpenForm(true);
             }}
             sx={{
-              backgroundColor: "#7b1fa2",
+              backgroundColor: "#b8860b",
+              color: "#fff",
               "&:hover": {
-                backgroundColor: "#4a148c"
+                backgroundColor: "#8b6914"
               },
               px: 4,
               py: 1.5,
@@ -260,11 +261,11 @@ const BeneficiaryEvaluationPage = () => {
             variant="outlined"
             onClick={() => navigate('/')}
             sx={{
-              borderColor: "white",
-              color: "white",
+              borderColor: "#5d4e37",
+              color: "#3d3428",
               "&:hover": {
-                borderColor: "white",
-                backgroundColor: "rgba(255, 255, 255, 0.1)"
+                borderColor: "#5d4e37",
+                backgroundColor: "rgba(93, 78, 55, 0.08)"
               },
               px: 4,
               py: 1.5,
