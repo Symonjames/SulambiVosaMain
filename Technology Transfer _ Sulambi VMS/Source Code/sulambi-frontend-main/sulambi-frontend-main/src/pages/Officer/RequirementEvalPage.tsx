@@ -11,14 +11,7 @@ import {
 import { RequirementsDataType } from "../../interface/types";
 import Chip from "../../components/Chips/Chip";
 import MenuButtonTemplate from "../../components/Menu/MenuButtonTemplate";
-
-import RemoveRedEyeIcon from "@mui/icons-material/RemoveRedEye";
-import ThumbDownIcon from "@mui/icons-material/ThumbDown";
-import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
-import { IconButton, Tooltip } from "@mui/material";
-import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
-import FlexBox from "../../components/FlexBox";
 import RequirementForm from "../../components/Forms/RequirementForm";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import CustomDropdown from "../../components/Inputs/CustomDropdown";
@@ -239,12 +232,19 @@ const RequirementEvalPage = () => {
               ? chipMap.approved
               : chipMap.notEvaluated,
             req.accepted === null ? (
-              <FlexBox alignItems="center" gap={0.5} flexWrap="wrap">
-                <Tooltip title="Accept">
-                  <IconButton
-                    size="small"
-                    color="primary"
-                    onClick={() => {
+              <MenuButtonTemplate
+                items={[
+                  {
+                    label: "View Requirement",
+                    onClick: () => {
+                      setSelectedFormData(req);
+                      setFormData(req);
+                      setViewFormData(true);
+                    },
+                  },
+                  {
+                    label: "Accept",
+                    onClick: () => {
                       const idStr = String(req.id ?? "");
                       acceptRequirement(req.id)
                         .then(() => {
@@ -273,16 +273,11 @@ const RequirementEvalPage = () => {
                             );
                           }
                         });
-                    }}
-                  >
-                    <ThumbUpIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Reject">
-                  <IconButton
-                    size="small"
-                    sx={{ color: "#c10303" }}
-                    onClick={() => {
+                    },
+                  },
+                  {
+                    label: "Reject",
+                    onClick: () => {
                       const idStr = String(req.id ?? "");
                       rejectRequirement(req.id)
                         .then(() => {
@@ -311,31 +306,15 @@ const RequirementEvalPage = () => {
                             );
                           }
                         });
-                    }}
-                  >
-                    <ThumbDownIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <MenuButtonTemplate
-                  items={[
-                    {
-                      label: "View Requirement",
-                      icon: <RemoveRedEyeIcon />,
-                      onClick: () => {
-                        setSelectedFormData(req);
-                        setFormData(req);
-                        setViewFormData(true);
-                      },
                     },
-                  ]}
-                />
-              </FlexBox>
+                  },
+                ]}
+              />
             ) : (
               <MenuButtonTemplate
                 items={[
                   {
                     label: "View Requirement",
-                    icon: <RemoveRedEyeIcon />,
                     onClick: () => {
                       setSelectedFormData(req);
                       setFormData(req);
@@ -344,22 +323,12 @@ const RequirementEvalPage = () => {
                   },
                   {
                     label: "Show Evaluation Form",
-                    icon: <InsertDriveFileIcon />,
                     onClick: () => {
                       navigate(`/evaluation/${req.id}`);
                     },
                   },
                 ]}
               />
-              // <IconButton
-              //   onClick={() => {
-              //     setSelectedFormData(req);
-              //     setFormData(req);
-              //     setViewFormData(true);
-              //   }}
-              // >
-              //   <RemoveRedEyeIcon />
-              // </IconButton>
             ),
           ]);
 
