@@ -180,17 +180,17 @@ const RequirementEvalPage = () => {
             // If multiple search terms, all must match (AND logic)
             if (searchTerms.length === 0) return true;
             
-            // Build searchable text from all relevant fields
-            const eventTitle = (req.eventId?.title || "Unknown Event").toLowerCase();
-            const fullname = (req.fullname || "").toLowerCase();
-            const srcode = (req.srcode || "").toLowerCase();
-            const collegeDept = (req.collegeDept || "").toLowerCase();
-            const email = (req.email || "").toLowerCase();
-            const campus = (req.campus || "").toLowerCase();
-            const yrlevelprogram = (req.yrlevelprogram || "").toLowerCase();
-            const address = (req.address || "").toLowerCase();
-            const contactNum = (req.contactNum || "").toLowerCase();
-            const eventType = (req.type || "").toLowerCase();
+            // Build searchable text from all relevant fields (coerce to string; API may return numbers)
+            const eventTitle = String(req.eventId?.title ?? "Unknown Event").toLowerCase();
+            const fullname = String(req.fullname ?? "").toLowerCase();
+            const srcode = String(req.srcode ?? "").toLowerCase();
+            const collegeDept = String(req.collegeDept ?? "").toLowerCase();
+            const email = String(req.email ?? "").toLowerCase();
+            const campus = String(req.campus ?? "").toLowerCase();
+            const yrlevelprogram = String(req.yrlevelprogram ?? "").toLowerCase();
+            const address = String(req.address ?? "").toLowerCase();
+            const contactNum = String(req.contactNum ?? "").toLowerCase();
+            const eventType = String(req.type ?? "").toLowerCase();
             
             // Combine all searchable fields
             const searchableText = `${eventTitle} ${fullname} ${srcode} ${collegeDept} ${email} ${campus} ${yrlevelprogram} ${address} ${contactNum} ${eventType}`;
