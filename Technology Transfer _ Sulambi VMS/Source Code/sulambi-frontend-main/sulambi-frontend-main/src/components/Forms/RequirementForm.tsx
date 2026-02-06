@@ -157,17 +157,18 @@ const RequirementForm: React.FC<Props> = ({
             forceRefresh={forceRefresh}
             fieldErrors={fieldErrors}
             template={[
+              { type: "section", message: "Documents" },
               [
                 {
                   id: "medCert",
                   type: "file",
                   required: true,
-                  message: "Medical Certificate",
+                  message: "Medical Certificate *",
                 },
                 {
                   id: "waiver",
                   type: "file",
-                  message: "Waiver",
+                  message: "Waiver *",
                   required: true,
                 },
               ],
@@ -193,7 +194,8 @@ const RequirementForm: React.FC<Props> = ({
                   id: "fullname",
                   required: true,
                   type: "text",
-                  message: "Name (Lastname, Firstname, Middle Initial)",
+                  message: "Full Name (Lastname, Firstname, M.I.) *",
+                  placeholder: "e.g. Dela Cruz, Juan A.",
                   icon: <PersonIcon />,
                 },
               ],
@@ -203,7 +205,8 @@ const RequirementForm: React.FC<Props> = ({
                   flex: 2,
                   type: "text",
                   required: true,
-                  message: "GSuite Email",
+                  message: "GSuite Email *",
+                  placeholder: "you@bulsu.edu.ph",
                   icon: <EmailIcon />,
                 },
                 {
@@ -211,38 +214,42 @@ const RequirementForm: React.FC<Props> = ({
                   flex: 1,
                   type: "text",
                   required: true,
-                  message: "SR-Code",
+                  message: "SR-Code *",
+                  placeholder: "e.g. 20-12345",
                   icon: <LockIcon />,
                 },
               ],
               [
                 {
                   id: "birthday",
-                  flex: 5,
+                  flex: 2,
                   required: true,
                   type: "text",
-                  message: "Birth Date (Example: January 7, 2023)",
+                  message: "Birth Date *",
+                  placeholder: "e.g. January 7, 2000",
                   icon: <CalendarMonthIcon />,
                 },
                 {
                   id: "age",
+                  flex: 1,
                   required: true,
                   type: "number",
-                  message: "Age",
+                  message: "Age *",
                   onUse: (event: any) => {
                     const raw = String(event?.target?.value ?? "");
                     const digitsOnly = raw.replace(/\D+/g, "").slice(0, 2);
-                    setFormData({ ...formData, age: digitsOnly });
+                    setFormData((prev: any) => ({ ...prev, age: digitsOnly }));
                   },
                 },
                 {
                   id: "sex",
+                  flex: 1,
                   required: true,
                   type: "dropdown",
-                  message: "Sex",
+                  message: "Sex *",
                   menu: [
-                    { key: "Male", value: "male" },
-                    { key: "Female", value: "female" },
+                    { key: "Male", value: "Male" },
+                    { key: "Female", value: "Female" },
                   ],
                 },
               ],

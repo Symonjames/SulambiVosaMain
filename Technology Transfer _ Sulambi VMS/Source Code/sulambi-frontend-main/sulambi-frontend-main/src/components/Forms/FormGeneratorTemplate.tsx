@@ -634,8 +634,7 @@ const FormGeneratorTemplate = ({
                   disabled={viewOnly ?? value.disabled}
                   autoComplete={value.id === "username" ? "off" : undefined}
                   name={value.id === "username" ? "new-username" : value.id}
-                  // flex={value.flex ?? 1}
-                  // placeholder={value.message}
+                  placeholder={value.placeholder}
                   startIcon={value.icon}
                   endIcon={value.endIcon}
                   value={currentValue ?? ""}
