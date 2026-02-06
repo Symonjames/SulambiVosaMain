@@ -178,12 +178,12 @@ def getAllRequirements():
     print(f"[REQUIREMENTS_GET_ALL] Processed {len(requirements)} requirements ({processing_time:.2f}s)")
     
     # Normalize "accepted" to 0/1/null so frontend always gets same shape (avoids
-    # PostgreSQL true/false vs SQLite 1/0 mismatch and "still shows Not Evaluated").
+    # PostgreSQL true/false vs SQLite 1/0 or string "1"/"0" mismatch).
     for req in requirements:
       v = req.get("accepted")
-      if v is True or v == 1:
+      if v is True or v == 1 or v == "1" or (isinstance(v, str) and v.strip().lower() in ("1", "true", "yes")):
         req["accepted"] = 1
-      elif v is False or v == 0:
+      elif v is False or v == 0 or v == "0" or (isinstance(v, str) and v.strip().lower() in ("0", "false", "no")):
         req["accepted"] = 0
       else:
         req["accepted"] = None
@@ -192,11 +192,17 @@ def getAllRequirements():
     print(f"[REQUIREMENTS_GET_ALL] ✅ Successfully processed {len(requirements)} requirements")
     print(f"[REQUIREMENTS_GET_ALL] ⏱️ Total time: {total_time:.2f}s")
     print("[REQUIREMENTS_GET_ALL] ========================================")
-    
-    return {
-      "message": "Successfully retrieved all requirements",
-      "data": requirements
-    }
+
+    # Prevent caching so the list is always fresh after accept/reject
+    headers = {"Cache-Control": "no-store, no-cache, must-revalidate"}
+    return (
+      {
+        "message": "Successfully retrieved all requirements",
+        "data": requirements
+      },
+      200,
+      headers
+    )
   except Exception as e:
     print(f"[REQUIREMENTS_GET_ALL] ❌ ERROR: {str(e)}")
     import traceback

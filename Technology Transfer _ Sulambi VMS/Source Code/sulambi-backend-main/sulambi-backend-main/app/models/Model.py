@@ -390,17 +390,20 @@ class Model:
   # updates specific fields only
   def updateSpecific(self, key, fields: list[str], data: tuple):
     conn, cursor = connection.cursorInstance()
-    # Normalize column names for PostgreSQL (lowercase to match unquoted column names)
-    normalized_fields = self._normalize_column_list(fields)
-    queryFormatter = [f"{col}=?" for col in normalized_fields]
-    queryFormatter = ", ".join(queryFormatter)
+    try:
+      # Normalize column names for PostgreSQL (lowercase to match unquoted column names)
+      normalized_fields = self._normalize_column_list(fields)
+      queryFormatter = [f"{col}=?" for col in normalized_fields]
+      queryFormatter = ", ".join(queryFormatter)
 
-    table_name = self._get_table_name()
-    normalized_primary_key = self._normalize_column_name(self.primaryKey)
-    query = f"UPDATE {table_name} SET {queryFormatter} WHERE {normalized_primary_key}=?"
-    query = connection.convert_placeholders(query)
-    cursor.execute(query, data + (key,))
-    conn.commit()
+      table_name = self._get_table_name()
+      normalized_primary_key = self._normalize_column_name(self.primaryKey)
+      query = f"UPDATE {table_name} SET {queryFormatter} WHERE {normalized_primary_key}=?"
+      query = connection.convert_placeholders(query)
+      cursor.execute(query, data + (key,))
+      conn.commit()
+    finally:
+      conn.close()
 
   # deletes one data
   def delete(self, key):

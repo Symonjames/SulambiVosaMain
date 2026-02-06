@@ -11,26 +11,24 @@ FRONTEND_APP_URL = os.getenv("FRONTEND_APP_URL")
 def getAllMembership():
   all_members = MembershipDb.getAll()
   print(f"[MEMBERSHIP API] Total members retrieved: {len(all_members)}")
-  
-  # Count members by status for debugging
-  pending_count = sum(1 for m in all_members if m.get('accepted') is None)
-  approved_count = sum(1 for m in all_members if m.get('accepted') is True or m.get('accepted') == 1)
-  rejected_count = sum(1 for m in all_members if m.get('accepted') is False or m.get('accepted') == 0)
-  print(f"[MEMBERSHIP API] Status breakdown - Pending: {pending_count}, Approved: {approved_count}, Rejected: {rejected_count}")
-  
-  # Show sample of pending members for debugging
-  pending_members = [m for m in all_members if m.get('accepted') is None]
-  if pending_members:
-    print(f"[MEMBERSHIP API] Found {len(pending_members)} pending members:")
-    for member in pending_members[:5]:  # Show first 5
-      print(f"  - ID: {member.get('id')}, Name: {member.get('fullname')}, Email: {member.get('email')}, accepted={member.get('accepted')} (type: {type(member.get('accepted')).__name__})")
-  
-  if len(all_members) > 0:
-    print(f"[MEMBERSHIP API] Sample member: {all_members[0].get('fullname', 'N/A')}, accepted={all_members[0].get('accepted')} (type: {type(all_members[0].get('accepted')).__name__})")
-    print(f"[MEMBERSHIP API] Sample member keys: {list(all_members[0].keys())[:10]}")
-  
-  # Ensure None values are properly serialized (Flask should handle this, but let's be explicit)
-  # Convert None to None (which JSON serializes to null) - this should already happen, but let's ensure
+
+  # Normalize accepted and active to 0/1/null so frontend works (PostgreSQL returns True/False)
+  for m in all_members:
+    v = m.get("accepted")
+    if v is True or v == 1 or v == "1" or (isinstance(v, str) and v.strip().lower() in ("1", "true", "yes")):
+      m["accepted"] = 1
+    elif v is False or v == 0 or v == "0" or (isinstance(v, str) and v.strip().lower() in ("0", "false", "no")):
+      m["accepted"] = 0
+    else:
+      m["accepted"] = None
+    a = m.get("active")
+    if a is True or a == 1 or a == "1" or (isinstance(a, str) and str(a).strip() == "1"):
+      m["active"] = 1
+    elif a is False or a == 0 or a == "0" or (isinstance(a, str) and str(a).strip() == "0"):
+      m["active"] = 0
+    else:
+      m["active"] = 0
+
   return {
     "message": "Successfully retrieved membership data",
     "data": all_members

@@ -86,7 +86,7 @@ const MemebrshipApprovalPage = () => {
         { key: "Rejected", value: 0 },
       ]}
       onChange={(event) => {
-        setSearchstatus(event.target.value as unknown as number);
+        setSearchstatus(Number(event.target.value));
       }}
     />,
     <CustomDropdown
@@ -98,7 +98,7 @@ const MemebrshipApprovalPage = () => {
         { key: "Not Active", value: 0 },
       ]}
       onChange={(event) => {
-        setSearchAccStatus(event.target.value as unknown as number);
+        setSearchAccStatus(Number(event.target.value));
       }}
     />,
   ];
@@ -127,18 +127,22 @@ const MemebrshipApprovalPage = () => {
     console.log("Current filters - Status:", searchStatus, "Account Status:", searchAccStatus, "Search:", searchVal);
     getAllMembers().then((response) => {
       console.log("API Response:", response.data);
-      const membershipResponseData: MembershipType[] = response.data.data || [];
-      console.log("Raw membership data count:", membershipResponseData.length);
-      console.log("Sample member:", membershipResponseData[0]);
-      
-      // Debug: Check pending members specifically
-      const pendingMembers = membershipResponseData.filter(m => m.accepted === null || m.accepted === undefined);
-      console.log(`[MEMBERSHIP_FILTER] Found ${pendingMembers.length} members with accepted=null/undefined`);
-      if (pendingMembers.length > 0) {
-        console.log(`[MEMBERSHIP_FILTER] Sample pending member:`, pendingMembers[0]);
-        console.log(`[MEMBERSHIP_FILTER] accepted value:`, pendingMembers[0].accepted, `type:`, typeof pendingMembers[0].accepted);
-      }
-      
+      let membershipResponseData: MembershipType[] = response.data.data || [];
+      // Normalize accepted/active so UI works (backend may return boolean or string)
+      membershipResponseData = membershipResponseData.map((m: any) => {
+        const rawAcc = m.accepted;
+        const accepted =
+          rawAcc === true || rawAcc === 1 || rawAcc === "1" || String(rawAcc).trim() === "1"
+            ? 1
+            : rawAcc === false || rawAcc === 0 || rawAcc === "0" || String(rawAcc).trim() === "0"
+            ? 0
+            : null;
+        const rawActive = m.active;
+        const active =
+          rawActive === true || rawActive === 1 || rawActive === "1" || String(rawActive).trim() === "1" ? 1 : 0;
+        return { ...m, accepted, active };
+      });
+
       const filteredData = membershipResponseData
         .filter((member) => {
           if (searchStatus === 3) return true;

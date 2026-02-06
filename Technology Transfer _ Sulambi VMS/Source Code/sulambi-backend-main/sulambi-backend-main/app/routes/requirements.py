@@ -25,12 +25,12 @@ def rejectRequirementsRoute(requirementId):
 @RequirementsBlueprint.before_request
 def requirementsMiddleware():
   if (request.method != "OPTIONS"):
-    # Add authentication check for GET requests (viewing requirements)
-    if (request.method == "GET"):
+    # Require auth for GET (view list) and PATCH (accept/reject)
+    if (request.method in ["GET", "PATCH"]):
       userCheck = tokenCheck.authCheckMiddleware(["admin", "officer"])
       if (userCheck != None):
         return userCheck
-    
+
     if (request.method not in ["GET", "DELETE", "PATCH"]):
       missingParams = None
 

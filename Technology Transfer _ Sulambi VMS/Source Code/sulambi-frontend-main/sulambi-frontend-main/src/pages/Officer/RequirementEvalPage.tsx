@@ -16,14 +16,19 @@ import RemoveRedEyeIcon from "@mui/icons-material/RemoveRedEye";
 import ThumbDownIcon from "@mui/icons-material/ThumbDown";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
-// import { IconButton } from "@mui/material";
+import { IconButton, Tooltip } from "@mui/material";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
+import FlexBox from "../../components/FlexBox";
 import RequirementForm from "../../components/Forms/RequirementForm";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import CustomDropdown from "../../components/Inputs/CustomDropdown";
 import { useNavigate } from "react-router-dom";
 import LoadingSpinner from "../../components/Loading/LoadingSpinner";
 import { Typography, Box } from "@mui/material";
+
+// Track IDs we just accepted/rejected so the list shows correct status even if refetch returns stale data
+const recentlyAcceptedIds = { current: new Set<string>() };
+const recentlyRejectedIds = { current: new Set<string>() };
 
 const RequirementEvalPage = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
@@ -140,14 +145,24 @@ const RequirementEvalPage = () => {
           };
         }
         
-        // Normalize accepted: backend may return boolean (PostgreSQL) or 0/1 (SQLite)
-        // so UI and filters work the same in all environments.
-        let accepted: number | null =
-          req.accepted === true || req.accepted === 1
-            ? 1
-            : req.accepted === false || req.accepted === 0
-            ? 0
-            : null;
+        // Normalize accepted: backend may return boolean, number, or string "1"/"0".
+        // Optimistic update: if we just accepted/rejected this id, use that so the row
+        // shows correct status even when refetch returns stale data (e.g. hosted DB lag).
+        const idStr = String(req.id ?? "");
+        let accepted: number | null;
+        if (recentlyAcceptedIds.current.has(idStr)) {
+          accepted = 1;
+        } else if (recentlyRejectedIds.current.has(idStr)) {
+          accepted = 0;
+        } else {
+          const raw = req.accepted;
+          accepted =
+            raw === true || raw === 1 || raw === "1" || String(raw).trim() === "1"
+              ? 1
+              : raw === false || raw === 0 || raw === "0" || String(raw).trim() === "0"
+              ? 0
+              : null;
+        }
 
         return {
           ...req,
@@ -224,61 +239,97 @@ const RequirementEvalPage = () => {
               ? chipMap.approved
               : chipMap.notEvaluated,
             req.accepted === null ? (
-              <MenuButtonTemplate
-                items={[
-                  {
-                    label: "View Requirement",
-                    icon: <RemoveRedEyeIcon />,
-                    onClick: () => {
-                      setSelectedFormData(req);
-                      setFormData(req);
-                      setViewFormData(true);
-                    },
-                  },
-                  {
-                    label: "Accept",
-                    icon: <ThumbUpIcon />,
-                    onClick: () => {
+              <FlexBox alignItems="center" gap={0.5} flexWrap="wrap">
+                <Tooltip title="Accept">
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => {
+                      const idStr = String(req.id ?? "");
                       acceptRequirement(req.id)
                         .then(() => {
+                          recentlyAcceptedIds.current.add(idStr);
+                          recentlyRejectedIds.current.delete(idStr);
                           showSnackbarMessage(
                             "Successfully accepted requirement",
                             "success"
                           );
+                          setForceRefresh((n) => n + 1);
                         })
-                        .catch(() => {
-                          showSnackbarMessage(
-                            "An error occured in accepting requirement",
-                            "error"
-                          );
-                        })
-                        .finally(() => {
-                          setForceRefresh(forceRefresh + 1);
+                        .catch((err) => {
+                          const status = err.response?.status;
+                          const msg = err.response?.data?.message;
+                          if (status === 401 || status === 403) {
+                            showSnackbarMessage(
+                              "Please log in as officer or admin to approve requirements.",
+                              "error"
+                            );
+                          } else if (msg) {
+                            showSnackbarMessage(`Accept failed: ${msg}`, "error");
+                          } else {
+                            showSnackbarMessage(
+                              "An error occurred in accepting requirement",
+                              "error"
+                            );
+                          }
                         });
-                    },
-                  },
-                  {
-                    label: "Reject",
-                    icon: <ThumbDownIcon />,
-                    onClick: () => {
+                    }}
+                  >
+                    <ThumbUpIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Reject">
+                  <IconButton
+                    size="small"
+                    sx={{ color: "#c10303" }}
+                    onClick={() => {
+                      const idStr = String(req.id ?? "");
                       rejectRequirement(req.id)
                         .then(() => {
+                          recentlyRejectedIds.current.add(idStr);
+                          recentlyAcceptedIds.current.delete(idStr);
                           showSnackbarMessage(
-                            "Successfully rejected requirement"
+                            "Successfully rejected requirement",
+                            "success"
                           );
+                          setForceRefresh((n) => n + 1);
                         })
-                        .catch(() => {
-                          showSnackbarMessage(
-                            "An error occured in rejecting requirement"
-                          );
-                        })
-                        .finally(() => {
-                          setForceRefresh(forceRefresh + 1);
+                        .catch((err) => {
+                          const status = err.response?.status;
+                          const msg = err.response?.data?.message;
+                          if (status === 401 || status === 403) {
+                            showSnackbarMessage(
+                              "Please log in as officer or admin to reject requirements.",
+                              "error"
+                            );
+                          } else if (msg) {
+                            showSnackbarMessage(`Reject failed: ${msg}`, "error");
+                          } else {
+                            showSnackbarMessage(
+                              "An error occurred in rejecting requirement",
+                              "error"
+                            );
+                          }
                         });
+                    }}
+                  >
+                    <ThumbDownIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <MenuButtonTemplate
+                  items={[
+                    {
+                      label: "View Requirement",
+                      icon: <RemoveRedEyeIcon />,
+                      onClick: () => {
+                        setSelectedFormData(req);
+                        setFormData(req);
+                        setViewFormData(true);
+                      },
                     },
-                  },
-                ]}
-              />
+                  ]}
+                />
+              </FlexBox>
             ) : (
               <MenuButtonTemplate
                 items={[
@@ -325,6 +376,9 @@ const RequirementEvalPage = () => {
       
       setTableData(filteredAndMappedData);
       setLoading(false);
+      // Clear optimistic IDs after this refetch so next load uses API data
+      recentlyAcceptedIds.current.clear();
+      recentlyRejectedIds.current.clear();
       })
       .catch((err) => {
         console.error("❌ Error fetching requirements:", err);
