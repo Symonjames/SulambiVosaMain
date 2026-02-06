@@ -1,25 +1,17 @@
 /**
  * PDF.js Worker Configuration
- * This file must be imported BEFORE any react-pdf components are used
- * to ensure the worker is configured correctly
+ * This file must be imported BEFORE any react-pdf components are used.
+ * Worker is copied to public/ at build time (see scripts/copy-pdf-worker.cjs)
+ * so it is served from same origin and avoids CORS/CSP failures in production.
  */
 
 import { pdfjs } from "react-pdf";
 
-// Set up PDF.js worker with reliable CDN
-// react-pdf 9.1.1 uses PDF.js 4.8.69
-const pdfjsVersion = pdfjs.version || "4.8.69";
+// Same-origin worker (copied from node_modules/pdfjs-dist/build to public/ by prebuild)
+// Using same origin avoids "Failed to fetch dynamically imported module" on Render/production
+const workerUrl = "/pdf.worker.min.mjs";
 
-// Use unpkg.com which is more reliable than cdnjs
-// Force set to unpkg to avoid cdnjs 404 errors
-const workerUrl = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
-
-// Override any default worker source
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-
-// Log for debugging
-console.log(`[PDFJS_WORKER] Configured worker: ${workerUrl}`);
-console.log(`[PDFJS_WORKER] PDF.js version: ${pdfjsVersion}`);
 
 // This file is imported for side effects only (worker configuration)
 // No exports needed

@@ -29,17 +29,7 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Ensure worker is set correctly on component mount (override any defaults)
-  useEffect(() => {
-    const pdfjsVersion = pdfjs.version || "4.8.69";
-    const correctWorkerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
-    
-    // Always force set to unpkg (override cdnjs or any other source)
-    if (pdfjs.GlobalWorkerOptions.workerSrc !== correctWorkerSrc) {
-      console.log(`[PDF_VIEWER] Force updating worker source from ${pdfjs.GlobalWorkerOptions.workerSrc} to ${correctWorkerSrc}`);
-      pdfjs.GlobalWorkerOptions.workerSrc = correctWorkerSrc;
-    }
-  }, []);
+  // Worker is configured in utils/pdfjsWorker.ts (same-origin /pdf.worker.min.mjs)
 
   useEffect(() => {
     if (!open || !url) return;
@@ -117,25 +107,14 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
     console.error("Error details:", error.message);
     console.error("Current worker source:", pdfjs.GlobalWorkerOptions.workerSrc);
     
-    // Check if it's a worker error
+    // Worker is served from same origin (/pdf.worker.min.mjs). If this still fails, suggest download.
     if (error.message.includes("worker") || 
         error.message.includes("Failed to fetch") || 
         error.message.includes("dynamically imported") ||
         error.message.includes("fake worker")) {
-      
-      // Try to fix worker source if it's wrong
-      const pdfjsVersion = pdfjs.version || "4.8.69";
-      const correctWorkerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
-      
-      if (pdfjs.GlobalWorkerOptions.workerSrc !== correctWorkerSrc || 
-          pdfjs.GlobalWorkerOptions.workerSrc.includes('cdnjs')) {
-        console.log(`[PDF_VIEWER] Attempting to fix worker source from ${pdfjs.GlobalWorkerOptions.workerSrc} to ${correctWorkerSrc}`);
-        pdfjs.GlobalWorkerOptions.workerSrc = correctWorkerSrc;
-      }
-      
       setError(
         "PDF viewer worker failed to load. The PDF file is valid, but the viewer cannot initialize. " +
-        "Please try downloading the file instead using the download button, or refresh the page."
+        "Please try downloading the file using the download button below, or refresh the page."
       );
     } else {
       setError("Failed to parse PDF. The file may be corrupted.");
