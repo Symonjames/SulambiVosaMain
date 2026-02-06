@@ -7,6 +7,7 @@ from ..models.EvaluationModel import EvaluationModel
 from ..models.MembershipModel import MembershipModel
 from ..modules.CallbackTimer import executeDelayedAction
 from ..modules.Mailer import threadedHtmlMailer, htmlMailer
+from ..database import connection as db_connection
 
 from dotenv import load_dotenv
 import os
@@ -176,6 +177,17 @@ def getAllRequirements():
     processing_time = time.time() - step_start
     print(f"[REQUIREMENTS_GET_ALL] Processed {len(requirements)} requirements ({processing_time:.2f}s)")
     
+    # Normalize "accepted" to 0/1/null so frontend always gets same shape (avoids
+    # PostgreSQL true/false vs SQLite 1/0 mismatch and "still shows Not Evaluated").
+    for req in requirements:
+      v = req.get("accepted")
+      if v is True or v == 1:
+        req["accepted"] = 1
+      elif v is False or v == 0:
+        req["accepted"] = 0
+      else:
+        req["accepted"] = None
+
     total_time = time.time() - start_time
     print(f"[REQUIREMENTS_GET_ALL] ✅ Successfully processed {len(requirements)} requirements")
     print(f"[REQUIREMENTS_GET_ALL] ⏱️ Total time: {total_time:.2f}s")
@@ -192,14 +204,16 @@ def getAllRequirements():
     return ({ "message": f"Server error: {str(e)}" }, 500)
 
 def acceptRequirements(id):
-  # id can be string (UUID, REQ-xxx) or int - requirements table uses string primary key
+  # id can be string (UUID) or int from URL - requirements table uses string primary key
+  id = str(id).strip()
   existence = RequirementsDb.get(id)
   if (existence == None):
     return ({"message": "Requirement ID entered does not exist"}, 404)
 
   # Update requirement to accepted FIRST so status always persists
   # (mailing is best-effort; missing event must not block accept)
-  RequirementsDb.updateSpecific(id, ["accepted"], (True,))
+  accepted_db_value = db_connection.convert_boolean_value(True)
+  RequirementsDb.updateSpecific(id, ["accepted"], (accepted_db_value,))
   updatedData = RequirementsDb.get(id)
 
   # Get event details only for mailing (optional)
@@ -249,11 +263,13 @@ def acceptRequirements(id):
   }
 
 def rejectRequirements(id):
+  id = str(id).strip()
   existence = RequirementsDb.get(id)
   if (existence == None):
     return ({"message": "Requirement ID entered does not exist"}, 404)
 
-  RequirementsDb.updateSpecific(id, ["accepted"], (False,))
+  rejected_db_value = db_connection.convert_boolean_value(False)
+  RequirementsDb.updateSpecific(id, ["accepted"], (rejected_db_value,))
   updatedData = RequirementsDb.get(id)
 
   if (existence["type"] == "external"):

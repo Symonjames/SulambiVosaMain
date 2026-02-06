@@ -140,16 +140,19 @@ const RequirementEvalPage = () => {
           };
         }
         
-        // Ensure accepted is properly typed (null, 0, 1, or undefined)
-        let accepted = req.accepted;
-        if (accepted === undefined && req.accepted === null) {
-          accepted = null;
-        }
-        
+        // Normalize accepted: backend may return boolean (PostgreSQL) or 0/1 (SQLite)
+        // so UI and filters work the same in all environments.
+        let accepted: number | null =
+          req.accepted === true || req.accepted === 1
+            ? 1
+            : req.accepted === false || req.accepted === 0
+            ? 0
+            : null;
+
         return {
           ...req,
           eventId: eventId,
-          accepted: accepted,
+          accepted,
         };
       });
 
@@ -202,8 +205,8 @@ const RequirementEvalPage = () => {
           .filter((req) => {
             if (searchStatus === 3) return true; // Show all
             if (searchStatus === 2) {
-              // Show not evaluated (null or undefined)
-              return req.accepted === null || req.accepted === undefined;
+              // Show not evaluated (accepted not yet set)
+              return req.accepted === null;
             }
             // Show specific status (0 = rejected, 1 = approved)
             return req.accepted === searchStatus;
@@ -220,7 +223,7 @@ const RequirementEvalPage = () => {
               : req.accepted === 1
               ? chipMap.approved
               : chipMap.notEvaluated,
-            typeof req.accepted !== "number" ? (
+            req.accepted === null ? (
               <MenuButtonTemplate
                 items={[
                   {
