@@ -276,6 +276,59 @@ def getPublicEvents():
     "message": "Successfully retrieved all public events"
   }
 
+def getBeneficiaryEligibleEvents():
+  """
+  Public route. Returns events eligible for beneficiary evaluation:
+  public, accepted (or similar), ended in the last 7 days.
+  Each event includes requiresBeneficiaryPin (true if event has a PIN set).
+  """
+  time_now_ms = int(datetime.now().timestamp() * 1000)
+  seven_days_ms = 7 * 24 * 60 * 60 * 1000
+  cutoff_ms = time_now_ms - seven_days_ms
+
+  allExternalEvents = ExternalEventDb.getAll()
+  allInternalEvents = InternalEventDb.getAll()
+
+  externalList = []
+  for event in allExternalEvents:
+    status_lower = str(event.get("status", "")).lower().strip()
+    to_public = event.get("toPublic") in (True, 1, "true", "1")
+    duration_end = int(event.get("durationEnd") or 0)
+    ended = duration_end <= time_now_ms
+    within_week = duration_end >= cutoff_ms
+    if status_lower not in ["editing", "rejected"] and to_public and ended and within_week:
+      pin_val = (event.get("beneficiaryEvaluationPin") or "").strip()
+      if not pin_val:
+        continue  # every event must have a PIN for beneficiary evaluation; skip if missing
+      e = dict(event)
+      e.pop("beneficiaryEvaluationPin", None)  # never expose PIN to frontend
+      e["eventTypeIndicator"] = "external"
+      e["requiresBeneficiaryPin"] = True
+      externalList.append(e)
+
+  internalList = []
+  for event in allInternalEvents:
+    status_lower = str(event.get("status", "")).lower().strip()
+    to_public = event.get("toPublic") in (True, 1, "true", "1")
+    duration_end = int(event.get("durationEnd") or 0)
+    ended = duration_end <= time_now_ms
+    within_week = duration_end >= cutoff_ms
+    if status_lower not in ["editing", "rejected"] and to_public and ended and within_week:
+      pin_val = (event.get("beneficiaryEvaluationPin") or "").strip()
+      if not pin_val:
+        continue  # every event must have a PIN for beneficiary evaluation; skip if missing
+      e = dict(event)
+      e.pop("beneficiaryEvaluationPin", None)  # never expose PIN to frontend
+      e["eventTypeIndicator"] = "internal"
+      e["requiresBeneficiaryPin"] = True
+      internalList.append(e)
+
+  return {
+    "external": externalList,
+    "internal": internalList,
+    "message": "Successfully retrieved events eligible for beneficiary evaluation"
+  }
+
 def getAnalysis(id: int, eventType: str):
   eventDetails = None
   if (eventType == "external"):
@@ -350,6 +403,12 @@ def createExternalEvent():
         "missingFields": missing_fields
       }, 400)
 
+    beneficiary_pin = (request.json.get("beneficiaryEvaluationPin") or "").strip()
+    if not beneficiary_pin:
+      return ({
+        "message": "Beneficiary evaluation PIN is required. Every event has one PIN that all beneficiaries use to submit feedback for this event."
+      }, 400)
+
     print("[CREATE_EXTERNAL_EVENT] Creating external event...")
     print(f"[CREATE_EXTERNAL_EVENT] Event data - title: {request.json.get('title')}, location: {request.json.get('location')}")
     
@@ -381,7 +440,8 @@ def createExternalEvent():
         request.json["evaluationSendTime"],
         signatoriesId=createdSignatories["id"],
         externalServiceType=request.json["externalServiceType"] or "[]",
-        eventProposalType=request.json["eventProposalType"] or "[]"
+        eventProposalType=request.json["eventProposalType"] or "[]",
+        beneficiaryEvaluationPin=beneficiary_pin
       )
       print(f"[CREATE_EXTERNAL_EVENT] Event created successfully with ID: {createdExternalEvent.get('id')}")
       
@@ -451,6 +511,12 @@ def createInternalEvent():
         "missingFields": missing_fields
       }, 400)
 
+    beneficiary_pin = (request.json.get("beneficiaryEvaluationPin") or "").strip()
+    if not beneficiary_pin:
+      return ({
+        "message": "Beneficiary evaluation PIN is required. Every event has one PIN that all beneficiaries use to submit feedback for this event."
+      }, 400)
+
     print("[CREATE_INTERNAL_EVENT] Creating internal event...")
     print(f"[CREATE_INTERNAL_EVENT] Event data - title: {request.json.get('title')}, venue: {request.json.get('venue')}")
     
@@ -478,7 +544,8 @@ def createInternalEvent():
         False,
         request.json["evaluationSendTime"],
         createdSignatories["id"],
-        eventProposalType=request.json.get("eventProposalType") or "[]"
+        eventProposalType=request.json.get("eventProposalType") or "[]",
+        beneficiaryEvaluationPin=beneficiary_pin
       )
       print(f"[CREATE_INTERNAL_EVENT] Event created successfully with ID: {createdInternalEvent.get('id')}")
       
@@ -677,6 +744,12 @@ def updateEvent(id, eventType: str):
           # Use current time if not set
           createdAt = datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
 
+        beneficiaryEvaluationPin = (request.json.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
+        if not beneficiaryEvaluationPin:
+          return ({
+            "message": "Beneficiary evaluation PIN is required. Every event has one PIN that all beneficiaries use to submit feedback for this event."
+          }, 400)
+
         updatedEvent = InternalEventDb.update(id, (
           title,
           durationStart,
@@ -702,7 +775,8 @@ def updateEvent(id, eventType: str):
           matchedEvent.get("signatoriesId"),
           createdAt,
           matchedEvent.get("feedback_id"),
-          eventProposalType
+          eventProposalType,
+          beneficiaryEvaluationPin
         ))
         
         return {
@@ -722,6 +796,12 @@ def updateEvent(id, eventType: str):
     if (matchedEvent == None): return ({
       "message": "External Event provided does not exist"
     }, 404)
+
+    ext_beneficiary_pin = (request.json.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
+    if not ext_beneficiary_pin:
+      return ({
+        "message": "Beneficiary evaluation PIN is required. Every event has one PIN that all beneficiaries use to submit feedback for this event."
+      }, 400)
 
     print("created at", matchedEvent.get("createdAt"))
 
@@ -755,7 +835,8 @@ def updateEvent(id, eventType: str):
       matchedEvent.get("createdAt"),
       matchedEvent.get("feedback_id"),
       request.json.get("externalServiceType") or "[]",
-      request.json.get("eventProposalType") or "[]"
+      request.json.get("eventProposalType") or "[]",
+      ext_beneficiary_pin
     ))
 
   return {

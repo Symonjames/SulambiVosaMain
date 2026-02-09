@@ -7,7 +7,7 @@ import { SnackbarContext } from "../contexts/SnackbarProvider";
 import { People, Assignment, ArrowBack } from "@mui/icons-material";
 import PrimaryButton from "../components/Buttons/PrimaryButton";
 import dayjs from "dayjs";
-import { getAllPublicEvents } from "../api/events";
+import { getBeneficiaryEligibleEvents } from "../api/events";
 
 interface PublicEvent {
   id: number;
@@ -19,6 +19,7 @@ interface PublicEvent {
   eventTypeIndicator?: "external" | "internal";
   eventType?: "external" | "internal";
   status?: string;
+  requiresBeneficiaryPin?: boolean;
 }
 
 interface EvaluationEventOption {
@@ -29,6 +30,7 @@ interface EvaluationEventOption {
   venue?: string;
   location?: string;
   eventType: "external" | "internal";
+  requiresBeneficiaryPin?: boolean;
 }
 
 const BeneficiaryEvaluationPage = () => {
@@ -43,42 +45,12 @@ const BeneficiaryEvaluationPage = () => {
     const fetchEligibleEvents = async () => {
       setEventsLoading(true);
       try {
-        const response = await getAllPublicEvents();
+        const response = await getBeneficiaryEligibleEvents();
         const externalEvents: PublicEvent[] = response.data.external ?? [];
         const internalEvents: PublicEvent[] = response.data.internal ?? [];
         const combined: PublicEvent[] = [...externalEvents, ...internalEvents];
 
-        const now = dayjs();
-        // Events can be evaluated for 1 week (7 days) after they end
-        // Show events that ended within the last 7 days
-        const filtered = combined
-          .filter((event) => {
-            // durationEnd is stored as milliseconds (INTEGER) in the database
-            // dayjs can parse both milliseconds and date strings
-            let end;
-            if (typeof event.durationEnd === 'number') {
-              // If it's a number (timestamp in milliseconds), use it directly
-              end = dayjs(event.durationEnd);
-            } else if (typeof event.durationEnd === 'string') {
-              // If it's a string, parse it
-              end = dayjs(event.durationEnd);
-            } else {
-              return false;
-            }
-            
-            const isValid = end.isValid();
-            if (!isValid) return false;
-            
-            // Check if event has ended (end time is before or equal to current time)
-            const hasEnded = end.valueOf() <= now.valueOf();
-            
-            // Check if event ended within the last 7 days (1 week evaluation window)
-            // Use hours for more precise calculation (7 days = 168 hours)
-            const hoursSinceEnd = now.diff(end, 'hour', true);
-            const withinOneWeek = hoursSinceEnd >= 0 && hoursSinceEnd <= 168; // 7 days = 168 hours
-            
-            return hasEnded && withinOneWeek;
-          })
+        const mapped: EvaluationEventOption[] = combined
           .map((event) => ({
             id: event.id,
             title: event.title,
@@ -88,12 +60,13 @@ const BeneficiaryEvaluationPage = () => {
             location: event.location,
             eventType:
               event.eventTypeIndicator ?? event.eventType ?? "external",
+            requiresBeneficiaryPin: !!event.requiresBeneficiaryPin,
           }))
           .sort((a, b) =>
             dayjs(b.durationEnd).valueOf() - dayjs(a.durationEnd).valueOf()
           );
-        
-        setEligibleEvents(filtered);
+
+        setEligibleEvents(mapped);
       } catch (error) {
         console.error("Error loading events for beneficiary evaluation", error);
         showSnackbarMessage(

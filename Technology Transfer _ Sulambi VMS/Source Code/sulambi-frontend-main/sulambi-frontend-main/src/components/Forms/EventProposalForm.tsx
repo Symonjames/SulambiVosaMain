@@ -1,4 +1,4 @@
-﻿import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import PrimaryButton from "../Buttons/PrimaryButton";
 import FlexBox from "../FlexBox";
 import PopupModal from "../Modal/PopupModal";
@@ -322,6 +322,14 @@ const EventProposalForm: React.FC<Props> = ({
     ],
     [
       {
+        id: "beneficiaryEvaluationPin",
+        type: "text",
+        required: true,
+        message: "Beneficiary evaluation PIN (required). This event has one PIN; all beneficiaries use it to submit feedback for this event.",
+      },
+    ],
+    [
+      {
         flex: 1,
         id: "durationStart",
         required: true,
@@ -544,6 +552,14 @@ const EventProposalForm: React.FC<Props> = ({
         required: true,
         type: "datetime",
         message: "Datetime to send evaluation email",
+      },
+    ],
+    [
+      {
+        id: "beneficiaryEvaluationPin",
+        type: "text",
+        required: true,
+        message: "Beneficiary evaluation PIN (required). This event has one PIN; all beneficiaries use it to submit feedback for this event.",
       },
     ],
     [

@@ -38,6 +38,10 @@ def analyzeInternalEvaluationRoute(id):
 def getAllPublicEventsRoute():
   return events.getPublicEvents()
 
+@EventsBlueprint.get("/beneficiary-eligible")
+def getBeneficiaryEligibleEventsRoute():
+  return events.getBeneficiaryEligibleEvents()
+
 ###############################
 #  EXTERNAL EVENT OPERATIONS  #
 ###############################
@@ -95,7 +99,7 @@ def updateInternalEvent(id):
 @EventsBlueprint.before_request
 def eventsMiddleware():
   # skip checks for public routes here
-  if (request.path in ["/api/events/public"]):
+  if (request.path in ["/api/events/public", "/api/events/beneficiary-eligible"]):
     pass
 
   elif (request.method != "OPTIONS"):

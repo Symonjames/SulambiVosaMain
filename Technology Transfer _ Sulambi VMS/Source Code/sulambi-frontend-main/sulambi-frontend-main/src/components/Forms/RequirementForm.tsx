@@ -4,10 +4,6 @@ import FlexBox from "../FlexBox";
 import PopupModal from "../Modal/PopupModal";
 import FormGeneratorTemplate from "./FormGeneratorTemplate";
 import SendIcon from "@mui/icons-material/Send";
-import PersonIcon from "@mui/icons-material/Person";
-import EmailIcon from "@mui/icons-material/Email";
-import LockIcon from "@mui/icons-material/Lock";
-import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import { uploadRequirements } from "../../api/requirements";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
@@ -186,71 +182,6 @@ const RequirementForm: React.FC<Props> = ({
                       }}
                     />
                   ),
-                },
-              ],
-              { type: "section", message: "Personal Details" },
-              [
-                {
-                  id: "fullname",
-                  required: true,
-                  type: "text",
-                  message: "Full Name (Lastname, Firstname, M.I.) *",
-                  placeholder: "e.g. Dela Cruz, Juan A.",
-                  icon: <PersonIcon />,
-                },
-              ],
-              [
-                {
-                  id: "email",
-                  flex: 2,
-                  type: "text",
-                  required: true,
-                  message: "GSuite Email *",
-                  placeholder: "you@bulsu.edu.ph",
-                  icon: <EmailIcon />,
-                },
-                {
-                  id: "srcode",
-                  flex: 1,
-                  type: "text",
-                  required: true,
-                  message: "SR-Code *",
-                  placeholder: "e.g. 20-12345",
-                  icon: <LockIcon />,
-                },
-              ],
-              [
-                {
-                  id: "birthday",
-                  flex: 2,
-                  required: true,
-                  type: "text",
-                  message: "Birth Date *",
-                  placeholder: "e.g. January 7, 2000",
-                  icon: <CalendarMonthIcon />,
-                },
-                {
-                  id: "age",
-                  flex: 1,
-                  required: true,
-                  type: "number",
-                  message: "Age *",
-                  onUse: (event: any) => {
-                    const raw = String(event?.target?.value ?? "");
-                    const digitsOnly = raw.replace(/\D+/g, "").slice(0, 2);
-                    setFormData((prev: any) => ({ ...prev, age: digitsOnly }));
-                  },
-                },
-                {
-                  id: "sex",
-                  flex: 1,
-                  required: true,
-                  type: "dropdown",
-                  message: "Sex *",
-                  menu: [
-                    { key: "Male", value: "Male" },
-                    { key: "Female", value: "Female" },
-                  ],
                 },
               ],
             ]}

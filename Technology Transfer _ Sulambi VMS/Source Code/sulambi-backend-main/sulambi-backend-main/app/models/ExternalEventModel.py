@@ -38,7 +38,8 @@ class ExternalEventModel(Model):
       "createdAt",
       "feedback_id",
       "externalServiceType",
-      "eventProposalType"
+      "eventProposalType",
+      "beneficiaryEvaluationPin"
     ]
 
   
@@ -72,7 +73,8 @@ class ExternalEventModel(Model):
     createdAt: datetime=datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S"),
     feedback_id: int | None = None,
     externalServiceType: str = "[]",
-    eventProposalType: str = "[]"):
+    eventProposalType: str = "[]",
+    beneficiaryEvaluationPin: str = ""):
 
     return super().create((
       extensionServiceType,
@@ -104,5 +106,6 @@ class ExternalEventModel(Model):
       createdAt,
       feedback_id,
       externalServiceType,
-      eventProposalType
+      eventProposalType,
+      beneficiaryEvaluationPin or ""
     ))

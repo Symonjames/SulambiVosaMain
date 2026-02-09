@@ -103,7 +103,8 @@ class EvaluationAnalyticsService {
     startTime: number,
     eventWindow?: {
       durationEnd: string;
-    }
+    },
+    pin?: string
   ): Promise<EvaluationAnalytics> {
     const completionTime = Math.floor((Date.now() - startTime) / 1000);
 
@@ -162,7 +163,7 @@ class EvaluationAnalyticsService {
     // Submit to backend API
     try {
       const axios = (await import('../api/init')).default;
-      const response = await axios.post('/evaluation/beneficiary', {
+      const payload: Record<string, unknown> = {
         eventId: parseInt(eventId),
         eventType: eventType,
         criteria: criteria,
@@ -172,7 +173,11 @@ class EvaluationAnalyticsService {
         q14: data.overallSatisfaction.toString(), // Beneficiary rating
         email: data.demographics?.location || '', // Use location or empty
         name: '' // Anonymous beneficiary
-      });
+      };
+      if (pin != null && pin !== '') {
+        payload.pin = pin;
+      }
+      const response = await axios.post('/evaluation/beneficiary', payload);
 
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to submit beneficiary evaluation');

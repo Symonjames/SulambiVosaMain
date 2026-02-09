@@ -449,8 +449,9 @@ def submitBeneficiaryEvaluation():
     
     conn, cursor = cursorInstance()
     
-    # Verify event exists and get event title
+    # Verify event exists, get event title and beneficiary PIN requirement
     event_title = ""
+    event_required_pin = None
     try:
       from ..database.connection import quote_identifier, convert_placeholders
       import os
@@ -460,30 +461,48 @@ def submitBeneficiaryEvaluation():
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
       quoted_table = quote_identifier(event_table)
       
-      # For PostgreSQL, quote column names if they might be mixed case
-      # For SQLite, use unquoted column names
       if is_postgresql:
-        # In PostgreSQL, unquoted identifiers are lowercased, but we'll use quoted to be safe
-        # Since CREATE TABLE uses lowercase 'id' and 'title', we can use them unquoted
-        query = f'SELECT title FROM {quoted_table} WHERE id = %s'
+        query = f'SELECT title, "beneficiaryEvaluationPin" FROM {quoted_table} WHERE id = %s'
       else:
-        query = f"SELECT title FROM {quoted_table} WHERE id = ?"
+        query = f"SELECT title, beneficiaryEvaluationPin FROM {quoted_table} WHERE id = ?"
       
       cursor.execute(query, (event_id,))
       event_row = cursor.fetchone()
       if event_row:
         event_title = event_row[0]
+        raw_pin = event_row[1] if len(event_row) > 1 else None
+        event_required_pin = (raw_pin or "").strip() or None
       else:
-        # Log the issue but don't fail - allow submission even if event lookup fails
-        print(f"Warning: Event with ID {event_id} and type {event_type} not found in {event_table}, but continuing with submission")
-        # Don't return 404 - allow the submission to proceed
-        # The event might exist but the query might have issues, or it's a new event
+        return {
+          "message": "Event not found",
+          "success": False,
+          "error": "Invalid event ID or event type"
+        }, 400
     except Exception as e:
       print(f"Error checking event: {e}")
       import traceback
       traceback.print_exc()
-      # Continue anyway - event check is not critical for submission
-    
+      return {
+        "message": "Error verifying event",
+        "success": False,
+        "error": str(e)
+      }, 500
+
+    # Every event has one PIN for beneficiaries; validate it
+    if not event_required_pin:
+      return {
+        "message": "Event not configured for beneficiary evaluation",
+        "success": False,
+        "error": "This event does not have a beneficiary PIN set. Contact the event organizer."
+      }, 400
+    submitted_pin = (request.json.get("pin") or "").strip()
+    if not submitted_pin or submitted_pin != event_required_pin:
+      return {
+        "message": "Invalid or missing event PIN",
+        "success": False,
+        "error": "Please enter the correct event PIN to submit beneficiary feedback."
+      }, 400
+
     # Insert directly into satisfactionSurveys table
     submitted_at = int(datetime.now().timestamp() * 1000)
     

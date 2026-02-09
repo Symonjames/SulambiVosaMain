@@ -221,7 +221,8 @@ execute_sql("""
     feedback_id INTEGER,
     eventProposalType STRING,
     signatoriesId INTEGER,
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    beneficiaryEvaluationPin TEXT
   )
 """)
 
@@ -266,11 +267,29 @@ execute_sql("""
     eventProposalType STRING,
 
     signatoriesId INTEGER,
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    beneficiaryEvaluationPin TEXT
   )
 """)
 
 DEBUG and print("Done")
+
+# Migration: add beneficiaryEvaluationPin to existing event tables if missing
+try:
+    if is_postgresql:
+        execute_sql('ALTER TABLE "internalEvents" ADD COLUMN IF NOT EXISTS "beneficiaryEvaluationPin" TEXT')
+        execute_sql('ALTER TABLE "externalEvents" ADD COLUMN IF NOT EXISTS "beneficiaryEvaluationPin" TEXT')
+    else:
+        try:
+            execute_sql("ALTER TABLE internalEvents ADD COLUMN beneficiaryEvaluationPin TEXT")
+        except Exception:
+            pass
+        try:
+            execute_sql("ALTER TABLE externalEvents ADD COLUMN beneficiaryEvaluationPin TEXT")
+        except Exception:
+            pass
+except Exception as e:
+    DEBUG and print(f"[*] Migration beneficiaryEvaluationPin (may already exist): {e}")
 
 ###########################
 #  EXTERNAL REPORT TABLE  #

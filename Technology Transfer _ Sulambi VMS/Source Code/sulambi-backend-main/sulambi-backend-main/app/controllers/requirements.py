@@ -414,6 +414,8 @@ def sendRenderedEvaluationMail(requirementDetails: dict, eventDetails: dict):
   base_url = FRONTEND_APP_URL or ""
   link = (base_url + "/evaluation/" + str(requirementDetails.get("id"))) if base_url else "/evaluation/" + str(requirementDetails.get("id"))
   templateHtml = templateHtml.replace("[link]", link)
+  event_pin = (eventDetails.get("beneficiaryEvaluationPin") or "").strip()
+  templateHtml = templateHtml.replace("[event-pin]", event_pin if event_pin else "Not set (beneficiary survey open without PIN)")
 
   htmlMailer(
     mailTo=requirementDetails.get("email"),

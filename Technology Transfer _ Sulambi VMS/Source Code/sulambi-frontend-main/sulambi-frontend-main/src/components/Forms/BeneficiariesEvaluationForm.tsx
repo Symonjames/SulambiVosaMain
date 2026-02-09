@@ -7,6 +7,7 @@ import { evaluationAnalyticsService, BeneficiaryEvaluationData } from "../../ser
 import dayjs from "dayjs";
 import { Box, Typography } from "@mui/material";
 import CustomDropdown from "../Inputs/CustomDropdown";
+import CustomInput from "../Inputs/CustomInput";
 import FlexBox from "../FlexBox";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
 
@@ -35,6 +36,7 @@ interface EvaluationEventOption {
   venue?: string;
   location?: string;
   eventType: 'external' | 'internal';
+  requiresBeneficiaryPin?: boolean;
 }
 
 const BeneficiariesEvaluationForm: React.FC<Props> = ({ 
@@ -53,6 +55,7 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
   const [isLoading, setIsLoading] = useState(false);
   const startTimeRef = useRef<number>(Date.now());
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [eventPin, setEventPin] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -100,6 +103,7 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
   }, [selectedEvent]);
 
   const handleClose = () => {
+    setEventPin("");
     if (setOpen) {
       setOpen(false);
     }
@@ -121,6 +125,15 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
             "warning"
           );
         }
+        setIsLoading(false);
+        return;
+      }
+
+      if (selectedEvent.requiresBeneficiaryPin && !(eventPin || "").trim()) {
+        showSnackbarMessage(
+          "This event requires an event PIN. Please enter the PIN provided at the event.",
+          "warning"
+        );
         setIsLoading(false);
         return;
       }
@@ -160,7 +173,7 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
         additionalComments: formData.comment || ""
       };
 
-      // Submit to analytics service
+      // Submit to analytics service (include PIN when event requires it)
       await evaluationAnalyticsService.submitBeneficiaryEvaluation(
         (selectedEvent?.id ?? eventId).toString(),
         selectedEvent?.eventType ?? eventType,
@@ -170,7 +183,8 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
           ? {
               durationEnd: selectedEvent.durationEnd,
             }
-          : undefined
+          : undefined,
+        selectedEvent?.requiresBeneficiaryPin ? (eventPin || "").trim() : undefined
       );
 
       // Call custom onSubmit if provided
@@ -261,6 +275,25 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
             <strong>Location:</strong>{" "}
             {selectedEvent.venue || selectedEvent.location || "TBA"}
           </Typography>
+        </Box>
+      )}
+
+      {selectedEvent?.requiresBeneficiaryPin && (
+        <Box>
+          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+            Event PIN
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            This event requires the PIN that was shared at the event to submit your feedback.
+          </Typography>
+          <CustomInput
+            label="Enter event PIN"
+            value={eventPin}
+            onChange={(e) => setEventPin(e.target.value)}
+            size="small"
+            fullWidth
+            placeholder="Enter the PIN from the event"
+          />
         </Box>
       )}
 

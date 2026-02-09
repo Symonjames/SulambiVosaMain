@@ -33,7 +33,8 @@ class InternalEventModel(Model):
       "signatoriesId",
       "createdAt",
       "feedback_id",
-      "eventProposalType"
+      "eventProposalType",
+      "beneficiaryEvaluationPin"
     ]
 
   def create(self,
@@ -61,7 +62,8 @@ class InternalEventModel(Model):
     signatoriesId: int | None = None,
     createdAt: datetime=datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S"),
     feedback_id: int | None = None,
-    eventProposalType: str = "[]"):
+    eventProposalType: str = "[]",
+    beneficiaryEvaluationPin: str = ""):
 
     return super().create((
       title, durationStart, durationEnd, venue,
@@ -72,5 +74,6 @@ class InternalEventModel(Model):
       evaluationMechanicsPlan, sustainabilityPlan,
       createdBy, status, toPublic, evaluationSendTime,
       signatoriesId, createdAt,
-      feedback_id, eventProposalType
+      feedback_id, eventProposalType,
+      beneficiaryEvaluationPin or ""
     ))

@@ -14,6 +14,10 @@ export const getAllPublicEvents = () => {
   return axios.get(`${basePath}/public`);
 };
 
+export const getBeneficiaryEligibleEvents = () => {
+  return axios.get(`${basePath}/beneficiary-eligible`);
+};
+
 export const createExternalEvent = (formData: any) => {
   return axios.post(`${basePath}/external`, formData);
 };
