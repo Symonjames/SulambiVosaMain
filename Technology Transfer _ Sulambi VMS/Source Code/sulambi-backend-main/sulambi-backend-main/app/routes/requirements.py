@@ -5,15 +5,16 @@ from ..middlewares.requiredParams import requirementsParams
 
 RequirementsBlueprint = Blueprint('requirements', __name__, url_prefix="/requirements")
 
-@RequirementsBlueprint.get("/")
-def getAllRequirementsRoute():
-  return requirements.getAllRequirements()
-
+# More specific routes first so /my is not matched by /<eventId>
 @RequirementsBlueprint.get("/my")
 def getMyRequirementsRoute():
   return requirements.getMyRequirements()
 
-@RequirementsBlueprint.post("/<eventId>")
+@RequirementsBlueprint.get("/")
+def getAllRequirementsRoute():
+  return requirements.getAllRequirements()
+
+@RequirementsBlueprint.post("/<int:eventId>")
 def uploadRequirementsRoute(eventId):
   return requirements.createNewRequirement(eventId)
 

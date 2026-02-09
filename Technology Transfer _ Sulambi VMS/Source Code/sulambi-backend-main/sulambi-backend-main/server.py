@@ -132,6 +132,13 @@ def staticFileHost(path):
 
 Server.register_blueprint(ApiBlueprint)
 
+# Run migration to add beneficiaryEvaluationPin column if missing (e.g. on Render)
+try:
+  from app.database.migrate_beneficiary_pin import run_beneficiary_pin_migration
+  run_beneficiary_pin_migration()
+except Exception as e:
+  print(f"[startup] migrate_beneficiary_pin: {e}")
+
 # Export app for Gunicorn (production)
 app = Server
 
