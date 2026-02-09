@@ -18,7 +18,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
 }) => {
   return (
     <PopupModal
-      header={title ?? "Membership application"}
+      header={title ?? "Requirements"}
       smallHeader
       minWidth="30vw"
       open={open}
