@@ -5,6 +5,7 @@ import TextSubHeader from "../../components/Headers/TextSubHeader";
 import PageLayout from "../PageLayout";
 import FlexBox from "../../components/FlexBox";
 import { getAllEvents } from "../../api/events";
+import { getMyRequirements } from "../../api/requirements";
 import MediaCard from "../../components/Cards/MediaCard";
 import HorizontalCarousel from "../../components/Carousel/HorizontalCarousel";
 import { useMediaQuery } from "react-responsive";
@@ -22,7 +23,8 @@ const EventsPage = () => {
   const [openRequirementForm, setOpenRequirementForm] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<number | undefined>(undefined);
   const [selectedEventType, setSelectedEventType] = useState<"external" | "internal">("external");
-  
+  const [joinedEventKeys, setJoinedEventKeys] = useState<Set<string>>(new Set());
+
   const isMobile = useMediaQuery({
     query: "(max-width: 600px)",
   });
@@ -34,6 +36,22 @@ const EventsPage = () => {
     cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
     useMemoryCache: true, // Fast memory cache for navigation
   });
+
+  // Fetch current member's joined events (eventId + type) to show "Joined" and disable button
+  useEffect(() => {
+    getMyRequirements()
+      .then((res) => {
+        const list = res.data?.data ?? [];
+        const set = new Set<string>();
+        list.forEach((r: { eventId?: number; type?: string }) => {
+          const id = r.eventId;
+          const type = (r.type || "external").toLowerCase();
+          if (id != null) set.add(`${id}-${type}`);
+        });
+        setJoinedEventKeys(set);
+      })
+      .catch(() => setJoinedEventKeys(new Set()));
+  }, [openRequirementForm]); // re-fetch after closing form in case they just joined
 
   // Debug: Log events response
   useEffect(() => {
@@ -62,15 +80,21 @@ const EventsPage = () => {
     };
   };
 
+  const getEventType = (eventData: any): "external" | "internal" =>
+    (eventData as ExternalEventProposalType).location ? "external" : "internal";
+
   const volunteerCallback = (eventData: any) => {
     return () => {
-      // Determine event type
-      const eventType = (eventData as ExternalEventProposalType).location ? "external" : "internal";
-      setSelectedEventType(eventType);
+      setSelectedEventType(getEventType(eventData));
       setSelectedEventId(eventData.id);
       setFormData({});
       setOpenRequirementForm(true);
     };
+  };
+
+  const isJoined = (eventData: any) => {
+    const type = getEventType(eventData);
+    return joinedEventKeys.has(`${eventData.id}-${type}`);
   };
 
   return (
@@ -148,6 +172,7 @@ const EventsPage = () => {
                   location={(event as ExternalEventProposalType).location ?? (event as InternalEventProposalType).venue ?? ""}
                   onViewDetails={viewDataCallback(event)}
                   onVolunteer={volunteerCallback(event)}
+                  joined={isJoined(event)}
                 />
               ))}
             </HorizontalCarousel>
@@ -160,6 +185,7 @@ const EventsPage = () => {
                 location={(event as ExternalEventProposalType).location ?? (event as InternalEventProposalType).venue ?? ""}
                 onViewDetails={viewDataCallback(event)}
                 onVolunteer={volunteerCallback(event)}
+                joined={isJoined(event)}
               />
             ))
           )}

@@ -6,6 +6,10 @@ export const getAllRequirements = () => {
   return axios.get(`${basePath}/`);
 };
 
+export const getMyRequirements = () => {
+  return axios.get(`${basePath}/my`);
+};
+
 export const uploadRequirements = (
   eventId: number,
   multiPartData: FormData

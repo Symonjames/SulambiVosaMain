@@ -9,6 +9,10 @@ RequirementsBlueprint = Blueprint('requirements', __name__, url_prefix="/require
 def getAllRequirementsRoute():
   return requirements.getAllRequirements()
 
+@RequirementsBlueprint.get("/my")
+def getMyRequirementsRoute():
+  return requirements.getMyRequirements()
+
 @RequirementsBlueprint.post("/<eventId>")
 def uploadRequirementsRoute(eventId):
   return requirements.createNewRequirement(eventId)
@@ -25,8 +29,12 @@ def rejectRequirementsRoute(requirementId):
 @RequirementsBlueprint.before_request
 def requirementsMiddleware():
   if (request.method != "OPTIONS"):
-    # Require auth for GET (view list) and PATCH (accept/reject)
-    if (request.method in ["GET", "PATCH"]):
+    # GET /my is for members; other GET and PATCH require admin/officer
+    if (request.method == "GET" and request.path.rstrip("/").endswith("/my")):
+      userCheck = tokenCheck.authCheckMiddleware(["member", "admin", "officer"])
+      if (userCheck != None):
+        return userCheck
+    elif (request.method in ["GET", "PATCH"]):
       userCheck = tokenCheck.authCheckMiddleware(["admin", "officer"])
       if (userCheck != None):
         return userCheck

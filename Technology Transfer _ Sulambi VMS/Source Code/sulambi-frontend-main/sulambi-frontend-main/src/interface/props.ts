@@ -66,6 +66,8 @@ export interface MediaCardProps {
   width: string;
   onViewDetails?: () => void;
   onVolunteer?: () => void;
+  /** When true, show "Joined" and disable the volunteer button */
+  joined?: boolean;
 }
 
 export interface HorizontalCarouselProps {

@@ -73,6 +73,8 @@ export interface FormGenTemplateProps {
   }[];
   initialColumns?: string[];
   initialData?: { [rowIndex: string]: { [colKey: string]: string } };
+  /** For type "file": accepted file types (e.g. ".pdf,.doc,.docx") */
+  accept?: string;
 }
 
 interface TitleTextProps {
@@ -92,6 +94,7 @@ interface TextAreaQuestionProps {
 interface FileInputProps extends TextAreaQuestionProps {
   flex?: number;
   isMultiUpload?: boolean;
+  accept?: string;
 }
 
 interface CheckBoxQuestionProps {
@@ -382,6 +385,7 @@ const FileInput = ({
   flex,
   error,
   isMultiUpload,
+  accept,
 }: FileInputProps) => {
   return (
     <FlexBox flexDirection="column" flex={flex}>
@@ -395,6 +399,7 @@ const FileInput = ({
         onChange={onChange}
         type="file"
         error={error}
+        inputProps={accept ? { accept } : undefined}
       />
     </FlexBox>
   );
@@ -764,6 +769,7 @@ const FormGeneratorTemplate = ({
                 required={value.required}
                 error={value.id ? fieldErrors.includes(value.id) : false}
                 isMultiUpload={value.id === "photos"}
+                accept={value.accept}
                 onChange={(event: any) => {
                   if (enableAutoFieldCheck && value.id) {
                     if (value.id === "photos")

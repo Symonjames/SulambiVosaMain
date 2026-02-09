@@ -5,6 +5,7 @@ from ..models.ExternalEventModel import ExternalEventModel
 from ..models.InternalEventModel import InternalEventModel
 from ..models.EvaluationModel import EvaluationModel
 from ..models.MembershipModel import MembershipModel
+from ..models.AccountModel import AccountModel
 from ..modules.CallbackTimer import executeDelayedAction
 from ..modules.Mailer import threadedHtmlMailer, htmlMailer
 from ..database import connection as db_connection
@@ -21,6 +22,30 @@ ExternalEventDb = ExternalEventModel()
 InternalEventDb = InternalEventModel()
 EvaluationDb = EvaluationModel()
 MembershipDb = MembershipModel()
+AccountDb = AccountModel()
+
+def getMyRequirements():
+  """Return current member's requirement event IDs (eventId + type) so frontend can show Joined."""
+  accountSessionInfo = g.get("accountSessionInfo")
+  if not accountSessionInfo:
+    return ({ "message": "Unauthorized" }, 401)
+  accountDetails = AccountDb.get(accountSessionInfo["id"])
+  if accountDetails is None:
+    return ({ "message": "Session expired" }, 403)
+  if accountSessionInfo.get("accountType") != "member":
+    return ({ "message": "Only members can view their joined events" }, 403)
+  membership_id = accountDetails.get("membershipId")
+  if not membership_id:
+    return ({ "message": "Member profile not found" }, 403)
+  user_details = MembershipDb.get(membership_id)
+  if not user_details:
+    return ({ "message": "Member profile not found" }, 403)
+  user_email = (user_details.get("email") or "").strip()
+  if not user_email:
+    return { "message": "Successfully retrieved my requirements", "data": [] }
+  matched = RequirementsDb.getAndSearch(["email"], [user_email])
+  data = [{"eventId": r.get("eventId"), "type": r.get("type") or "external"} for r in (matched or [])]
+  return { "message": "Successfully retrieved my requirements", "data": data }
 
 def getAllRequirements():
   import time

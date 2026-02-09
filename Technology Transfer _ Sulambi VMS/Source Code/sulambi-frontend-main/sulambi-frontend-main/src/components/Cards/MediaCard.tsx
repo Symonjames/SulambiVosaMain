@@ -20,6 +20,7 @@ const MediaCard: React.FC<MediaCardProps> = ({
   contentHeight,
   onViewDetails,
   onVolunteer,
+  joined = false,
 }) => {
   const isMobile = useMediaQuery({
     query: "(max-width: 600px)",
@@ -76,22 +77,24 @@ const MediaCard: React.FC<MediaCardProps> = ({
         <FlexBox justifyContent="flex-end" width="100%" gap="10px">
           {onVolunteer && (
             <CustomButton
-              label="Join"
+              label={joined ? "Joined" : "Join"}
               variant="contained"
               disableElevation
+              disabled={joined}
               hoverSx={{
                 color: "white",
                 backgroundColor: "#2d3529",
               }}
               sx={{
-                backgroundColor: "var(--text-landing)",
+                backgroundColor: joined ? "#6b7b6b" : "var(--text-landing)",
                 border: "1px solid var(--text-landing)",
                 borderRadius: "10px",
                 padding: isMobile ? "5px" : undefined,
                 fontSize: isMobile ? "9pt" : undefined,
                 color: "white",
+                cursor: joined ? "default" : undefined,
               }}
-              onClick={onVolunteer}
+              onClick={joined ? undefined : onVolunteer}
             />
           )}
           <CustomButton

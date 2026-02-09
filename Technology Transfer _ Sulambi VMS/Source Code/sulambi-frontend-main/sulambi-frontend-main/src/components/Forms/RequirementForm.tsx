@@ -160,12 +160,14 @@ const RequirementForm: React.FC<Props> = ({
                   type: "file",
                   required: true,
                   message: "Medical Certificate *",
+                  accept: ".pdf,.doc,.docx",
                 },
                 {
                   id: "waiver",
                   type: "file",
                   message: "Waiver *",
                   required: true,
+                  accept: ".pdf,.doc,.docx",
                 },
               ],
               [

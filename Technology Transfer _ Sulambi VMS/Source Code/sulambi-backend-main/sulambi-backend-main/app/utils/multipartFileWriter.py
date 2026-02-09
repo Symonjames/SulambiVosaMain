@@ -10,15 +10,18 @@ load_dotenv()
 
 BASIC_WRITER_PATH = "uploads"
 
-# Allowed file extensions for requirements documents
+# Allowed file extensions for requirements documents (PDF, DOC/DOCX, images)
 ALLOWED_EXTENSIONS = {
     'pdf',
+    'doc', 'docx',
     'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif'
 }
 
 # MIME types for validation
 ALLOWED_MIME_TYPES = {
     'application/pdf',
+    'application/msword',  # .doc
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # .docx
     'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
     'image/bmp', 'image/webp', 'image/svg+xml', 'image/x-icon',
     'image/tiff', 'image/x-tiff'
@@ -27,7 +30,7 @@ ALLOWED_MIME_TYPES = {
 def is_allowed_file(filename: str, content_type: str) -> bool:
     """
     Check if file is allowed based on extension and MIME type.
-    Only PDF and image files are allowed.
+    Allows PDF, DOC, DOCX, and image files.
     """
     if not filename:
         return False
@@ -102,7 +105,7 @@ def cloudinaryFileWriter(keys: list[str], folder: str = "requirements"):
         if not is_allowed_file(file.filename, file.content_type):
             raise BadRequest(
                 f"File '{file.filename}' is not allowed. "
-                f"Only PDF and image files (jpg, jpeg, png, gif, bmp, webp, svg, ico, tiff) are allowed."
+                f"Only PDF, DOC, DOCX, and image files (jpg, jpeg, png, gif, bmp, webp, svg, ico, tiff) are allowed."
             )
         
         try:
