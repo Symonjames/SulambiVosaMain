@@ -10,7 +10,6 @@ import DangerousIcon from "@mui/icons-material/Dangerous";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
-import GroupAddIcon from "@mui/icons-material/GroupAdd";
 import { useEffect, useState } from "react";
 import { getDashboardAnalytics, getDashboardSummary } from "../api/dashboard";
 // REMOVED: clearAnalyticsData import - was deleting data on every page load
@@ -333,7 +332,7 @@ const Dashboard = () => {
           total: typeof totalNum === 'number' && !isNaN(totalNum) && totalNum > 0 ? totalNum : 0
         };
       })
-      .filter(item => item.total > 0 && !isNaN(item.ageNum))
+      .filter(item => item.total > 0 && !isNaN(item.ageNum) && item.ageNum !== 12)
       .sort((a, b) => a.ageNum - b.ageNum)
       .map(({ ageNum, ...rest }) => rest);
 
@@ -493,18 +492,6 @@ const Dashboard = () => {
               accountType === "officer"
                 ? () => {
                     navigate("/officer/membership-approval?status=1");
-                  }
-                : undefined
-            }
-          />
-          <DashboardCard
-            value={dashboardData.totalActiveMembers}
-            label="Total Active Member(s)"
-            icon={<GroupAddIcon sx={iconSx} />}
-            onClick={
-              accountType === "officer"
-                ? () => {
-                    navigate("/officer/membership-approval?account_status=1");
                   }
                 : undefined
             }

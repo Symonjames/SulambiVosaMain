@@ -160,13 +160,12 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     enabled: true,
   });
   
-  // Initialize with default years 2024-2026 (or up to current year) - older years hidden per request
+  // Initialize with default years 2025-2026 only (2024 hidden per request)
   useEffect(() => {
     if (availableYears.length === 0) {
       const currentYear = new Date().getFullYear();
       const years = [];
-      // Start from 2024 to hide 2020-2023 from the dropdown
-      for (let year = 2024; year <= Math.max(currentYear, 2026); year++) {
+      for (let year = 2025; year <= Math.max(currentYear, 2026); year++) {
         years.push(String(year));
       }
       setAvailableYears(years);
@@ -305,15 +304,14 @@ const PredictiveSatisfactionRatings: React.FC = () => {
               )
             ) as string[];
             
-            // Always include years 2024-2026 (or up to current year) even if no data yet
+            // Only include years 2025-2026 (2024 hidden per request)
             const dataYears = yearsRaw
               .map((y) => parseInt(String(y), 10))
-              .filter((y) => !isNaN(y) && y >= 2000 && y <= currentYear + 1)
+              .filter((y) => !isNaN(y) && y >= 2025 && y <= Math.max(currentYear, 2026))
               .sort((a, b) => a - b);
             
-            // Merge with default years (2024-2026 or up to current year)
             const defaultYears = [];
-            for (let year = 2024; year <= Math.max(currentYear, 2026); year++) {
+            for (let year = 2025; year <= Math.max(currentYear, 2026); year++) {
               defaultYears.push(year);
             }
             
@@ -334,14 +332,13 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             setBeneficiaryCount(0);
             setTotalCount(0);
             
-            // Keep all years 2024-2026 (or up to current year) available even if no data
+            // Keep years 2025-2026 available even if no data
             const currentYear = new Date().getFullYear();
             const years = [];
-            for (let year = 2024; year <= Math.max(currentYear, 2026); year++) {
+            for (let year = 2025; year <= Math.max(currentYear, 2026); year++) {
               years.push(String(year));
             }
             setAvailableYears(years.length > 0 ? years : [String(currentYear)]);
-            // Don't change selected year if user already selected one
             if (!selectedYear) {
               setSelectedYear(String(currentYear));
             }
@@ -354,18 +351,16 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           setVolunteerScore(0);
           setBeneficiaryScore(0);
           
-          // Keep all years 2024-2026 (or up to current year) available even if no data
+          // Keep years 2025-2026 available even if no data
           const currentYear = new Date().getFullYear();
           const years = [];
-          for (let year = 2024; year <= Math.max(currentYear, 2026); year++) {
+          for (let year = 2025; year <= Math.max(currentYear, 2026); year++) {
             years.push(String(year));
           }
           setAvailableYears(years.length > 0 ? years : [String(currentYear)]);
-          // Don't change selected year if user already selected one
           if (!selectedYear) {
             setSelectedYear(String(currentYear));
           }
-          // Don't set error - this is expected when there's no evaluation data
           setError(null);
         } else {
           // No response yet - still loading or no data

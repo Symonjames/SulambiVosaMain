@@ -30,6 +30,18 @@ interface Props {
 
 // TODO: Type of Extension not properly loaded
 
+/** One empty row for Monitoring and Evaluation (1 objective by default; officer adds more via Add Field) */
+const EMPTY_M_E_ROW = {
+  specificObjective: "",
+  performanceIndicator: "",
+  baselineData: "",
+  performanceTarget: "",
+  dataSource: "",
+  collectionMethod: "",
+  frequencyOfCollection: "",
+  personResponsible: "",
+};
+
 const EventProposalForm: React.FC<Props> = ({
   open,
   eventType,
@@ -80,53 +92,50 @@ const EventProposalForm: React.FC<Props> = ({
             } catch {
               financialPlan = { 0: { item: String(data.financialPlan || "") } };
             }
-            // Parse evaluationMechanicsPlan first to ensure proper structure
+            // Parse evaluationMechanicsPlan: use repeater shape { "0": {...}, "1": {...} } for both internal and external.
+            // If saved data is old external format (objectivesImpact, objectivesOutcome, etc.), convert to repeater shape.
             const parsedEvaluationMechanicsPlan = (() => {
               const rawData = response.data.data?.evaluationMechanicsPlan;
-              if (!rawData) {
-                return {
-                  objectivesImpact: {},
-                  objectivesOutcome: {},
-                  objectivesOutput: {},
-                  objectivesActivities: {},
-                  objectivesInput: {},
-                  objectivesImpactLabel: "Impact",
-                  objectivesOutcomeLabel: "Outcome",
-                  objectivesOutputLabel: "Output",
-                  objectivesActivitiesLabel: "Activities",
-                  objectivesInputLabel: "Input",
-                };
-              }
+              if (!rawData) return { "0": { ...EMPTY_M_E_ROW } };
               try {
                 const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-                // Ensure nested structure exists - preserve all existing data, add defaults only if missing
-                // Use spread to create new objects to ensure reactivity
-                return {
-                  objectivesImpact: parsed.objectivesImpact ? { ...parsed.objectivesImpact } : {},
-                  objectivesOutcome: parsed.objectivesOutcome ? { ...parsed.objectivesOutcome } : {},
-                  objectivesOutput: parsed.objectivesOutput ? { ...parsed.objectivesOutput } : {},
-                  objectivesActivities: parsed.objectivesActivities ? { ...parsed.objectivesActivities } : {},
-                  objectivesInput: parsed.objectivesInput ? { ...parsed.objectivesInput } : {},
-                  objectivesImpactLabel: parsed.objectivesImpactLabel || "Impact",
-                  objectivesOutcomeLabel: parsed.objectivesOutcomeLabel || "Outcome",
-                  objectivesOutputLabel: parsed.objectivesOutputLabel || "Output",
-                  objectivesActivitiesLabel: parsed.objectivesActivitiesLabel || "Activities",
-                  objectivesInputLabel: parsed.objectivesInputLabel || "Input",
-                };
+                if (!parsed || typeof parsed !== 'object') return { "0": { ...EMPTY_M_E_ROW } };
+                const hasOldExternalShape =
+                  'objectivesImpact' in parsed ||
+                  'objectivesOutcome' in parsed ||
+                  'objectivesOutput' in parsed;
+                if (!hasOldExternalShape) return parsed;
+                const toRow = (label: string, obj: any) => ({
+                  specificObjective: label,
+                  performanceIndicator: obj?.performanceIndicator ?? '',
+                  baselineData: obj?.baselineData ?? '',
+                  performanceTarget: obj?.performanceTarget ?? '',
+                  dataSource: obj?.dataSource ?? '',
+                  collectionMethod: obj?.collectionMethod ?? '',
+                  frequencyOfCollection: obj?.frequencyOfDataCollection ?? '',
+                  personResponsible: obj?.officeResponsible ?? '',
+                });
+                const rows: Record<string, any> = {};
+                let idx = 0;
+                if (parsed.objectivesImpactLabel != null || parsed.objectivesImpact) {
+                  rows[String(idx++)] = toRow(parsed.objectivesImpactLabel || 'Impact', parsed.objectivesImpact);
+                }
+                if (parsed.objectivesOutcomeLabel != null || parsed.objectivesOutcome) {
+                  rows[String(idx++)] = toRow(parsed.objectivesOutcomeLabel || 'Outcome', parsed.objectivesOutcome);
+                }
+                if (parsed.objectivesOutputLabel != null || parsed.objectivesOutput) {
+                  rows[String(idx++)] = toRow(parsed.objectivesOutputLabel || 'Output', parsed.objectivesOutput);
+                }
+                if (parsed.objectivesActivitiesLabel != null || parsed.objectivesActivities) {
+                  rows[String(idx++)] = toRow(parsed.objectivesActivitiesLabel || 'Activities', parsed.objectivesActivities);
+                }
+                if (parsed.objectivesInputLabel != null || parsed.objectivesInput) {
+                  rows[String(idx++)] = toRow(parsed.objectivesInputLabel || 'Input', parsed.objectivesInput);
+                }
+                return Object.keys(rows).length > 0 ? rows : { "0": { ...EMPTY_M_E_ROW } };
               } catch (e) {
                 console.error('Error parsing evaluationMechanicsPlan:', e);
-                return {
-                  objectivesImpact: {},
-                  objectivesOutcome: {},
-                  objectivesOutput: {},
-                  objectivesActivities: {},
-                  objectivesInput: {},
-                  objectivesImpactLabel: "Impact",
-                  objectivesOutcomeLabel: "Outcome",
-                  objectivesOutputLabel: "Output",
-                  objectivesActivitiesLabel: "Activities",
-                  objectivesInputLabel: "Input",
-                };
+                return { "0": { ...EMPTY_M_E_ROW } };
               }
             })();
 
@@ -260,20 +269,8 @@ const EventProposalForm: React.FC<Props> = ({
             fullWidth
             onClick={() => {
               setProposalType("external");
-              // setForceRefresh(forceRefresh + 1);
               setFormData({
-                evaluationMechanicsPlan: {
-                  objectivesImpact: {},
-                  objectivesOutcome: {},
-                  objectivesOutput: {},
-                  objectivesActivities: {},
-                  objectivesInput: {},
-                  objectivesImpactLabel: "Impact",
-                  objectivesOutcomeLabel: "Outcome",
-                  objectivesOutputLabel: "Output",
-                  objectivesActivitiesLabel: "Activities",
-                  objectivesInputLabel: "Input",
-                },
+                evaluationMechanicsPlan: { "0": { ...EMPTY_M_E_ROW } },
               });
             }}
           />
@@ -297,9 +294,8 @@ const EventProposalForm: React.FC<Props> = ({
             fullWidth
             onClick={() => {
               setProposalType("internal");
-              // setForceRefresh(forceRefresh + 1);
               setFormData({
-                evaluationMechanicsPlan: {},
+                evaluationMechanicsPlan: { "0": { ...EMPTY_M_E_ROW } },
                 financialRequirement: {},
                 workPlan: {},
               });
@@ -487,12 +483,6 @@ const EventProposalForm: React.FC<Props> = ({
       ],
     },
     { type: "section", message: "Monitoring and Evaluation Mechanics / Plan" },
-    [
-      {
-        type: "label",
-        message: "Click the button below to add rows for Monitoring Plan",
-      },
-    ],
     {
       fieldKey: "evaluationMechanicsPlan",
       type: "fieldRepeater",
@@ -885,810 +875,47 @@ const EventProposalForm: React.FC<Props> = ({
       type: "textQuestion",
       message: "Sustainability Plan",
     },
+    { type: "section", message: "Monitoring and Evaluation Mechanics / Plan" },
     {
-      type: "section",
-      message: "Monitoring and Evaluation Mechanics / Plan",
+      fieldKey: "evaluationMechanicsPlan",
+      type: "fieldRepeater",
+      field: [
+        [
+          { id: "specificObjective", type: "text", message: "Objectives" },
+          {
+            id: "performanceIndicator",
+            type: "text",
+            message: "Performance Indicators",
+          },
+        ],
+        [
+          { id: "baselineData", type: "text", message: "Baseline Data" },
+          {
+            id: "performanceTarget",
+            type: "text",
+            message: "Performance Target",
+          },
+          { id: "dataSource", type: "text", message: "Data Source" },
+        ],
+        [
+          {
+            id: "collectionMethod",
+            type: "text",
+            message: "Collection Method",
+          },
+          {
+            id: "frequencyOfCollection",
+            type: "text",
+            message: "Frequency of data collection",
+          },
+          {
+            id: "personResponsible",
+            type: "text",
+            message: "Office/Person Responsible",
+          },
+        ],
+      ],
     },
-    [
-      {
-        type: "text",
-        message: "Objectives",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesImpactLabel) ||
-          "Impact",
-        onUse: (event) => {
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...(formData.evaluationMechanicsPlan || {}),
-              objectivesImpactLabel: event.target.value,
-            },
-          });
-        },
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Performance Indicators",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesImpact &&
-            formData.evaluationMechanicsPlan.objectivesImpact.performanceIndicator) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesImpact: {
-                ...formData.evaluationMechanicsPlan.objectivesImpact,
-                performanceIndicator: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Baseline Data",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesImpact &&
-            formData.evaluationMechanicsPlan.objectivesImpact.baselineData) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesImpact: {
-                ...formData.evaluationMechanicsPlan.objectivesImpact,
-                baselineData: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Performance Target",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesImpact &&
-            formData.evaluationMechanicsPlan.objectivesImpact.performanceTarget) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesImpact: {
-                ...formData.evaluationMechanicsPlan.objectivesImpact,
-                performanceTarget: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Data source",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesImpact &&
-            formData.evaluationMechanicsPlan.objectivesImpact.dataSource) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesImpact: {
-                ...formData.evaluationMechanicsPlan.objectivesImpact,
-                dataSource: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Collection method",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesImpact &&
-            formData.evaluationMechanicsPlan.objectivesImpact.collectionMethod) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesImpact: {
-                ...formData.evaluationMechanicsPlan.objectivesImpact,
-                collectionMethod: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Frequency of Data Collection",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesImpact &&
-            formData.evaluationMechanicsPlan.objectivesImpact
-              .frequencyOfDataCollection) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesImpact: {
-                ...formData.evaluationMechanicsPlan.objectivesImpact,
-                frequencyOfDataCollection: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Office/Persons Responsible",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesImpact &&
-            formData.evaluationMechanicsPlan.objectivesImpact.officeResponsible) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesImpact: {
-                ...formData.evaluationMechanicsPlan.objectivesImpact,
-                officeResponsible: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Objectives",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutcomeLabel) ||
-          "Outcome",
-        onUse: (event) => {
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...(formData.evaluationMechanicsPlan || {}),
-              objectivesOutcomeLabel: event.target.value,
-            },
-          });
-        },
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Performance Indicators",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutcome &&
-            formData.evaluationMechanicsPlan.objectivesOutcome
-              .performanceIndicator) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutcome: {
-                ...formData.evaluationMechanicsPlan.objectivesOutcome,
-                performanceIndicator: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Baseline Data",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutcome &&
-            formData.evaluationMechanicsPlan.objectivesOutcome.baselineData) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutcome: {
-                ...formData.evaluationMechanicsPlan.objectivesOutcome,
-                baselineData: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Performance Target",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutcome &&
-            formData.evaluationMechanicsPlan.objectivesOutcome
-              .performanceTarget) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutcome: {
-                ...formData.evaluationMechanicsPlan.objectivesOutcome,
-                performanceTarget: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Data source",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutcome &&
-            formData.evaluationMechanicsPlan.objectivesOutcome.dataSource) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutcome: {
-                ...formData.evaluationMechanicsPlan.objectivesOutcome,
-                dataSource: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Collection method",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutcome &&
-            formData.evaluationMechanicsPlan.objectivesOutcome.collectionMethod) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutcome: {
-                ...formData.evaluationMechanicsPlan.objectivesOutcome,
-                collectionMethod: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Frequency of Data Collection",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutcome &&
-            formData.evaluationMechanicsPlan.objectivesOutcome
-              .frequencyOfDataCollection) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutcome: {
-                ...formData.evaluationMechanicsPlan.objectivesOutcome,
-                frequencyOfDataCollection: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Office/Persons Responsible",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutcome &&
-            formData.evaluationMechanicsPlan.objectivesOutcome
-              .officeResponsible) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutcome: {
-                ...formData.evaluationMechanicsPlan.objectivesOutcome,
-                officeResponsible: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Objectives",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutputLabel) ||
-          "Output",
-        onUse: (event) => {
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...(formData.evaluationMechanicsPlan || {}),
-              objectivesOutputLabel: event.target.value,
-            },
-          });
-        },
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Performance Indicators",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutput &&
-            formData.evaluationMechanicsPlan.objectivesOutput
-              .performanceIndicator) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutput: {
-                ...formData.evaluationMechanicsPlan.objectivesOutput,
-                performanceIndicator: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Baseline Data",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutput &&
-            formData.evaluationMechanicsPlan.objectivesOutput.baselineData) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutput: {
-                ...formData.evaluationMechanicsPlan.objectivesOutput,
-                baselineData: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Performance Target",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutput &&
-            formData.evaluationMechanicsPlan.objectivesOutput
-              .performanceTarget) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutput: {
-                ...formData.evaluationMechanicsPlan.objectivesOutput,
-                performanceTarget: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Data source",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutput &&
-            formData.evaluationMechanicsPlan.objectivesOutput.dataSource) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutput: {
-                ...formData.evaluationMechanicsPlan.objectivesOutput,
-                dataSource: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Collection method",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutput &&
-            formData.evaluationMechanicsPlan.objectivesOutput
-              .collectionMethod) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutput: {
-                ...formData.evaluationMechanicsPlan.objectivesOutput,
-                collectionMethod: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Frequency of Data Collection",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutput &&
-            formData.evaluationMechanicsPlan.objectivesOutput
-              .frequencyOfDataCollection) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutput: {
-                ...formData.evaluationMechanicsPlan.objectivesOutput,
-                frequencyOfDataCollection: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Office/Persons Responsible",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesOutput &&
-            formData.evaluationMechanicsPlan.objectivesOutput
-              .officeResponsible) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesOutput: {
-                ...formData.evaluationMechanicsPlan.objectivesOutput,
-                officeResponsible: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Objectives",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesActivitiesLabel) ||
-          "Activities",
-        onUse: (event) => {
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...(formData.evaluationMechanicsPlan || {}),
-              objectivesActivitiesLabel: event.target.value,
-            },
-          });
-        },
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Performance Indicators",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesActivities &&
-            formData.evaluationMechanicsPlan.objectivesActivities
-              .performanceIndicator) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesActivities: {
-                ...formData.evaluationMechanicsPlan.objectivesActivities,
-                performanceIndicator: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Baseline Data",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesActivities &&
-            formData.evaluationMechanicsPlan.objectivesActivities.baselineData) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesActivities: {
-                ...formData.evaluationMechanicsPlan.objectivesActivities,
-                baselineData: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Performance Target",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesActivities &&
-            formData.evaluationMechanicsPlan.objectivesActivities
-              .performanceTarget) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesActivities: {
-                ...formData.evaluationMechanicsPlan.objectivesActivities,
-                performanceTarget: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Data source",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesActivities &&
-            formData.evaluationMechanicsPlan.objectivesActivities.dataSource) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesActivities: {
-                ...formData.evaluationMechanicsPlan.objectivesActivities,
-                dataSource: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Collection method",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesActivities &&
-            formData.evaluationMechanicsPlan.objectivesActivities.collectionMethod) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesActivities: {
-                ...formData.evaluationMechanicsPlan.objectivesActivities,
-                collectionMethod: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Frequency of Data Collection",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesActivities &&
-            formData.evaluationMechanicsPlan.objectivesActivities
-              .frequencyOfDataCollection) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesActivities: {
-                ...formData.evaluationMechanicsPlan.objectivesActivities,
-                frequencyOfDataCollection: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Office/Persons Responsible",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesActivities &&
-            formData.evaluationMechanicsPlan.objectivesActivities
-              .officeResponsible) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesActivities: {
-                ...formData.evaluationMechanicsPlan.objectivesActivities,
-                officeResponsible: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Objectives",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesInputLabel) ||
-          "Input",
-        onUse: (event) => {
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...(formData.evaluationMechanicsPlan || {}),
-              objectivesInputLabel: event.target.value,
-            },
-          });
-        },
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Performance Indicators",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesInput &&
-            formData.evaluationMechanicsPlan.objectivesInput.performanceIndicator) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesInput: {
-                ...formData.evaluationMechanicsPlan.objectivesInput,
-                performanceIndicator: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Baseline Data",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesInput &&
-            formData.evaluationMechanicsPlan.objectivesInput.baselineData) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesInput: {
-                ...formData.evaluationMechanicsPlan.objectivesInput,
-                baselineData: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Performance Target",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesInput &&
-            formData.evaluationMechanicsPlan.objectivesInput.performanceTarget) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesInput: {
-                ...formData.evaluationMechanicsPlan.objectivesInput,
-                performanceTarget: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Data source",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesInput &&
-            formData.evaluationMechanicsPlan.objectivesInput.dataSource) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesInput: {
-                ...formData.evaluationMechanicsPlan.objectivesInput,
-                dataSource: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Collection method",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesInput &&
-            formData.evaluationMechanicsPlan.objectivesInput.collectionMethod) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesInput: {
-                ...formData.evaluationMechanicsPlan.objectivesInput,
-                collectionMethod: event.target.value,
-              },
-            },
-          }),
-      },
-      {
-        type: "text",
-        message: "Frequency of Data Collection",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesInput &&
-            formData.evaluationMechanicsPlan.objectivesInput
-              .frequencyOfDataCollection) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesInput: {
-                ...formData.evaluationMechanicsPlan.objectivesInput,
-                frequencyOfDataCollection: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
-    [
-      {
-        type: "text",
-        message: "Office/Persons Responsible",
-        value:
-          (formData?.evaluationMechanicsPlan &&
-            formData.evaluationMechanicsPlan.objectivesInput &&
-            formData.evaluationMechanicsPlan.objectivesInput.officeResponsible) ||
-          "",
-        onUse: (event) =>
-          immutableSetFormData({
-            evaluationMechanicsPlan: {
-              ...formData.evaluationMechanicsPlan,
-              objectivesInput: {
-                ...formData.evaluationMechanicsPlan.objectivesInput,
-                officeResponsible: event.target.value,
-              },
-            },
-          }),
-      },
-    ],
   ];
 
   return (
@@ -1718,7 +945,7 @@ const EventProposalForm: React.FC<Props> = ({
           >
             {proposalType === "external" && (
               <FormGeneratorTemplate
-                key={`external-${formData?.evaluationMechanicsPlan?.objectivesImpactLabel || ""}-${formData?.evaluationMechanicsPlan?.objectivesOutcomeLabel || ""}-${formData?.evaluationMechanicsPlan?.objectivesOutputLabel || ""}-${formData?.evaluationMechanicsPlan?.objectivesActivitiesLabel || ""}-${formData?.evaluationMechanicsPlan?.objectivesInputLabel || ""}`}
+                key="external-form"
                 viewOnly={viewOnly}
                 enableAutoFieldCheck={true}
                 fieldErrors={fieldErrors}
