@@ -220,7 +220,8 @@ const BeneficiaryEvaluationPage = () => {
               background: "linear-gradient(to right, #f5b000, #e9a100, #d98a00)",
               color: "#fff",
               "&:hover": {
-                background: "linear-gradient(to right, #e9a100, #d98a00, #c47800)"
+                background: "linear-gradient(to right, #e9a100, #d98a00, #c47800)",
+                color: "#fff"
               },
               px: 4,
               py: 1.5,
@@ -234,11 +235,12 @@ const BeneficiaryEvaluationPage = () => {
             variant="outlined"
             onClick={() => navigate('/')}
             sx={{
-              borderColor: "rgba(125, 110, 90, 0.7)",
-              color: "#5c5144",
+              borderColor: "rgba(245, 176, 0, 0.6)",
+              color: "#b8860b",
               "&:hover": {
-                borderColor: "rgba(125, 110, 90, 0.9)",
-                backgroundColor: "rgba(125, 110, 90, 0.06)"
+                background: "linear-gradient(to right, #e9a100, #d98a00, #c47800)",
+                borderColor: "transparent",
+                color: "#fff"
               },
               px: 4,
               py: 1.5,
