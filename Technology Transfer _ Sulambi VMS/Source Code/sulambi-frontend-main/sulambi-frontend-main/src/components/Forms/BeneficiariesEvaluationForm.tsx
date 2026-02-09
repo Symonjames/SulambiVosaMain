@@ -8,7 +8,6 @@ import dayjs from "dayjs";
 import { Box, Typography } from "@mui/material";
 import CustomDropdown from "../Inputs/CustomDropdown";
 import CustomInput from "../Inputs/CustomInput";
-import FlexBox from "../FlexBox";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
 
 interface Props {
@@ -39,6 +38,8 @@ interface EvaluationEventOption {
   requiresBeneficiaryPin?: boolean;
 }
 
+type Step = 'pin' | 'survey';
+
 const BeneficiariesEvaluationForm: React.FC<Props> = ({ 
   open, 
   setOpen, 
@@ -56,10 +57,12 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
   const startTimeRef = useRef<number>(Date.now());
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [eventPin, setEventPin] = useState("");
+  const [step, setStep] = useState<Step>('pin');
 
   useEffect(() => {
     if (open) {
       startTimeRef.current = Date.now();
+      setStep('pin');
     }
   }, [open]);
 
@@ -104,9 +107,39 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
 
   const handleClose = () => {
     setEventPin("");
+    setStep('pin');
     if (setOpen) {
       setOpen(false);
     }
+  };
+
+  const handlePinContinue = async () => {
+    const pin = (eventPin || "").trim();
+    if (selectedEvent?.requiresBeneficiaryPin) {
+      if (pin.length !== 5) {
+        showSnackbarMessage(
+          "Please enter the 5-digit event PIN to continue.",
+          "warning"
+        );
+        return;
+      }
+      setIsLoading(true);
+      try {
+        await evaluationAnalyticsService.validateBeneficiaryPin(
+          selectedEvent.id.toString(),
+          selectedEvent.eventType ?? "external",
+          pin
+        );
+        setStep("survey");
+      } catch (err) {
+        const msg = (err as Error)?.message ?? "Wrong PIN.";
+        showSnackbarMessage(msg, "error");
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+    setStep("survey");
   };
 
   const handleSubmit = async () => {
@@ -209,15 +242,15 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
     }
   };
 
-  const formContent = (
+  const pinStepContent = (
     <Box display="flex" flexDirection="column" gap={3}>
-      <Box>
-        <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-          Select the service or program you participated in
-        </Typography>
-        <FlexBox gap="20px" flexWrap="wrap">
+      {availableEvents.length > 1 && (
+        <Box>
+          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+            Select the event you participated in
+          </Typography>
           <CustomDropdown
-            label="Select Finished Event (Available for 1 week after event ends)"
+            label="Finished Event (1 week after event ends)"
             width="100%"
             disabled={isLoadingEvents || availableEvents.length === 0}
             initialValue={selectedEventId ?? ""}
@@ -234,22 +267,56 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
                 value: option.id.toString(),
               };
             })}
-            onChange={(event) => {
-              setSelectedEventId(event.target.value);
-            }}
+            onChange={(event) => setSelectedEventId(event.target.value)}
           />
-        </FlexBox>
-        {availableEvents.length === 0 && !isLoadingEvents && (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ mt: 1 }}
+        </Box>
+      )}
+      {selectedEvent && (
+        <>
+          <Box
+            sx={{
+              borderRadius: "12px",
+              backgroundColor: "rgba(255,255,255,0.2)",
+              border: "1px solid rgba(255,255,255,0.3)",
+              p: 2,
+            }}
           >
-            There are no finished events available for evaluation at this time.
-          </Typography>
-        )}
-      </Box>
+            <Typography variant="subtitle2" sx={{ opacity: 0.9 }}>
+              You are about to evaluate
+            </Typography>
+            <Typography variant="subtitle1" fontWeight="bold">
+              {selectedEvent.title}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+              Event PIN
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1, opacity: 0.95 }}>
+              Enter the 5-digit PIN that was shared at the event to continue.
+            </Typography>
+            <CustomInput
+              label="Event PIN (5 digits)"
+              value={eventPin}
+              onChange={(e) => setEventPin((e.target.value || "").replace(/\D/g, "").slice(0, 5))}
+              size="small"
+              fullWidth
+              placeholder="5 digits"
+              inputProps={{ maxLength: 5, inputMode: "numeric" }}
+            />
+          </Box>
+        </>
+      )}
+      {availableEvents.length === 0 && !isLoadingEvents && (
+        <Typography variant="body2" color="text.secondary">
+          There are no finished events available for evaluation at this time.
+        </Typography>
+      )}
+    </Box>
+  );
 
+  const surveyFormContent = (
+    <Box display="flex" flexDirection="column" gap={3}>
       {selectedEvent && evaluationWindowSummary && (
         <Box
           sx={{
@@ -260,13 +327,12 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
           }}
         >
           <Typography variant="subtitle1" fontWeight="bold">
-            Selected Event Details
+            Evaluating
           </Typography>
           <Typography variant="body2">
-            <strong>Title:</strong> {selectedEvent.title}
+            <strong>{selectedEvent.title}</strong>
           </Typography>
           <Typography variant="body2">
-            <strong>Duration:</strong>{" "}
             {`${dayjs(selectedEvent.durationStart).format(
               "MMMM D, YYYY h:mm A"
             )} - ${evaluationWindowSummary.end}`}
@@ -275,26 +341,6 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
             <strong>Location:</strong>{" "}
             {selectedEvent.venue || selectedEvent.location || "TBA"}
           </Typography>
-        </Box>
-      )}
-
-      {selectedEvent?.requiresBeneficiaryPin && (
-        <Box>
-          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-            Event PIN
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            This event requires the 5-digit PIN that was shared at the event to submit your feedback.
-          </Typography>
-          <CustomInput
-            label="Enter event PIN (5 digits)"
-            value={eventPin}
-            onChange={(e) => setEventPin((e.target.value || "").replace(/\D/g, "").slice(0, 5))}
-            size="small"
-            fullWidth
-            placeholder="5 digits"
-            inputProps={{ maxLength: 5, inputMode: "numeric" }}
-          />
         </Box>
       )}
 
@@ -320,11 +366,11 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
     <BaseEvaluationForm
       open={open}
       onClose={handleClose}
-      title="Beneficiary Evaluation Form"
-      subtitle="Help us improve our community services"
-      formContent={formContent}
-      onSubmit={handleSubmit}
-      submitButtonText="Submit Beneficiary Evaluation"
+      title={step === 'pin' ? 'Enter Event PIN' : 'Beneficiary Evaluation Form'}
+      subtitle={step === 'pin' ? 'Enter the PIN provided at the event to continue' : 'Help us improve our community services'}
+      formContent={step === 'pin' ? pinStepContent : surveyFormContent}
+      onSubmit={step === 'pin' ? handlePinContinue : handleSubmit}
+      submitButtonText={step === 'pin' ? 'Continue' : 'Submit Beneficiary Evaluation'}
       isLoading={isLoading}
     />
   );

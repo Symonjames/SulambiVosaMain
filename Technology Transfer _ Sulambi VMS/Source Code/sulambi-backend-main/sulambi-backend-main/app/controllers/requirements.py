@@ -461,8 +461,10 @@ def sendRejectedRequirementsMail(requirementDetails: dict, eventDetails: dict):
 
 def sendAcceptedRequirementsMail(requirementDetails: dict, eventDetails: dict):
   templateHtml = open("templates/we-are-pleased-to-inform-requirements.html", "r").read()
-  templateHtml = templateHtml.replace("[name]", requirementDetails.get("fullname"))
-  templateHtml = templateHtml.replace("[event]", eventDetails.get("title"))
+  templateHtml = templateHtml.replace("[name]", requirementDetails.get("fullname") or "")
+  templateHtml = templateHtml.replace("[event]", eventDetails.get("title") or "")
+  event_pin = (eventDetails.get("beneficiaryEvaluationPin") or "").strip()
+  templateHtml = templateHtml.replace("[event-pin]", event_pin if event_pin else "Not set")
 
   threadedHtmlMailer(
     mailTo=requirementDetails.get("email"),

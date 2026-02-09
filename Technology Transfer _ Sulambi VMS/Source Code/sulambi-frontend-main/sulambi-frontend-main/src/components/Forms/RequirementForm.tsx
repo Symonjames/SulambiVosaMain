@@ -185,6 +185,39 @@ const RequirementForm: React.FC<Props> = ({
             forceRefresh={forceRefresh}
             fieldErrors={fieldErrors}
             template={([
+              { type: "section" as const, message: "Documents" },
+              [
+                {
+                  id: "medCert",
+                  type: "file",
+                  required: true,
+                  message: "Medical Certificate *",
+                  accept: ".pdf,.doc,.docx",
+                },
+                {
+                  id: "waiver",
+                  type: "file",
+                  message: "Waiver *",
+                  required: true,
+                  accept: ".pdf,.doc,.docx",
+                },
+              ],
+              [
+                {
+                  type: "component",
+                  component: (
+                    <PrimaryButton
+                      label="Download Waiver Template"
+                      sx={{ width: "100%" }}
+                      onClick={() => {
+                        window.open(
+                          "https://docs.google.com/document/d/1fCd3h3YdqivXm6uEPDDg3_8QXz0CBG3e/edit"
+                        );
+                      }}
+                    />
+                  ),
+                },
+              ],
               ...(forPublicEventJoin
                 ? []
                 : [
@@ -230,39 +263,6 @@ const RequirementForm: React.FC<Props> = ({
                       { id: "fblink", type: "text", message: "Facebook Link" },
                     ],
                   ]),
-              { type: "section" as const, message: "Documents" },
-              [
-                {
-                  id: "medCert",
-                  type: "file",
-                  required: true,
-                  message: "Medical Certificate *",
-                  accept: ".pdf,.doc,.docx",
-                },
-                {
-                  id: "waiver",
-                  type: "file",
-                  message: "Waiver *",
-                  required: true,
-                  accept: ".pdf,.doc,.docx",
-                },
-              ],
-              [
-                {
-                  type: "component",
-                  component: (
-                    <PrimaryButton
-                      label="Download Waiver Template"
-                      sx={{ width: "100%" }}
-                      onClick={() => {
-                        window.open(
-                          "https://docs.google.com/document/d/1fCd3h3YdqivXm6uEPDDg3_8QXz0CBG3e/edit"
-                        );
-                      }}
-                    />
-                  ),
-                },
-              ],
             ]) as (FormGenTemplateProps | FormGenTemplateProps[])[]}
           />
         </FlexBox>

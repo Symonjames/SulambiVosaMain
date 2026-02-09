@@ -100,7 +100,7 @@ const BeneficiaryEvaluationPage = () => {
         rowGap="30px"
         sx={{
           minHeight: "80vh",
-          background: "linear-gradient(135deg, #f4d03f 0%, #f9e79f 50%, #fef9e7 100%)",
+          background: "linear-gradient(to right, #f5b000, #e9a100, #d98a00)",
           borderRadius: "20px",
           padding: "40px 20px",
           boxShadow: "0 10px 30px rgba(212, 168, 75, 0.35)",
@@ -217,10 +217,10 @@ const BeneficiaryEvaluationPage = () => {
               setOpenForm(true);
             }}
             sx={{
-              backgroundColor: "#b8860b",
+              background: "linear-gradient(to right, #f5b000, #e9a100, #d98a00)",
               color: "#fff",
               "&:hover": {
-                backgroundColor: "#8b6914"
+                background: "linear-gradient(to right, #e9a100, #d98a00, #c47800)"
               },
               px: 4,
               py: 1.5,
@@ -234,11 +234,11 @@ const BeneficiaryEvaluationPage = () => {
             variant="outlined"
             onClick={() => navigate('/')}
             sx={{
-              borderColor: "#5d4e37",
-              color: "#3d3428",
+              borderColor: "rgba(125, 110, 90, 0.7)",
+              color: "#5c5144",
               "&:hover": {
-                borderColor: "#5d4e37",
-                backgroundColor: "rgba(93, 78, 55, 0.08)"
+                borderColor: "rgba(125, 110, 90, 0.9)",
+                backgroundColor: "rgba(125, 110, 90, 0.06)"
               },
               px: 4,
               py: 1.5,

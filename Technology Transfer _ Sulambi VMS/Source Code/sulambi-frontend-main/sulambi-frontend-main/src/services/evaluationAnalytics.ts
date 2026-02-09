@@ -95,6 +95,30 @@ class EvaluationAnalyticsService {
     return analytics;
   }
 
+  /**
+   * Validate beneficiary PIN for the selected event before showing the survey.
+   * Returns true if PIN is correct, throws with message (e.g. "Wrong PIN.") if not.
+   */
+  async validateBeneficiaryPin(
+    eventId: string,
+    eventType: 'external' | 'internal',
+    pin: string
+  ): Promise<boolean> {
+    const axios = (await import('../api/init')).default;
+    try {
+      const response = await axios.post('/evaluation/beneficiary/validate-pin', {
+        eventId: parseInt(eventId, 10),
+        eventType,
+        pin: (pin || '').trim()
+      });
+      if (response.data?.valid === true) return true;
+      throw new Error(response.data?.error || 'Wrong PIN.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || 'Wrong PIN.';
+      throw new Error(msg);
+    }
+  }
+
   // Submit beneficiary evaluation
   async submitBeneficiaryEvaluation(
     eventId: string,
@@ -184,11 +208,12 @@ class EvaluationAnalyticsService {
       }
     } catch (error: any) {
       console.error('Error submitting beneficiary evaluation to backend:', error);
-      throw new Error(
-        error.response?.data?.message || 
-        error.message || 
-        'Failed to submit beneficiary evaluation. Please try again.'
-      );
+      const msg =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to submit beneficiary evaluation. Please try again.';
+      throw new Error(msg);
     }
 
     const analytics: EvaluationAnalytics = {

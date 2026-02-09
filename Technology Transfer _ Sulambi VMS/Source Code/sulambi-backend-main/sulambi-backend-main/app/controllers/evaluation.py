@@ -343,6 +343,67 @@ def evaluateByRequirement(requirementId):
     "data": EvaluationDb.get(evaluationTemplate["id"])
   }
 
+def validateBeneficiaryPin():
+  """
+  Public endpoint: validate event PIN before showing the survey.
+  Expects JSON: eventId (int), eventType ('external'|'internal'), pin (5-digit string).
+  Returns 200 with { "valid": true } if PIN matches the event, else 400 with error "Wrong PIN."
+  """
+  try:
+    from ..database.connection import cursorInstance, quote_identifier
+    import os
+    event_id = request.json.get("eventId")
+    event_type = request.json.get("eventType", "external")
+    submitted_pin = (request.json.get("pin") or "").strip()
+
+    try:
+      if isinstance(event_id, str):
+        event_id = int(event_id)
+      elif event_id is not None:
+        event_id = int(event_id)
+      else:
+        event_id = None
+      if event_id is None or event_id <= 0:
+        return {"message": "Invalid event", "success": False, "error": "Event is required."}, 400
+    except (ValueError, TypeError):
+      return {"message": "Invalid event", "success": False, "error": "Invalid event ID."}, 400
+
+    if len(submitted_pin) != 5 or not submitted_pin.isdigit():
+      return {
+        "message": "Invalid PIN format",
+        "success": False,
+        "error": "PIN must be exactly 5 digits."
+      }, 400
+
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    is_postgresql = DATABASE_URL and DATABASE_URL.startswith("postgresql://")
+    event_table = "internalEvents" if event_type == "internal" else "externalEvents"
+    quoted_table = quote_identifier(event_table)
+    if is_postgresql:
+      query = f'SELECT "beneficiaryEvaluationPin" FROM {quoted_table} WHERE id = %s'
+    else:
+      query = f"SELECT beneficiaryEvaluationPin FROM {quoted_table} WHERE id = ?"
+    conn, cursor = cursorInstance()
+    cursor.execute(query, (event_id,))
+    event_row = cursor.fetchone()
+    if not event_row:
+      return {"message": "Event not found", "success": False, "error": "Wrong PIN."}, 400
+    event_required_pin = (event_row[0] or "").strip() or None
+    if not event_required_pin:
+      return {
+        "message": "Event not configured",
+        "success": False,
+        "error": "This event does not have a PIN set. Contact the organizer."
+      }, 400
+    if submitted_pin != event_required_pin:
+      return {"message": "Invalid PIN", "success": False, "error": "Wrong PIN."}, 400
+    return {"valid": True, "success": True}, 200
+  except Exception as e:
+    print(f"Error validating beneficiary PIN: {e}")
+    import traceback
+    traceback.print_exc()
+    return {"message": "Error validating PIN", "success": False, "error": "Something went wrong. Please try again."}, 500
+
 def submitBeneficiaryEvaluation():
   """
   Submit beneficiary evaluation directly to satisfactionSurveys table

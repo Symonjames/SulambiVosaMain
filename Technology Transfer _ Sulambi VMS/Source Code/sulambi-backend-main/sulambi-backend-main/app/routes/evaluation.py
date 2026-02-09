@@ -29,6 +29,10 @@ def getEvaluatable(requirementId):
 def createEvaluation(requirementId):
   return evaluation.evaluateByRequirement(requirementId)
 
+@EvaluationBlueprint.post("/beneficiary/validate-pin")
+def validateBeneficiaryPinRoute():
+  return evaluation.validateBeneficiaryPin()
+
 @EvaluationBlueprint.post("/beneficiary")
 def createBeneficiaryEvaluation():
   return evaluation.submitBeneficiaryEvaluation()

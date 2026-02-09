@@ -129,7 +129,6 @@ const Landing = () => {
             open={openRequirementForm}
             eventType={eventType}
             setOpen={setOpenRequirementForm}
-            forPublicEventJoin
             afterOpen={() => {
               setFormData({});
             }}
