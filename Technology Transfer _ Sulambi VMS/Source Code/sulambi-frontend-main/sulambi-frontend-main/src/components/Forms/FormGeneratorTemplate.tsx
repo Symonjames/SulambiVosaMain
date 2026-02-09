@@ -4,12 +4,12 @@ import FlexRowBox from "../FlexRowBox";
 import CustomInput from "../Inputs/CustomInput";
 import CustomDropdown from "../Inputs/CustomDropdown";
 import CustomDivider from "../Divider/CustomDivider";
-import { TextareaAutosize, Typography, IconButton, Box } from "@mui/material";
+import { Typography, IconButton, Box } from "@mui/material";
 import CustomCheckbox from "../Inputs/CustomCheckbox";
 import { CheckBoxDataType, RadioListDataType } from "../../interface/types";
 import PrimaryButton from "../Buttons/PrimaryButton";
 import { FormDataContext } from "../../contexts/FormDataProvider";
-import { DateTimePicker } from "@mui/x-date-pickers";
+import { DateTimePicker, DatePicker } from "@mui/x-date-pickers";
 import CustomRadiolist from "../Inputs/CustomRadiolist";
 import dayjs from "dayjs";
 // import DownloadIcon from "@mui/icons-material/Download";
@@ -47,6 +47,7 @@ export interface FormGenTemplateProps {
     | "component"
     | "fieldRepeater"
     | "datetime"
+    | "date"
     | "ganttTable";
   message?: string;
   icon?: ReactNode;
@@ -75,6 +76,8 @@ export interface FormGenTemplateProps {
   initialData?: { [rowIndex: string]: { [colKey: string]: string } };
   /** For type "file": accepted file types (e.g. ".pdf,.doc,.docx") */
   accept?: string;
+  /** For type "text": passed to the native input (e.g. maxLength, inputMode) */
+  inputProps?: Record<string, unknown>;
 }
 
 interface TitleTextProps {
@@ -553,7 +556,9 @@ const FormGeneratorTemplate = ({
                     label="View Uploaded File"
                     startIcon={<RemoveRedEyeIcon />}
                     onClick={() => {
-                      const raw = String(formData[value.id]);
+                      const id = value.id;
+                      if (id == null) return;
+                      const raw = String(formData[id]);
                       
                       // Check if it's a Cloudinary URL or other full URL
                       const isFullUrl = raw.startsWith("http://") || raw.startsWith("https://");
@@ -644,6 +649,7 @@ const FormGeneratorTemplate = ({
                   endIcon={value.endIcon}
                   value={currentValue ?? ""}
                   error={value.id ? fieldErrors.includes(value.id) : false}
+                  inputProps={value.inputProps}
                   onChange={(event: any) => {
                     // For FieldRepeater children, the repeater manages nested formData updates.
                     if (enableAutoFieldCheck && value.id && !value.fromFieldRepeater) {
@@ -987,6 +993,9 @@ const FormGeneratorTemplate = ({
                             : "",
                       },
                     },
+                    popper: {
+                      sx: { zIndex: 10001 },
+                    },
                   }}
                   // sx={{ flex: value.flex }}
                   onChange={(val) => {
@@ -995,6 +1004,54 @@ const FormGeneratorTemplate = ({
                         [value.id]: val.toDate().getTime(),
                       });
                       value.onUse && value.onUse(event);
+                      return;
+                    }
+                    value.onUse && value.onUse(val);
+                  }}
+                />
+              </InputQuestionWrapper>
+            );
+
+          if (value.type === "date")
+            return (
+              <InputQuestionWrapper
+                key={`date-${index}`}
+                message={value.message}
+                flex={value.flex}
+                required={value.required}
+              >
+                <DatePicker
+                  value={
+                    value.id
+                      ? dayjs(formData[value.id]).isValid()
+                        ? formData[value.id]
+                          ? dayjs(formData[value.id])
+                          : undefined
+                        : value.value ?? undefined
+                      : undefined
+                  }
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      size: "small",
+                      sx: {
+                        borderRadius: "10px",
+                        border:
+                          value.id && fieldErrors.includes(value.id)
+                            ? "1px solid red"
+                            : "",
+                      },
+                    },
+                    popper: {
+                      sx: { zIndex: 10001 },
+                    },
+                  }}
+                  onChange={(val) => {
+                    if (val && enableAutoFieldCheck && value.id) {
+                      immutableSetFormData({
+                        [value.id]: val.toDate().getTime(),
+                      });
+                      value.onUse && value.onUse(val);
                       return;
                     }
                     value.onUse && value.onUse(val);

@@ -1,7 +1,6 @@
 import { MembershipAppFormProps } from "../../interface/props";
 import PrimaryButton from "../Buttons/PrimaryButton";
 import FlexBox from "../FlexBox";
-import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import PopupModal from "../Modal/PopupModal";
 import SendIcon from "@mui/icons-material/Send";
 import EmailIcon from "@mui/icons-material/Email";
@@ -13,6 +12,7 @@ import CloseIcon from "@mui/icons-material/Close";
 
 import { IconButton } from "@mui/material";
 import { useContext, useEffect, useState } from "react";
+import dayjs from "dayjs";
 import FormGeneratorTemplate from "./FormGeneratorTemplate";
 import { register } from "../../api/auth";
 import { FormDataContext } from "../../contexts/FormDataProvider";
@@ -122,7 +122,11 @@ const MembershipAppForm: React.FC<MembershipAppFormProps> = ({
     }
 
     try {
-      await register(formData);
+      const payload = { ...formData };
+      if (typeof payload.birthday === "number" && payload.birthday) {
+        payload.birthday = dayjs(payload.birthday).format("MMMM D, YYYY");
+      }
+      await register(payload);
       showSnackbarMessage("Successfully registered new member!", "success");
       setOpen && setOpen(false);
       onSubmit && onSubmit();
@@ -495,9 +499,8 @@ const MembershipAppForm: React.FC<MembershipAppFormProps> = ({
                     id: "birthday",
                     flex: 5,
                     required: true,
-                    type: "text",
+                    type: "date",
                     message: "Birth Date (Example: January 7, 2023)",
-                    icon: <CalendarMonthIcon />,
                   },
                   {
                     id: "age",

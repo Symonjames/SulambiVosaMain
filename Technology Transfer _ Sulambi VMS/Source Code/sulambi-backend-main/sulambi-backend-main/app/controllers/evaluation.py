@@ -496,7 +496,19 @@ def submitBeneficiaryEvaluation():
         "error": "This event does not have a beneficiary PIN set. Contact the event organizer."
       }, 400
     submitted_pin = (request.json.get("pin") or "").strip()
-    if not submitted_pin or submitted_pin != event_required_pin:
+    if not submitted_pin:
+      return {
+        "message": "Event PIN is required",
+        "success": False,
+        "error": "Please enter the 5-digit event PIN to submit beneficiary feedback."
+      }, 400
+    if len(submitted_pin) != 5 or not submitted_pin.isdigit():
+      return {
+        "message": "Invalid PIN format",
+        "success": False,
+        "error": "Event PIN must be exactly 5 digits (numbers only)."
+      }, 400
+    if submitted_pin != event_required_pin:
       return {
         "message": "Invalid or missing event PIN",
         "success": False,

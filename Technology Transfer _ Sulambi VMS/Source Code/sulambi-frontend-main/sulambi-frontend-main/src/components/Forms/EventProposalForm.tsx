@@ -325,7 +325,13 @@ const EventProposalForm: React.FC<Props> = ({
         id: "beneficiaryEvaluationPin",
         type: "text",
         required: true,
-        message: "Beneficiary evaluation PIN (required). This event has one PIN; all beneficiaries use it to submit feedback for this event.",
+        message: "Beneficiary evaluation PIN (required). Exactly 5 digits. All beneficiaries use this PIN to submit feedback for this event.",
+        placeholder: "5 digits",
+        inputProps: { maxLength: 5, inputMode: "numeric" as const },
+        onUse: (e: { target: { value: string } }) => {
+          const v = (e.target.value || "").replace(/\D/g, "").slice(0, 5);
+          if (v !== e.target.value) immutableSetFormData({ beneficiaryEvaluationPin: v });
+        },
       },
     ],
     [
@@ -559,7 +565,13 @@ const EventProposalForm: React.FC<Props> = ({
         id: "beneficiaryEvaluationPin",
         type: "text",
         required: true,
-        message: "Beneficiary evaluation PIN (required). This event has one PIN; all beneficiaries use it to submit feedback for this event.",
+        message: "Beneficiary evaluation PIN (required). Exactly 5 digits. All beneficiaries use this PIN to submit feedback for this event.",
+        placeholder: "5 digits",
+        inputProps: { maxLength: 5, inputMode: "numeric" as const },
+        onUse: (e: { target: { value: string } }) => {
+          const v = (e.target.value || "").replace(/\D/g, "").slice(0, 5);
+          if (v !== e.target.value) immutableSetFormData({ beneficiaryEvaluationPin: v });
+        },
       },
     ],
     [

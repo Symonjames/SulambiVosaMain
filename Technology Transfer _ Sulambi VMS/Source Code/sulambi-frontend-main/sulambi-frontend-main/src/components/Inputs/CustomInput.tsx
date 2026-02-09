@@ -12,6 +12,7 @@ const CustomInput: React.FC<CustomInputProps> = (props) => {
       value={props.value}
       inputProps={{
         multiple: isMultiUpload,
+        ...(textFieldProps.inputProps || {}),
       }}
       slotProps={
         startIcon

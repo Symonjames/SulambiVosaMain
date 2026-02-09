@@ -8,9 +8,11 @@ interface Props {
   open: boolean;
   setOpen?: (state: boolean) => void;
   onDecline?: () => void;
+  /** Called when user clicks "I Agree"; use to e.g. open the membership form */
+  onAgree?: () => void;
 }
 
-const DataPrivacy: React.FC<Props> = ({ open, onDecline, setOpen }) => {
+const DataPrivacy: React.FC<Props> = ({ open, onDecline, setOpen, onAgree }) => {
   return (
     <PopupModal
       hideCloseButton
@@ -18,7 +20,7 @@ const DataPrivacy: React.FC<Props> = ({ open, onDecline, setOpen }) => {
       setOpen={setOpen}
       header="Event Details"
       maxWidth="40vw"
-      zval={10}
+      zval={9999}
     >
       <Typography>
         By using this system, you agree to the collection and use of your
@@ -47,6 +49,7 @@ const DataPrivacy: React.FC<Props> = ({ open, onDecline, setOpen }) => {
           label="I Agree"
           onClick={() => {
             setOpen && setOpen(false);
+            onAgree && onAgree();
           }}
         />
         <PrimaryButton

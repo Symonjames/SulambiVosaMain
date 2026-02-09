@@ -43,6 +43,8 @@ const Landing = () => {
   const [openConfirm, setOpenConfirm] = useState(false);
   const [eventType, setEventType] = useState<"external" | "internal">("external");
   const [selectedEventId, setSelectedEventId] = useState<number | undefined>(undefined);
+  /** When true, DataPrivacy "I Agree" should open the join-event confirm modal instead of membership form */
+  const [pendingJoinAfterPrivacy, setPendingJoinAfterPrivacy] = useState(false);
 
   const isMobile = useMediaQuery({
     query: "(max-width: 600px)",
@@ -61,7 +63,8 @@ const Landing = () => {
     return () => {
       setSelectedEventId(eventData.id);
       setEventType(eventData.eventTypeIndicator === "internal" ? "internal" : "external");
-      setOpenConfirm(true);
+      setPendingJoinAfterPrivacy(true);
+      setOpenDataPrivacy(true);
     };
   };
 
@@ -99,7 +102,24 @@ const Landing = () => {
           setOpenRequirementForm(true);
         }}
       />
-      <DataPrivacy open={openDataPrivacy} setOpen={setOpenDataPrivacy} />
+      <DataPrivacy
+        open={openDataPrivacy}
+        setOpen={(state) => {
+          if (!state) setPendingJoinAfterPrivacy(false);
+          setOpenDataPrivacy(state);
+        }}
+        onDecline={() => {
+          if (pendingJoinAfterPrivacy) setSelectedEventId(undefined);
+        }}
+        onAgree={() => {
+          if (pendingJoinAfterPrivacy) {
+            setPendingJoinAfterPrivacy(false);
+            setOpenConfirm(true);
+          } else {
+            setOpenVolunteerForm(true);
+          }
+        }}
+      />
       {selectedEventId && (
         <>
           <RequirementForm
@@ -121,7 +141,6 @@ const Landing = () => {
         onAccept={() => {
           setFormData({});
           setOpenConfirm(false);
-          setOpenDataPrivacy(true);
           setOpenRequirementForm(true);
         }}
         onCancel={() => {
@@ -130,8 +149,11 @@ const Landing = () => {
       />
       <LandingHeader
         setOpenMembership={(state) => {
-          setOpenDataPrivacy(true);
-          setOpenVolunteerForm(state);
+          if (state) {
+            setOpenDataPrivacy(true);
+          } else {
+            setOpenVolunteerForm(false);
+          }
         }}
       />
       <Box

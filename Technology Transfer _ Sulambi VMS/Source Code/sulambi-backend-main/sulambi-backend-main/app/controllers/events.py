@@ -23,6 +23,15 @@ SignatoriesDb = SignatoriesModel()
 EvaluationDb = EvaluationModel()
 AccountDb = AccountModel()
 
+def _validate_beneficiary_pin(pin_val):
+  """Validate beneficiary evaluation PIN: exactly 5 digits, numbers only. Returns (ok, message_or_pin)."""
+  pin_val = (pin_val or "").strip()
+  if not pin_val:
+    return False, "Beneficiary evaluation PIN is required. Every event has one PIN that all beneficiaries use to submit feedback for this event."
+  if len(pin_val) != 5 or not pin_val.isdigit():
+    return False, "Beneficiary evaluation PIN must be exactly 5 digits (numbers only)."
+  return True, pin_val
+
 def getAll():
   try:
     # manual mapping of user details
@@ -403,11 +412,11 @@ def createExternalEvent():
         "missingFields": missing_fields
       }, 400)
 
-    beneficiary_pin = (request.json.get("beneficiaryEvaluationPin") or "").strip()
-    if not beneficiary_pin:
-      return ({
-        "message": "Beneficiary evaluation PIN is required. Every event has one PIN that all beneficiaries use to submit feedback for this event."
-      }, 400)
+    beneficiary_pin_raw = (request.json.get("beneficiaryEvaluationPin") or "").strip()
+    ok, beneficiary_pin_result = _validate_beneficiary_pin(beneficiary_pin_raw)
+    if not ok:
+      return ({"message": beneficiary_pin_result}, 400)
+    beneficiary_pin = beneficiary_pin_result
 
     print("[CREATE_EXTERNAL_EVENT] Creating external event...")
     print(f"[CREATE_EXTERNAL_EVENT] Event data - title: {request.json.get('title')}, location: {request.json.get('location')}")
@@ -511,11 +520,11 @@ def createInternalEvent():
         "missingFields": missing_fields
       }, 400)
 
-    beneficiary_pin = (request.json.get("beneficiaryEvaluationPin") or "").strip()
-    if not beneficiary_pin:
-      return ({
-        "message": "Beneficiary evaluation PIN is required. Every event has one PIN that all beneficiaries use to submit feedback for this event."
-      }, 400)
+    beneficiary_pin_raw = (request.json.get("beneficiaryEvaluationPin") or "").strip()
+    ok, beneficiary_pin_result = _validate_beneficiary_pin(beneficiary_pin_raw)
+    if not ok:
+      return ({"message": beneficiary_pin_result}, 400)
+    beneficiary_pin = beneficiary_pin_result
 
     print("[CREATE_INTERNAL_EVENT] Creating internal event...")
     print(f"[CREATE_INTERNAL_EVENT] Event data - title: {request.json.get('title')}, venue: {request.json.get('venue')}")
@@ -744,11 +753,11 @@ def updateEvent(id, eventType: str):
           # Use current time if not set
           createdAt = datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
 
-        beneficiaryEvaluationPin = (request.json.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
-        if not beneficiaryEvaluationPin:
-          return ({
-            "message": "Beneficiary evaluation PIN is required. Every event has one PIN that all beneficiaries use to submit feedback for this event."
-          }, 400)
+        beneficiary_pin_raw = (request.json.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
+        ok, beneficiary_pin_result = _validate_beneficiary_pin(beneficiary_pin_raw)
+        if not ok:
+          return ({"message": beneficiary_pin_result}, 400)
+        beneficiaryEvaluationPin = beneficiary_pin_result
 
         updatedEvent = InternalEventDb.update(id, (
           title,
@@ -797,11 +806,11 @@ def updateEvent(id, eventType: str):
       "message": "External Event provided does not exist"
     }, 404)
 
-    ext_beneficiary_pin = (request.json.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
-    if not ext_beneficiary_pin:
-      return ({
-        "message": "Beneficiary evaluation PIN is required. Every event has one PIN that all beneficiaries use to submit feedback for this event."
-      }, 400)
+    ext_beneficiary_pin_raw = (request.json.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
+    ok, ext_beneficiary_pin_result = _validate_beneficiary_pin(ext_beneficiary_pin_raw)
+    if not ok:
+      return ({"message": ext_beneficiary_pin_result}, 400)
+    ext_beneficiary_pin = ext_beneficiary_pin_result
 
     print("created at", matchedEvent.get("createdAt"))
 

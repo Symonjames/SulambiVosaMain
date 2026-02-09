@@ -284,15 +284,16 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
             Event PIN
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            This event requires the PIN that was shared at the event to submit your feedback.
+            This event requires the 5-digit PIN that was shared at the event to submit your feedback.
           </Typography>
           <CustomInput
-            label="Enter event PIN"
+            label="Enter event PIN (5 digits)"
             value={eventPin}
-            onChange={(e) => setEventPin(e.target.value)}
+            onChange={(e) => setEventPin((e.target.value || "").replace(/\D/g, "").slice(0, 5))}
             size="small"
             fullWidth
-            placeholder="Enter the PIN from the event"
+            placeholder="5 digits"
+            inputProps={{ maxLength: 5, inputMode: "numeric" }}
           />
         </Box>
       )}
