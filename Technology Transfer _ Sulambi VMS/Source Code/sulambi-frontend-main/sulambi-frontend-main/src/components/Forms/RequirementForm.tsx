@@ -8,6 +8,7 @@ import { FormDataContext } from "../../contexts/FormDataProvider";
 import { uploadRequirements } from "../../api/requirements";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
 import { MembershipType } from "../../interface/types";
+import dayjs from "dayjs";
 
 interface Props {
   open: boolean;
@@ -31,7 +32,7 @@ const RequirementForm: React.FC<Props> = ({
   const [forceRefresh, setForceRefresh] = useState(0);
   const [fieldErrors, setFieldErrors] = useState<string[]>([]);
 
-  const { formData, setFormData } = useContext(FormDataContext);
+  const { formData, setFormData, immutableSetFormData } = useContext(FormDataContext);
   const { showSnackbarMessage } = useContext(SnackbarContext);
 
   const submitCallback = () => {
@@ -64,21 +65,28 @@ const RequirementForm: React.FC<Props> = ({
     const email = formData.email ?? member.email;
     const srcode = formData.srcode ?? member.srcode;
     const age = formData.age ?? member.age;
-    const birthday = formData.birthday ?? member.birthday;
+    let birthday = formData.birthday ?? member.birthday;
+    if (typeof birthday === "number" && birthday) birthday = dayjs(birthday).format("MMMM D, YYYY");
     const sex = formData.sex ?? member.sex;
+    const campus = formData.campus ?? member.campus;
+    const collegeDept = formData.collegeDept ?? member.collegeDept;
+    const yrlevelprogram = formData.yrlevelprogram ?? member.yrlevelprogram;
+    const address = formData.address ?? member.address;
+    const contactNum = formData.contactNum ?? member.contactNum;
+    const fblink = formData.fblink ?? member.fblink;
     if (fullname) formUploadable.append("fullname", String(fullname));
     if (email) formUploadable.append("email", String(email));
     if (srcode) formUploadable.append("srcode", String(srcode));
     if (age !== undefined && age !== "") formUploadable.append("age", String(age));
     if (birthday) formUploadable.append("birthday", String(birthday));
     if (sex) formUploadable.append("sex", String(sex));
+    if (campus) formUploadable.append("campus", String(campus));
+    if (collegeDept) formUploadable.append("collegeDept", String(collegeDept));
+    if (yrlevelprogram) formUploadable.append("yrlevelprogram", String(yrlevelprogram));
+    if (address) formUploadable.append("address", String(address));
+    if (contactNum) formUploadable.append("contactNum", String(contactNum));
+    if (fblink) formUploadable.append("fblink", String(fblink));
     try {
-      if (member.campus) formUploadable.append("campus", String(member.campus));
-      if (member.collegeDept) formUploadable.append("collegeDept", String(member.collegeDept));
-      if (member.yrlevelprogram) formUploadable.append("yrlevelprogram", String(member.yrlevelprogram));
-      if (member.address) formUploadable.append("address", String(member.address));
-      if (member.contactNum) formUploadable.append("contactNum", String(member.contactNum));
-      if (member.fblink) formUploadable.append("fblink", String(member.fblink));
       if ((member as any).affiliation) formUploadable.append("affiliation", String((member as any).affiliation));
     } catch (_) {}
 
@@ -119,14 +127,35 @@ const RequirementForm: React.FC<Props> = ({
       });
   };
 
-  // Reset form when modal opens
+  // Reset form when modal opens; pre-fill personal details from membership cache when available
   useEffect(() => {
     setForceRefresh(forceRefresh + 1);
     if (open) {
       afterOpen && afterOpen();
       setFieldErrors([]);
-      // Clear formData only when uploading (viewOnly needs the passed-in record to view uploaded files)
-      if (!viewOnly && !preventLoadingCache) {
+      if (viewOnly) return;
+      if (preventLoadingCache) {
+        try {
+          const cache = localStorage.getItem("membershipCache");
+          if (cache) {
+            const member = JSON.parse(cache) as Partial<MembershipType>;
+            const prefill: Record<string, unknown> = {};
+            if (member.fullname != null) prefill.fullname = member.fullname;
+            if (member.email != null) prefill.email = member.email;
+            if (member.srcode != null) prefill.srcode = member.srcode;
+            if (member.birthday != null) prefill.birthday = member.birthday;
+            if (member.age != null) prefill.age = member.age;
+            if (member.sex != null) prefill.sex = member.sex;
+            if (member.campus != null) prefill.campus = member.campus;
+            if (member.collegeDept != null) prefill.collegeDept = member.collegeDept;
+            if (member.yrlevelprogram != null) prefill.yrlevelprogram = member.yrlevelprogram;
+            if (member.address != null) prefill.address = member.address;
+            if (member.contactNum != null) prefill.contactNum = member.contactNum;
+            if (member.fblink != null) prefill.fblink = member.fblink;
+            if (Object.keys(prefill).length > 0) immutableSetFormData(prefill);
+          }
+        } catch (_) {}
+      } else {
         setFormData({});
       }
     }
@@ -153,6 +182,47 @@ const RequirementForm: React.FC<Props> = ({
             forceRefresh={forceRefresh}
             fieldErrors={fieldErrors}
             template={[
+              { type: "section", message: "Personal Details" },
+              [{ id: "fullname", type: "text", required: true, message: "Full Name" }],
+              [
+                { id: "email", type: "text", required: true, message: "GSuite Email" },
+                { id: "srcode", type: "text", required: true, message: "SR-Code" },
+              ],
+              [
+                { id: "birthday", type: "date", required: true, message: "Birth Date" },
+                {
+                  id: "age",
+                  type: "number",
+                  required: true,
+                  message: "Age",
+                  onUse: (e: any) => {
+                    const raw = String(e?.target?.value ?? "").replace(/\D+/g, "").slice(0, 2);
+                    if (raw !== (e?.target?.value ?? "")) immutableSetFormData({ age: raw });
+                  },
+                },
+                {
+                  id: "sex",
+                  type: "dropdown",
+                  required: true,
+                  message: "Sex",
+                  menu: [
+                    { key: "Male", value: "male" },
+                    { key: "Female", value: "female" },
+                  ],
+                },
+              ],
+              [
+                { id: "campus", type: "text", required: true, message: "Campus" },
+                { id: "collegeDept", type: "text", required: true, message: "College Department" },
+              ],
+              [
+                { id: "yrlevelprogram", type: "text", required: true, message: "Year Level & Program" },
+                { id: "address", type: "text", required: true, message: "Address" },
+              ],
+              [
+                { id: "contactNum", type: "text", required: true, message: "Contact Number" },
+                { id: "fblink", type: "text", message: "Facebook Link" },
+              ],
               { type: "section", message: "Documents" },
               [
                 {

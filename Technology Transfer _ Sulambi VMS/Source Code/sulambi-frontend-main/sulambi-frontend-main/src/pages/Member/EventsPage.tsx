@@ -1,4 +1,5 @@
-import { Box, Typography, CircularProgress, Alert } from "@mui/material";
+import { Box, Typography, CircularProgress, Alert, Button } from "@mui/material";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { useEffect, useState, useContext } from "react";
 import TextHeader from "../../components/Headers/TextHeader";
 import TextSubHeader from "../../components/Headers/TextSubHeader";
@@ -29,12 +30,12 @@ const EventsPage = () => {
     query: "(max-width: 600px)",
   });
 
-  // Use cached fetch - data persists when navigating away and coming back!
-  const { data: eventsResponse, loading, error } = useCachedFetch({
-    cacheKey: 'events_all',
+  // Member-specific cache key and short TTL so newly approved events show up soon.
+  const { data: eventsResponse, loading, error, refetch } = useCachedFetch({
+    cacheKey: 'member_events',
     fetchFn: () => getAllEvents(),
-    cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
-    useMemoryCache: true, // Fast memory cache for navigation
+    cacheTime: CACHE_TIMES.SHORT, // 30 seconds so new/approved events appear quickly
+    useMemoryCache: true,
   });
 
   // Fetch current member's joined events (eventId + type) to show "Joined" and disable button
@@ -117,10 +118,23 @@ const EventsPage = () => {
         />
       )}
       
-      <TextHeader>Events</TextHeader>
-      <TextSubHeader gutterBottom>
-        View and participate in exclusive member events.
-      </TextSubHeader>
+      <FlexBox justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} sx={{ mb: 1 }}>
+        <Box>
+          <TextHeader>Events</TextHeader>
+          <TextSubHeader gutterBottom>
+            View and participate in exclusive member events. You see all approved events here (even if not on the homepage).
+          </TextSubHeader>
+        </Box>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<RefreshIcon />}
+          onClick={() => refetch()}
+          disabled={loading}
+        >
+          Refresh
+        </Button>
+      </FlexBox>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -149,7 +163,7 @@ const EventsPage = () => {
               No events are available at the moment.
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              Please check back soon for upcoming activities.
+              Approved events (including those not yet on the homepage) appear here. Try &quot;Refresh&quot; to load the latest list.
             </Typography>
           </Box>
         </FlexBox>

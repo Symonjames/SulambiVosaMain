@@ -8,6 +8,7 @@ import {
   getAllRequirements,
   rejectRequirement,
 } from "../../api/requirements";
+import { getAllEvents } from "../../api/events";
 import { RequirementsDataType } from "../../interface/types";
 import Chip from "../../components/Chips/Chip";
 import MenuButtonTemplate from "../../components/Menu/MenuButtonTemplate";
@@ -34,6 +35,9 @@ const RequirementEvalPage = () => {
   const [tableData, setTableData] = useState<any[]>([]);
   const [forceRefresh, setForceRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
+  /** Filter by event: null = all events; otherwise { id, type, title } */
+  const [eventFilter, setEventFilter] = useState<{ id: number; type: string; title: string } | null>(null);
+  const [eventsList, setEventsList] = useState<{ id: number; type: string; title: string }[]>([]);
 
   const [selectedFormData, setSelectedFormData] = useState<any>({});
   const [viewFormData, setViewFormData] = useState(false);
@@ -69,6 +73,27 @@ const RequirementEvalPage = () => {
 
     return () => clearTimeout(timer);
   }, [searchVal]);
+
+  // Load events for "Filter by event" dropdown (accepted so they can have members)
+  useEffect(() => {
+    getAllEvents()
+      .then((res) => {
+        const events: typeof eventsList = [];
+        const list = res?.data?.events ?? [];
+        for (const e of list) {
+          const status = (e?.status ?? "").toString().toLowerCase();
+          if (status === "accepted" && e?.id != null && e?.title != null) {
+            events.push({
+              id: Number(e.id),
+              type: (e?.eventTypeIndicator ?? e?.type ?? "external").toString(),
+              title: String(e.title),
+            });
+          }
+        }
+        setEventsList(events);
+      })
+      .catch(() => setEventsList([]));
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -219,10 +244,19 @@ const RequirementEvalPage = () => {
             // Show specific status (0 = rejected, 1 = approved)
             return req.accepted === searchStatus;
           });
+
+      const afterEventFilter = eventFilter
+        ? afterStatusFilter.filter((req) => {
+            const reqId = req.eventId != null && typeof req.eventId === "object" ? req.eventId.id : req.eventId;
+            const reqType = (req.type ?? "external").toString();
+            return Number(reqId) === eventFilter.id && reqType === eventFilter.type;
+          })
+        : afterStatusFilter;
       
       console.log("After status filter:", afterStatusFilter.length, "requirements");
+      if (eventFilter) console.log("After event filter:", afterEventFilter.length, "requirements for", eventFilter.title);
 
-      const filteredAndMappedData = afterStatusFilter
+      const filteredAndMappedData = afterEventFilter
           .map((req) => [
             req.eventId?.title || "Unknown Event",
             req.fullname || "N/A",
@@ -387,9 +421,33 @@ const RequirementEvalPage = () => {
         setTableData([]);
         setLoading(false);
       });
-  }, [forceRefresh, debouncedSearchVal, searchStatus, showSnackbarMessage, setFormData]);
+  }, [forceRefresh, debouncedSearchVal, searchStatus, eventFilter, showSnackbarMessage, setFormData]);
 
   const ModRightComponents = [
+    <CustomDropdown
+      key={`filter-event-${eventFilter ? `${eventFilter.id}-${eventFilter.type}` : "all"}`}
+      label="Filter by event"
+      width="220px"
+      initialValue={eventFilter ? `${eventFilter.id}-${eventFilter.type}` : ""}
+      menu={[
+        { key: "All events", value: "" },
+        ...eventsList.map((e) => ({
+          key: e.title,
+          value: `${e.id}-${e.type}`,
+        })),
+      ]}
+      onChange={(e) => {
+        const val = e.target.value;
+        if (!val) {
+          setEventFilter(null);
+          return;
+        }
+        const [idStr, type] = val.split("-");
+        const id = parseInt(idStr, 10);
+        const ev = eventsList.find((x) => x.id === id && x.type === type);
+        setEventFilter(ev ?? null);
+      }}
+    />,
     <CustomDropdown
       key="filter-status-dropdown"
       label="Filter Status"
@@ -436,12 +494,14 @@ const RequirementEvalPage = () => {
             color: "var(--text-landing, #666)"
           }}>
             <Typography variant="h6" style={{ marginBottom: "10px" }}>
-              No requirements found
+              {eventFilter ? `No members for "${eventFilter.title}"` : "No requirements found"}
             </Typography>
             <Typography variant="body2" style={{ marginBottom: "20px" }}>
-              {debouncedSearchVal || searchStatus !== 3
-                ? "Try adjusting your search or filter criteria"
-                : "No requirements have been submitted yet"}
+              {eventFilter
+                ? "No members have joined this event yet. Members with accounts can see and join all approved events from their Events page (even if not on homepage). Use \"Show on homepage\" to also list the event on the public homepage."
+                : debouncedSearchVal || searchStatus !== 3
+                  ? "Try adjusting your search or filter criteria"
+                  : "Members appear here after they join events. Members with accounts see all approved events on their Events page. \"Show on homepage\" only controls whether the event appears on the public homepage for visitors."}
             </Typography>
             {debouncedSearchVal && (
               <Typography variant="caption" style={{ 

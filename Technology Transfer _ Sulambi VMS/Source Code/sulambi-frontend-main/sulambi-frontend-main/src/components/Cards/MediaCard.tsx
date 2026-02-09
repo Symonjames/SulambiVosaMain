@@ -77,7 +77,7 @@ const MediaCard: React.FC<MediaCardProps> = ({
         <FlexBox justifyContent="flex-end" width="100%" gap="10px">
           {onVolunteer && (
             <CustomButton
-              label={joined ? "Joined" : "Join"}
+              label={joined ? "Joined" : "Volunteer"}
               variant="contained"
               disableElevation
               disabled={joined}

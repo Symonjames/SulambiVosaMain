@@ -50,6 +50,7 @@ def getAll():
       externalEvents = [event for event in externalEvents if event.get("status") != "editing"]
       internalEvents = [event for event in internalEvents if event.get("status") != "editing"]
 
+    # Members see all accepted, not-ended events (including not-yet-public). Only homepage uses toPublic.
     if (accountSessionInfo.get("accountType") == "member"):
       timeNow = int(datetime.now().timestamp() * 1000)
       externalEvents = [event for event in externalEvents if event.get("status") == "accepted" and event.get("durationEnd", 0) - timeNow > 0]
@@ -248,13 +249,14 @@ def getOne(id: int, eventType: str):
     }, 500)
 
 def getPublicEvents():
-  # Public route - no authentication required
-  # Get all events that are approved (status == "accepted")
+  # Public route - no authentication required. Used for the homepage only.
+  # Only events with toPublic=True are shown here. Logged-in members see all approved
+  # events (including non-public) on their Events page via getAll().
   allExternalEvents = ExternalEventDb.getAll()
   allInternalEvents = InternalEventDb.getAll()
   
-  # Homepage: only public events that are not yet finished (durationEnd > now).
-  # Non-participants join from here; finished events are hidden.
+  # Homepage: only events marked "For public" and not yet finished (durationEnd > now).
+  # Members with accounts see all approved events on their Events page even if not public.
   time_now_ms = int(datetime.now().timestamp() * 1000)
   externalEvents = []
   for event in allExternalEvents:

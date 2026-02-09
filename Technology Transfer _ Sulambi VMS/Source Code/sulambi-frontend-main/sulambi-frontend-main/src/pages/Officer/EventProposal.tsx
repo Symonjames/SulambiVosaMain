@@ -95,8 +95,8 @@ const EventProposal = () => {
   };
 
   const publicChipMap = {
-    0: <Chip bgcolor="blue" label="not for public" color="white" />,
-    1: <Chip bgcolor="#2f7a00" label="for public" color="white" />,
+    0: <Chip bgcolor="blue" label="not public" color="white" />,
+    1: <Chip bgcolor="#2f7a00" label="public" color="white" />,
   };
 
   const submitExternalOnClick = async (eventId: any) => {
@@ -128,10 +128,10 @@ const EventProposal = () => {
       } else {
         await publicizeInternalEvent(selectedFormData.id);
       }
-      showSnackbarMessage("Successfully made the event to public", "success");
+      showSnackbarMessage("Event is now shown on the homepage", "success");
     } catch {
       showSnackbarMessage(
-        "An Error Occured while making this event available to public"
+        "An error occurred while showing the event on the homepage"
       );
     } finally {
       setRefreshTable(refreshTable + 1);
@@ -232,7 +232,7 @@ const EventProposal = () => {
                     ...(eventdata.status === "accepted" && !eventdata.toPublic
                       ? [
                           {
-                            label: "Make Public",
+                            label: "Show on homepage",
                             icon: <PublicIcon />,
                             onClick: async () => {
                               try {
@@ -241,10 +241,10 @@ const EventProposal = () => {
                                 } else {
                                   await publicizeExternalEvent(eventdata.id);
                                 }
-                                showSnackbarMessage("Successfully made the event public", "success");
+                                showSnackbarMessage("Event is now shown on the homepage", "success");
                                 setRefreshTable((r) => r + 1);
                               } catch {
-                                showSnackbarMessage("An error occurred while making this event public", "error");
+                                showSnackbarMessage("An error occurred while showing the event on the homepage", "error");
                                 setRefreshTable((r) => r + 1);
                               }
                             },
@@ -508,7 +508,7 @@ const EventProposal = () => {
             selectedFormData.status === "accepted" &&
             !selectedFormData.toPublic ? (
               <PrimaryButton
-                label="Make Public"
+                label="Show on homepage"
                 startIcon={<PublicIcon />}
                 onClick={makePublicOnClick}
               />

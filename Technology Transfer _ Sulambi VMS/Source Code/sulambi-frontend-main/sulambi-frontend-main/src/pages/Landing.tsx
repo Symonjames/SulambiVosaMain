@@ -37,6 +37,7 @@ const Landing = () => {
   const [publicEvents, setPublicEvents] = useState<any[]>([]);
 
   const [openDataPrivacy, setOpenDataPrivacy] = useState(false);
+  const [openApplyMembershipModal, setOpenApplyMembershipModal] = useState(false);
   const [openPreview, setOpenPreview] = useState(false);
   const [previewData, setPreviewData] = useState<any>({});
 
@@ -64,7 +65,7 @@ const Landing = () => {
       setSelectedEventId(eventData.id);
       setEventType(eventData.eventTypeIndicator === "internal" ? "internal" : "external");
       setPendingJoinAfterPrivacy(true);
-      setOpenDataPrivacy(true);
+      setOpenConfirm(true);
     };
   };
 
@@ -114,7 +115,7 @@ const Landing = () => {
         onAgree={() => {
           if (pendingJoinAfterPrivacy) {
             setPendingJoinAfterPrivacy(false);
-            setOpenConfirm(true);
+            setOpenRequirementForm(true);
           } else {
             setOpenVolunteerForm(true);
           }
@@ -136,21 +137,37 @@ const Landing = () => {
       )}
       <ConfirmModal
         message="Submit requirements to join this event?"
+        acceptText="Yes"
+        declineText="Maybe Later"
         open={openConfirm}
         setOpen={setOpenConfirm}
         onAccept={() => {
+          setOpenConfirm(false);
+          setOpenDataPrivacy(true);
+        }}
+        onCancel={() => {
           setFormData({});
           setOpenConfirm(false);
           setOpenRequirementForm(true);
         }}
-        onCancel={() => {
-          setOpenConfirm(false);
+      />
+      <ConfirmModal
+        message="Would you like to apply for membership?"
+        title="Apply for membership"
+        acceptText="Yes"
+        declineText="Maybe Later"
+        open={openApplyMembershipModal}
+        setOpen={setOpenApplyMembershipModal}
+        onAccept={() => {
+          setOpenApplyMembershipModal(false);
+          setOpenDataPrivacy(true);
         }}
+        onCancel={() => setOpenApplyMembershipModal(false)}
       />
       <LandingHeader
         setOpenMembership={(state) => {
           if (state) {
-            setOpenDataPrivacy(true);
+            setOpenApplyMembershipModal(true);
           } else {
             setOpenVolunteerForm(false);
           }
