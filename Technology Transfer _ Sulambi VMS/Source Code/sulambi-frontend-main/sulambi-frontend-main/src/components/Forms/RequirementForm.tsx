@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import PrimaryButton from "../Buttons/PrimaryButton";
 import FlexBox from "../FlexBox";
 import PopupModal from "../Modal/PopupModal";
-import FormGeneratorTemplate from "./FormGeneratorTemplate";
+import FormGeneratorTemplate, { FormGenTemplateProps } from "./FormGeneratorTemplate";
 import SendIcon from "@mui/icons-material/Send";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import { uploadRequirements } from "../../api/requirements";
@@ -16,6 +16,8 @@ interface Props {
   eventType: "external" | "internal";
   viewOnly?: boolean;
   preventLoadingCache?: boolean;
+  /** When true (e.g. homepage public event join): hide Personal Details, use short subHeader */
+  forPublicEventJoin?: boolean;
   setOpen?: (state: boolean) => void;
   afterOpen?: () => void;
 }
@@ -26,6 +28,7 @@ const RequirementForm: React.FC<Props> = ({
   eventType,
   viewOnly,
   preventLoadingCache,
+  forPublicEventJoin,
   setOpen,
   afterOpen,
 }) => {
@@ -164,7 +167,7 @@ const RequirementForm: React.FC<Props> = ({
   return (
     <PopupModal
       header="Requirement Form"
-      subHeader="Kindly fill up the information needed below"
+      subHeader={forPublicEventJoin ? "Upload the required documents for this event." : "Kindly fill up the information needed below"}
       open={open}
       setOpen={setOpen}
     >
@@ -181,49 +184,53 @@ const RequirementForm: React.FC<Props> = ({
             viewOnly={viewOnly}
             forceRefresh={forceRefresh}
             fieldErrors={fieldErrors}
-            template={[
-              { type: "section", message: "Personal Details" },
-              [{ id: "fullname", type: "text", required: true, message: "Full Name" }],
-              [
-                { id: "email", type: "text", required: true, message: "GSuite Email" },
-                { id: "srcode", type: "text", required: true, message: "SR-Code" },
-              ],
-              [
-                { id: "birthday", type: "date", required: true, message: "Birth Date" },
-                {
-                  id: "age",
-                  type: "number",
-                  required: true,
-                  message: "Age",
-                  onUse: (e: any) => {
-                    const raw = String(e?.target?.value ?? "").replace(/\D+/g, "").slice(0, 2);
-                    if (raw !== (e?.target?.value ?? "")) immutableSetFormData({ age: raw });
-                  },
-                },
-                {
-                  id: "sex",
-                  type: "dropdown",
-                  required: true,
-                  message: "Sex",
-                  menu: [
-                    { key: "Male", value: "male" },
-                    { key: "Female", value: "female" },
-                  ],
-                },
-              ],
-              [
-                { id: "campus", type: "text", required: true, message: "Campus" },
-                { id: "collegeDept", type: "text", required: true, message: "College Department" },
-              ],
-              [
-                { id: "yrlevelprogram", type: "text", required: true, message: "Year Level & Program" },
-                { id: "address", type: "text", required: true, message: "Address" },
-              ],
-              [
-                { id: "contactNum", type: "text", required: true, message: "Contact Number" },
-                { id: "fblink", type: "text", message: "Facebook Link" },
-              ],
-              { type: "section", message: "Documents" },
+            template={([
+              ...(forPublicEventJoin
+                ? []
+                : [
+                    { type: "section" as const, message: "Personal Details" },
+                    [{ id: "fullname", type: "text", required: true, message: "Full Name" }],
+                    [
+                      { id: "email", type: "text", required: true, message: "GSuite Email" },
+                      { id: "srcode", type: "text", required: true, message: "SR-Code" },
+                    ],
+                    [
+                      { id: "birthday", type: "date", required: true, message: "Birth Date" },
+                      {
+                        id: "age",
+                        type: "number",
+                        required: true,
+                        message: "Age",
+                        onUse: (e: any) => {
+                          const raw = String(e?.target?.value ?? "").replace(/\D+/g, "").slice(0, 2);
+                          if (raw !== (e?.target?.value ?? "")) immutableSetFormData({ age: raw });
+                        },
+                      },
+                      {
+                        id: "sex",
+                        type: "dropdown",
+                        required: true,
+                        message: "Sex",
+                        menu: [
+                          { key: "Male", value: "male" },
+                          { key: "Female", value: "female" },
+                        ],
+                      },
+                    ],
+                    [
+                      { id: "campus", type: "text", required: true, message: "Campus" },
+                      { id: "collegeDept", type: "text", required: true, message: "College Department" },
+                    ],
+                    [
+                      { id: "yrlevelprogram", type: "text", required: true, message: "Year Level & Program" },
+                      { id: "address", type: "text", required: true, message: "Address" },
+                    ],
+                    [
+                      { id: "contactNum", type: "text", required: true, message: "Contact Number" },
+                      { id: "fblink", type: "text", message: "Facebook Link" },
+                    ],
+                  ]),
+              { type: "section" as const, message: "Documents" },
               [
                 {
                   id: "medCert",
@@ -256,7 +263,7 @@ const RequirementForm: React.FC<Props> = ({
                   ),
                 },
               ],
-            ]}
+            ]) as (FormGenTemplateProps | FormGenTemplateProps[])[]}
           />
         </FlexBox>
       </form>

@@ -129,6 +129,7 @@ const Landing = () => {
             open={openRequirementForm}
             eventType={eventType}
             setOpen={setOpenRequirementForm}
+            forPublicEventJoin
             afterOpen={() => {
               setFormData({});
             }}
@@ -145,11 +146,7 @@ const Landing = () => {
           setOpenConfirm(false);
           setOpenDataPrivacy(true);
         }}
-        onCancel={() => {
-          setFormData({});
-          setOpenConfirm(false);
-          setOpenRequirementForm(true);
-        }}
+        onCancel={() => setOpenConfirm(false)}
       />
       <ConfirmModal
         message="Would you like to apply for membership?"
