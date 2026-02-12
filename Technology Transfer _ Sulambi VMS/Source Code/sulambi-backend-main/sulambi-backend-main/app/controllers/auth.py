@@ -62,12 +62,14 @@ def login():
     resp = make_response(jsonify(payload))
     # Set httpOnly cookie so token is not readable by JS (Inspect / localStorage)
     is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
+    # SameSite=None + Secure required so cookie is sent on cross-origin requests (e.g. frontend on sulambi-vosa.onrender.com, API on sulambi-backend1.onrender.com)
+    samesite = "None" if is_secure else "Lax"
     resp.set_cookie(
       key=SESSION_COOKIE_NAME,
       value=sessionDetails.get("token", ""),
       httponly=True,
       secure=is_secure,
-      samesite="Lax",
+      samesite=samesite,
       max_age=SESSION_COOKIE_MAX_AGE,
     )
     print("[AUTH_LOGIN] ✅ Login successful, session_token cookie set")
@@ -102,12 +104,14 @@ def logout(usertoken=None):
 
 def _clear_session_cookie(response):
   """Clear the session cookie on the response."""
+  is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
+  samesite = "None" if is_secure else "Lax"
   response.set_cookie(
     key=SESSION_COOKIE_NAME,
     value="",
     httponly=True,
-    secure=request.is_secure or request.headers.get("X-Forwarded-Proto") == "https",
-    samesite="Lax",
+    secure=is_secure,
+    samesite=samesite,
     max_age=0,
   )
 
