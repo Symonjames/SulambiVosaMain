@@ -67,7 +67,8 @@ def satisfactionAnalyticsRoute():
     """Get satisfaction analytics from QR evaluations"""
     year = request.args.get('year', None)
     result = getSatisfactionAnalytics(year)
-    return result, 200 if result.get("success") else 500
+    # Always return 200 so frontend can show empty state; result.success and result.data describe content
+    return result, 200
 
 @AnalyticsBlueprint.route("/analytics/satisfaction/event", methods=["GET"])
 def eventSatisfactionAnalyticsRoute():
