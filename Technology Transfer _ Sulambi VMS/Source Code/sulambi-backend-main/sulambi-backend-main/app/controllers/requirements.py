@@ -17,6 +17,23 @@ load_dotenv()
 
 FRONTEND_APP_URL = os.getenv("FRONTEND_APP_URL")
 
+# Map numeric blood donation value to human-readable label for officer/survey display
+BLOOD_DONATION_LABELS = {
+  0: "I'm eligible to donate.",
+  1: "I'm willing to donate.",
+  2: "I'm willing but I am not aware if I'm eligible.",
+  3: "I'm not willing.",
+}
+
+def _blood_donation_label(val):
+  if val is None:
+    return ""
+  if isinstance(val, str) and val.strip() in ("0", "1", "2", "3"):
+    return BLOOD_DONATION_LABELS.get(int(val), val)
+  if isinstance(val, int):
+    return BLOOD_DONATION_LABELS.get(val, str(val))
+  return str(val) if val else ""
+
 RequirementsDb = RequirementsModel()
 ExternalEventDb = ExternalEventModel()
 InternalEventDb = InternalEventModel()
@@ -162,6 +179,8 @@ def getAllRequirements():
             requirements[index]["email"] = member.get("email") or requirements[index].get("email")
             requirements[index]["srcode"] = member.get("srcode") or requirements[index].get("srcode")
             requirements[index]["collegeDept"] = member.get("collegeDept") or requirements[index].get("collegeDept")
+            requirements[index]["bloodDonation"] = _blood_donation_label(member.get("bloodDonation"))
+            requirements[index]["bloodType"] = member.get("bloodType") or ""
         except Exception as e:
           # Non-fatal: still return requirements list
           print("[requirements] Warning: failed to backfill member details:", e)

@@ -262,6 +262,10 @@ const RequirementForm: React.FC<Props> = ({
                       { id: "contactNum", type: "text", required: true, message: "Contact Number" },
                       { id: "fblink", type: "text", message: "Facebook Link" },
                     ],
+                    [
+                      { id: "bloodType", type: "text", message: "Blood Type" },
+                      { id: "bloodDonation", type: "text", message: "Blood Donation" },
+                    ],
                   ]),
             ]) as (FormGenTemplateProps | FormGenTemplateProps[])[]}
           />

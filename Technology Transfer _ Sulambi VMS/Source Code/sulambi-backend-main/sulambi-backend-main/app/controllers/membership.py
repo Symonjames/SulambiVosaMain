@@ -8,11 +8,28 @@ load_dotenv()
 MembershipDb = MembershipModel()
 FRONTEND_APP_URL = os.getenv("FRONTEND_APP_URL")
 
+BLOOD_DONATION_LABELS = {
+  0: "I'm eligible to donate.",
+  1: "I'm willing to donate.",
+  2: "I'm willing but I am not aware if I'm eligible.",
+  3: "I'm not willing.",
+}
+
+def _blood_donation_label(val):
+  if val is None:
+    return ""
+  if isinstance(val, str) and val.strip() in ("0", "1", "2", "3"):
+    return BLOOD_DONATION_LABELS.get(int(val), val)
+  if isinstance(val, int):
+    return BLOOD_DONATION_LABELS.get(val, str(val))
+  return str(val) if val else ""
+
 def getAllMembership():
   all_members = MembershipDb.getAll()
   print(f"[MEMBERSHIP API] Total members retrieved: {len(all_members)}")
 
   # Normalize accepted and active to 0/1/null so frontend works (PostgreSQL returns True/False)
+  # Map numeric bloodDonation to human-readable label for display
   for m in all_members:
     v = m.get("accepted")
     if v is True or v == 1 or v == "1" or (isinstance(v, str) and v.strip().lower() in ("1", "true", "yes")):
@@ -28,6 +45,7 @@ def getAllMembership():
       m["active"] = 0
     else:
       m["active"] = 0
+    m["bloodDonation"] = _blood_donation_label(m.get("bloodDonation"))
 
   return {
     "message": "Successfully retrieved membership data",

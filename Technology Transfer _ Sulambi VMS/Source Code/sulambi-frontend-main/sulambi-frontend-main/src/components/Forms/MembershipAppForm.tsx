@@ -575,13 +575,13 @@ const MembershipAppForm: React.FC<MembershipAppFormProps> = ({
                     type: "dropdown",
                     message: "Blood Donation",
                     menu: [
-                      { key: "I'm eligible to donate.", value: 0 },
-                      { key: "I'm willing to donate.", value: 1 },
+                      { key: "I'm eligible to donate.", value: "I'm eligible to donate." },
+                      { key: "I'm willing to donate.", value: "I'm willing to donate." },
                       {
                         key: "I'm willing but I am not aware if I'm eligible.",
-                        value: 2,
+                        value: "I'm willing but I am not aware if I'm eligible.",
                       },
-                      { key: "I'm not willing.", value: 3 },
+                      { key: "I'm not willing.", value: "I'm not willing." },
                     ],
                   },
                   {
