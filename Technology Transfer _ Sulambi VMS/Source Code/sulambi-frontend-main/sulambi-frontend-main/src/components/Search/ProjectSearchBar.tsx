@@ -20,6 +20,7 @@ import {
 import {
   Search,
   Clear,
+  Close,
   CalendarToday,
   LocationOn,
 } from '@mui/icons-material';
@@ -99,6 +100,15 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
     if (!trimmed) return;
     setRecentSearches(prev => {
       const updated = [trimmed, ...prev.filter(s => s !== trimmed)].slice(0, 5);
+      localStorage.setItem('recentProjectSearches', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const removeFromRecentSearches = (value: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRecentSearches(prev => {
+      const updated = prev.filter(s => s !== value);
       localStorage.setItem('recentProjectSearches', JSON.stringify(updated));
       return updated;
     });
@@ -386,10 +396,8 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
                           component="div"
                           onClick={() => {
                             handleSearchChange(s);
-                            // simulate selecting the suggestion text and searching immediately
                             setShowSuggestions(false);
                             addToRecentSearches(s);
-                            // set filtered results based on this string so parent receives results
                             setSearchTerm(s);
                             const matches = allEvents.filter(evt =>
                               (evt.title || '').toLowerCase().includes(s.toLowerCase())
@@ -397,6 +405,17 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
                             setFilteredEvents(matches);
                             onSearchResults(matches);
                           }}
+                          secondaryAction={
+                            <IconButton
+                              size="small"
+                              edge="end"
+                              aria-label="Remove from recent searches"
+                              onClick={(e) => removeFromRecentSearches(s, e)}
+                              sx={{ mr: 0.5 }}
+                            >
+                              <Close fontSize="small" />
+                            </IconButton>
+                          }
                           sx={{ px: 1.25, py: 1, cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
                         >
                           <ListItemIcon><Search fontSize="small" /></ListItemIcon>

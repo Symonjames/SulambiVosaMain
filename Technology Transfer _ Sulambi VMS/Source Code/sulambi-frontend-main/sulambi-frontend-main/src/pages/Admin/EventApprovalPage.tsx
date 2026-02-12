@@ -106,10 +106,7 @@ const EventApproval = () => {
 
     const filteredData = eventData
       .filter((event: any) => {
-        return (
-          event.title.toLowerCase().includes(searchVal) ||
-          event.status.toLowerCase().includes(searchVal)
-        );
+        return event.title.toLowerCase().includes(searchVal);
       })
       .filter((event: any) => {
         if (searchFilter.type === "") return true;
@@ -238,25 +235,26 @@ const EventApproval = () => {
         { key: "Submitted Proposal", value: "submitted" },
       ]}
       onChange={(event) => {
-        setSearchFilter({
-          ...searchFilter,
+        setSearchFilter((prev) => ({
+          ...prev,
           status: event.target.value,
-        });
+        }));
       }}
     />,
     <CustomDropdown
       width="200px"
       label="Proposal Type"
+      initialValue={searchFilter.type}
       menu={[
         { key: "All", value: "" },
         { key: "Internal", value: "internal" },
         { key: "External", value: "external" },
       ]}
       onChange={(event) => {
-        setSearchFilter({
-          ...searchFilter,
+        setSearchFilter((prev) => ({
+          ...prev,
           type: event.target.value,
-        });
+        }));
       }}
     />,
   ];
@@ -450,6 +448,7 @@ const EventApproval = () => {
             componentBeforeSearch={CustomComponents}
             data={tableData}
             onSearch={(key) => setSearchVal(key.toLowerCase())}
+            searchPlaceholder="Search by event title only"
           />
         )}
       </PageLayout>

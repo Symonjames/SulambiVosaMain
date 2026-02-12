@@ -396,7 +396,7 @@ const Dashboard = () => {
                 console.log('Year filter:', year);
               }}
               placeholder="Search projects, locations, or descriptions..."
-              showFilters={true}
+              showFilters={false}
               maxWidth="100%"
             />
           </Box>

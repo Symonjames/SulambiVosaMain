@@ -14,6 +14,8 @@ interface DataTableProps {
   componentBeforeSearch?: ReactNode[];
   componentOnLeft?: ReactNode[];
   onSearch?: (key: string) => void;
+  /** Placeholder for the search input (e.g. "Search by event title only") */
+  searchPlaceholder?: string;
 }
 
 const Table: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -33,6 +35,7 @@ const DataTable: React.FC<DataTableProps> = ({
   componentBeforeSearch,
   componentOnLeft,
   onSearch,
+  searchPlaceholder = "Search by name, email, SR code, event, department...",
 }) => {
   return (
     <Box
@@ -65,7 +68,7 @@ const DataTable: React.FC<DataTableProps> = ({
               : <span key={index}>{component}</span>
           )}
           <CustomInput
-            placeholder="Search by name, email, SR code, event, department..."
+            placeholder={searchPlaceholder}
             onChange={(event) => onSearch && onSearch(event.target.value)}
             endIcon={
               <IconButton>
