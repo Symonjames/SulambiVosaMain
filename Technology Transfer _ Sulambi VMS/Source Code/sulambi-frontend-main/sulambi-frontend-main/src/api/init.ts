@@ -32,14 +32,21 @@ axios.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('[API_ERROR]', {
-      message: error.message,
-      code: error.code,
-      url: error.config?.url,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data
-    });
+    // 403 on /auth/me is expected when not logged in; don't log as error
+    const url = error.config?.url ?? '';
+    const isAuthMe403 = error.response?.status === 403 && (url === '/me' || url.endsWith('/auth/me') || url.includes('/auth/me'));
+    if (isAuthMe403) {
+      // Silent: session check returned not authenticated (normal when not logged in)
+    } else {
+      console.error('[API_ERROR]', {
+        message: error.message,
+        code: error.code,
+        url: error.config?.url,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+    }
     return Promise.reject(error);
   }
 );
