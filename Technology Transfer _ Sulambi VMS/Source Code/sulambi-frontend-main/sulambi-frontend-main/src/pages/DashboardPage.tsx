@@ -387,7 +387,7 @@ const Dashboard = () => {
             <TextHeader>DASHBOARD</TextHeader>
             <TextSubHeader>View your analytics here</TextSubHeader>
           </Box>
-          <Box sx={{ minWidth: '320px', maxWidth: '700px', flex: 1 }}>
+          <Box sx={{ width: '320px', maxWidth: '320px', marginLeft: 'auto' }}>
             <ProjectSearchBar
               onSearchResults={(results) => {
                 console.log('Search results:', results);
