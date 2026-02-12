@@ -32,11 +32,13 @@ axios.interceptors.response.use(
     return response;
   },
   (error) => {
-    // 403 on /auth/me is expected when not logged in; don't log as error
-    const url = error.config?.url ?? '';
-    const isAuthMe403 = error.response?.status === 403 && (url === '/me' || url.endsWith('/auth/me') || url.includes('/auth/me'));
-    if (isAuthMe403) {
-      // Silent: session check returned not authenticated (normal when not logged in)
+    // 403 with auth-related message = cookie not sent or invalid; don't flood console
+    const status = error.response?.status;
+    const msg = (error.response?.data as any)?.message ?? '';
+    const authMsg = /not authenticated|unauthorized|token invalid|session expired|session invalid|not permitted/i.test(String(msg));
+    const isAuth403 = status === 403 && authMsg;
+    if (isAuth403) {
+      // Silent: expected when not logged in or cross-origin cookie not sent
     } else {
       console.error('[API_ERROR]', {
         message: error.message,
