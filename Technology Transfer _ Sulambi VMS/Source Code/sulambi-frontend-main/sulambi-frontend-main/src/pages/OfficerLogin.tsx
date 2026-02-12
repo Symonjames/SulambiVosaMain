@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
 import { getImagePath } from "../utils/imagePath";
+import { saveToSessionObfuscated } from "../utils/storage";
 
 interface LoginResponse {
   message: string;
@@ -37,18 +38,13 @@ const OfficerLogin = () => {
 
   const navigate = useNavigate();
 
-  // When opening the login page, clear any stale auth data instead of forcing redirect.
-  // This prevents being auto-redirected back into a previous account when you explicitly
-  // want to switch users.
+  // Clear any legacy auth data from localStorage on login page (token now in httpOnly cookie)
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      console.log("[FRONTEND_LOGIN] Clearing stale token on login page load");
-    }
     localStorage.removeItem("token");
     localStorage.removeItem("username");
     localStorage.removeItem("accountType");
     localStorage.removeItem("membershipCache");
+    localStorage.removeItem("accountDetails");
   }, []);
 
   const loginButtonAction = async () => {
@@ -66,49 +62,30 @@ const OfficerLogin = () => {
       
       const loginResponseData: LoginResponse = loginResponse.data;
 
-      // save session token
+      // Session token is in httpOnly cookie (not in localStorage). Store only non-sensitive session info in sessionStorage (obfuscated).
       if (loginResponseData.session) {
-        console.log('[FRONTEND_LOGIN] ✅ Session data received');
-        console.log('[FRONTEND_LOGIN] Account Type:', loginResponseData.session.accountType);
-        const token = loginResponseData.session.token;
-        console.log('[FRONTEND_LOGIN] Token:', token ? `${token.substring(0, 20)}...` : 'None');
-        
-        localStorage.setItem("token", token ?? "");
-        localStorage.setItem("username", username);
-        console.log('[FRONTEND_LOGIN] Token saved to localStorage');
+        const accountType = loginResponseData.session.accountType;
+        const accountPayload = {
+          accountType,
+          username,
+          details: loginResponseData.memberData ?? undefined,
+        };
+        setAccountDetails({
+          accountType: accountType as "admin" | "member" | "officer",
+          username,
+          details: loginResponseData.memberData,
+        });
+        saveToSessionObfuscated("accountDetails", accountPayload);
 
-        // redirect after saving
-        switch (loginResponseData.session.accountType) {
+        switch (accountType) {
           case "admin":
-            localStorage.setItem("accountType", "admin");
-            setAccountDetails({
-              accountType: "admin",
-              username: username,
-            });
             redirectLoggedIn("/admin/dashboard");
             break;
-
           case "member":
-            localStorage.setItem("accountType", "member");
-            setAccountDetails({
-              accountType: "member",
-              username: username,
-            });
-
-            localStorage.setItem(
-              "membershipCache",
-              JSON.stringify(loginResponseData.memberData)
-            );
             showSnackbarMessage("Cached membership user data");
             redirectLoggedIn("/member");
             break;
-
           case "officer":
-            localStorage.setItem("accountType", "officer");
-            setAccountDetails({
-              accountType: "officer",
-              username: username,
-            });
             redirectLoggedIn("/officer");
             break;
         }

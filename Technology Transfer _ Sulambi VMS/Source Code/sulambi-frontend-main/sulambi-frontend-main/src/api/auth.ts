@@ -14,6 +14,12 @@ export const register = (membershipData: MembershipType) => {
   return axios.post(`${basePath}/register`, membershipData);
 };
 
-export const logout = (usertoken: string) => {
-  return axios.delete(`${basePath}/logout/${usertoken}`);
+/** Logout using httpOnly cookie (no token in URL). Backend clears cookie. */
+export const logout = () => {
+  return axios.delete(`${basePath}/logout`);
+};
+
+/** Get current session from httpOnly cookie. Used to restore accountDetails without storing token. */
+export const getMe = () => {
+  return axios.get(`${basePath}/me`);
 };

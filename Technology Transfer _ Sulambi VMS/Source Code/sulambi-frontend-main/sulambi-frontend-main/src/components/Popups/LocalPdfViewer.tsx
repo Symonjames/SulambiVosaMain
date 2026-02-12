@@ -50,13 +50,8 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
           headers,
         };
         
-        // Only add authentication for local/protected files, not Cloudinary
+        // Auth via httpOnly cookie (credentials: include sends session_token cookie)
         if (!isCloudinaryUrl) {
-          const token = localStorage.getItem("token");
-          if (token) {
-            headers["Authorization"] = `Bearer ${token}`;
-          }
-          // Only use credentials for local files
           fetchOptions.credentials = "include";
         }
         

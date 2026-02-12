@@ -140,3 +140,40 @@ export const getFromSession = <T>(key: string, defaultValue: T | null = null): T
   }
 };
 
+/**
+ * Save to sessionStorage with obfuscated value (base64).
+ * Use for sensitive form data so it is not readable as plain JSON in Application tab.
+ * Data still clears when tab closes.
+ */
+export const saveToSessionObfuscated = <T>(key: string, value: T): void => {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+    const json = JSON.stringify(value);
+    const obfuscated = typeof btoa !== 'undefined' ? btoa(encodeURIComponent(json)) : json;
+    sessionStorage.setItem(key, obfuscated);
+  } catch (error) {
+    console.error(`Error saving obfuscated session key "${key}":`, error);
+  }
+};
+
+/**
+ * Get from sessionStorage (obfuscated value).
+ * Tries obfuscated (base64) first, then falls back to plain JSON for migration.
+ */
+export const getFromSessionObfuscated = <T>(key: string, defaultValue: T | null = null): T | null => {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) return defaultValue;
+    const item = sessionStorage.getItem(key);
+    if (item === null) return defaultValue;
+    try {
+      const decoded = decodeURIComponent(typeof atob !== 'undefined' ? atob(item) : item);
+      return JSON.parse(decoded) as T;
+    } catch {
+      return JSON.parse(item) as T;
+    }
+  } catch (error) {
+    console.error(`Error reading obfuscated session key "${key}":`, error);
+    return defaultValue;
+  }
+};
+

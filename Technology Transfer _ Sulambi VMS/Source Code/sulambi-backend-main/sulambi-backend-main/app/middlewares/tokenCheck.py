@@ -1,14 +1,17 @@
 from flask import request, g
 from ..models.AccountModel import AccountModel
 from ..models.SessionModel import SessionModel
+from ..controllers.auth import SESSION_COOKIE_NAME
 
 AccountDb = AccountModel()
 SessionDb = SessionModel()
 
 def authCheckMiddleware(accountType=[]):
-
-  userToken = request.headers.get("authorization") or ""
-  userToken = userToken.replace("Bearer ", "")
+  # Prefer httpOnly cookie (not readable by JS); fallback to Authorization header
+  userToken = request.cookies.get(SESSION_COOKIE_NAME) or ""
+  if not userToken:
+    userToken = request.headers.get("authorization") or ""
+    userToken = userToken.replace("Bearer ", "")
 
   # unassigned bearer token
   if (userToken == ""): return ({

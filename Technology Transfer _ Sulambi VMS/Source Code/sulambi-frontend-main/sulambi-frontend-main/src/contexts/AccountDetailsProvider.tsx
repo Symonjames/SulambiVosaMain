@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useState, useEffect } from "react";
 import { MembershipType } from "../interface/types";
-import { getFromStorage, saveToStorage, getStringFromStorage } from "../utils/storage";
+import { getFromSessionObfuscated, saveToSessionObfuscated } from "../utils/storage";
+import { getMe } from "../api/auth";
 
 interface AccountDetails {
   username: string;
@@ -11,41 +12,64 @@ interface AccountDetails {
 interface Pair {
   accountDetails: AccountDetails;
   setAccountDetails: (state: AccountDetails) => void;
+  /** True after /auth/me has been tried (so protected pages know whether to redirect). */
+  sessionChecked: boolean;
 }
 
 export const AccountDetailsContext = createContext<Pair>({
   accountDetails: { username: "", accountType: "admin", details: undefined },
   setAccountDetails: (_state: AccountDetails) => {},
+  sessionChecked: false,
 });
 
 const AccountDetailsProvider = ({ children }: { children: ReactNode }) => {
-  // Initialize account details from localStorage
   const [accountDetails, setAccountDetails] = useState<AccountDetails>(() => {
-    const savedUsername = getStringFromStorage("username", "");
-    const savedAccountType = getStringFromStorage("accountType", "") as
-      | "admin"
-      | "member"
-      | "officer"
-      | "";
-    const savedDetails = getFromStorage<MembershipType>("membershipCache", undefined);
-
-    return {
-      username: savedUsername || "",
-      accountType: savedAccountType || "admin",
-      details: savedDetails,
-    };
+    const saved = getFromSessionObfuscated<AccountDetails>("accountDetails", null);
+    if (saved && saved.username && saved.accountType) {
+      return {
+        username: saved.username,
+        accountType: saved.accountType as "admin" | "officer" | "member",
+        details: saved.details,
+      };
+    }
+    return { username: "", accountType: "admin", details: undefined };
   });
+  const [sessionChecked, setSessionChecked] = useState(false);
 
-  // Save account details to localStorage whenever it changes
+  // On mount: if no session cache, try /auth/me (cookie) to restore session
+  useEffect(() => {
+    if (sessionChecked) return;
+    if (accountDetails.username) {
+      setSessionChecked(true);
+      return;
+    }
+    getMe()
+      .then((res) => {
+        const d = res.data;
+        const next: AccountDetails = {
+          username: d.username || "",
+          accountType: (d.accountType as "admin" | "officer" | "member") || "admin",
+          details: d.memberData,
+        };
+        if (next.username) {
+          setAccountDetails(next);
+          saveToSessionObfuscated("accountDetails", next);
+        }
+        setSessionChecked(true);
+      })
+      .catch(() => setSessionChecked(true));
+  }, [sessionChecked, accountDetails.username]);
+
+  // Persist to sessionStorage (obfuscated) when accountDetails changes
   useEffect(() => {
     if (accountDetails.username) {
-      saveToStorage("accountDetails", accountDetails);
+      saveToSessionObfuscated("accountDetails", accountDetails);
     }
   }, [accountDetails]);
 
   return (
     <AccountDetailsContext.Provider
-      value={{ accountDetails, setAccountDetails }}
+      value={{ accountDetails, setAccountDetails, sessionChecked }}
     >
       {children}
     </AccountDetailsContext.Provider>

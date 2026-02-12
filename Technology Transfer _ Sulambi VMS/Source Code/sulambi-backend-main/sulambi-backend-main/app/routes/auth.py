@@ -12,9 +12,17 @@ def authLoginRoute():
 def authRegisterRoute():
   return auth.register()
 
+@AuthBlueprint.get('/me')
+def authMeRoute():
+  return auth.me()
+
 @AuthBlueprint.delete('/logout/<usertoken>')
 def authLogoutRoute(usertoken):
   return auth.logout(usertoken)
+
+@AuthBlueprint.delete('/logout')
+def authLogoutNoTokenRoute():
+  return auth.logout(None)
 
 @AuthBlueprint.post('/check-status')
 def checkApplicationStatusRoute():

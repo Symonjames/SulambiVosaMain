@@ -13,6 +13,7 @@ import { RequirementsDataType } from "../../interface/types";
 import Chip from "../../components/Chips/Chip";
 import MenuButtonTemplate from "../../components/Menu/MenuButtonTemplate";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
+import { AccountDetailsContext } from "../../contexts/AccountDetailsProvider";
 import RequirementForm from "../../components/Forms/RequirementForm";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import CustomDropdown from "../../components/Inputs/CustomDropdown";
@@ -26,6 +27,7 @@ const recentlyRejectedIds = { current: new Set<string>() };
 
 const RequirementEvalPage = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
+  const { accountDetails, sessionChecked } = useContext(AccountDetailsContext);
   const { setFormData } = useContext(FormDataContext);
   const navigate = useNavigate();
 
@@ -42,28 +44,21 @@ const RequirementEvalPage = () => {
   const [selectedFormData, setSelectedFormData] = useState<any>({});
   const [viewFormData, setViewFormData] = useState(false);
 
-  // Check authentication on mount
+  // Auth: session in httpOnly cookie; accountDetails from context (sessionStorage obfuscated or /auth/me)
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const accountType = localStorage.getItem("accountType");
-    
-    if (!token || !accountType) {
-      console.warn("⚠️ No authentication token found, redirecting to login");
+    if (!sessionChecked) return;
+    const { username, accountType } = accountDetails;
+    if (!username || !accountType) {
       showSnackbarMessage("Please log in to access this page", "warning");
       navigate("/login");
       return;
     }
-    
-    // Verify account type is officer or admin
     if (accountType !== "officer" && accountType !== "admin") {
-      console.warn("⚠️ Insufficient permissions, redirecting to login");
       showSnackbarMessage("You don't have permission to access this page", "error");
       navigate("/login");
       return;
     }
-    
-    console.log("✅ Authentication check passed:", { accountType, hasToken: !!token });
-  }, [navigate, showSnackbarMessage]);
+  }, [sessionChecked, accountDetails, navigate, showSnackbarMessage]);
 
   // Debounce search input to improve performance
   useEffect(() => {
@@ -392,8 +387,7 @@ const RequirementEvalPage = () => {
         // Check if it's an authentication error
         if (err.response?.status === 403) {
           const errorMessage = err.response?.data?.message || "Unauthorized";
-          console.error("⚠️ Authentication error - user may not be logged in or token expired");
-          console.error("Token in localStorage:", !!localStorage.getItem("token"));
+          console.error("⚠️ Authentication error - user may not be logged in or session expired");
           
           // Show user-friendly error message
           if (errorMessage.includes("Unauthorized") || errorMessage.includes("Token")) {

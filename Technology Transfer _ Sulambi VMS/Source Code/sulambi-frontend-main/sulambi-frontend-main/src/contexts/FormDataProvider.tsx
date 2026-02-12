@@ -1,10 +1,13 @@
 import { createContext, ReactNode, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { produce } from "immer";
-import { saveToStorage, getFromStorage } from "../utils/storage";
+import {
+  getFromSessionObfuscated,
+  saveToSessionObfuscated,
+} from "../utils/storage";
 
-// Check if we're in browser environment (localStorage available)
-const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+// Check if we're in browser environment (sessionStorage available)
+const isBrowser = typeof window !== 'undefined' && typeof sessionStorage !== 'undefined';
 
 interface Triplets {
   formData: any;
@@ -37,29 +40,54 @@ const FormDataProvider = ({ children }: { children: ReactNode }) => {
     location = { pathname: window?.location?.pathname || '/' };
   }
 
-  // Global form data (for backward compatibility)
+  // Global form data — sessionStorage + obfuscated so it's not plain text in Application tab
   const [formData, setFormData] = useState(() => {
     if (!isBrowser) return {};
     try {
-      const saved = getFromStorage('formData', {});
-      return saved || {};
+      let saved = getFromSessionObfuscated<Record<string, any>>('formData', null);
+      if (saved && typeof saved === 'object') return saved;
+      const legacy = localStorage.getItem('formData');
+      if (legacy) {
+        try {
+          saved = JSON.parse(legacy) as Record<string, any>;
+          if (saved && typeof saved === 'object') return saved;
+        } catch (_) {}
+      }
+      return {};
     } catch (error) {
       console.error('Error loading form data from storage:', error);
       return {};
     }
   });
 
-  // Page-specific form data (persists per route)
+  // Page-specific form data — sessionStorage + obfuscated
   const [pageFormData, setPageFormData] = useState<Record<string, any>>(() => {
     if (!isBrowser) return {};
     try {
-      const saved = getFromStorage('pageFormData', {});
-      return saved || {};
+      let saved = getFromSessionObfuscated<Record<string, any>>('pageFormData', null);
+      if (saved && typeof saved === 'object') return saved;
+      const legacy = localStorage.getItem('pageFormData');
+      if (legacy) {
+        try {
+          saved = JSON.parse(legacy) as Record<string, any>;
+          if (saved && typeof saved === 'object') return saved;
+        } catch (_) {}
+      }
+      return {};
     } catch (error) {
       console.error('Error loading page form data from storage:', error);
       return {};
     }
   });
+
+  // One-time: remove old plain-text form data from localStorage (migrate to session + obfuscated)
+  useEffect(() => {
+    if (!isBrowser) return;
+    try {
+      localStorage.removeItem('formData');
+      localStorage.removeItem('pageFormData');
+    } catch (_) {}
+  }, []);
 
   // Load form data for current page when navigating
   useEffect(() => {
@@ -75,20 +103,19 @@ const FormDataProvider = ({ children }: { children: ReactNode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
-  // Save global form data to localStorage whenever it changes
+  // Save global form data to sessionStorage (obfuscated) whenever it changes
   useEffect(() => {
     if (!isBrowser) return;
     try {
       if (Object.keys(formData).length > 0) {
-        saveToStorage('formData', formData);
-        // Also save to current page's form data
+        saveToSessionObfuscated('formData', formData);
         if (location?.pathname) {
           const updated = {
             ...pageFormData,
             [location.pathname]: formData,
           };
           setPageFormData(updated);
-          saveToStorage('pageFormData', updated);
+          saveToSessionObfuscated('pageFormData', updated);
         }
       }
     } catch (error) {
@@ -111,12 +138,11 @@ const FormDataProvider = ({ children }: { children: ReactNode }) => {
 
   const resetFormData = () => {
     setFormData({});
-    // Also clear current page's form data
     if (isBrowser && location?.pathname) {
       const updated = { ...pageFormData };
       delete updated[location.pathname];
       setPageFormData(updated);
-      saveToStorage('pageFormData', updated);
+      saveToSessionObfuscated('pageFormData', updated);
     }
   };
 
@@ -133,9 +159,8 @@ const FormDataProvider = ({ children }: { children: ReactNode }) => {
       [pagePath]: data,
     };
     setPageFormData(updated);
-    saveToStorage('pageFormData', updated);
-    
-    // If it's the current page, also update global formData
+    saveToSessionObfuscated('pageFormData', updated);
+
     if (pagePath === location?.pathname) {
       setFormData(data);
     }

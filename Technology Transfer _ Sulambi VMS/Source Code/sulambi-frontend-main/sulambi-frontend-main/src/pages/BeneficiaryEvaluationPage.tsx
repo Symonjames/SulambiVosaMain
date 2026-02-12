@@ -86,7 +86,9 @@ const BeneficiaryEvaluationPage = () => {
   const handleSubmit = (data: any) => {
     showSnackbarMessage("Beneficiary evaluation submitted successfully!", "success");
     setOpenForm(false);
-    // Navigate back or to thank you page
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("satisfaction-rating-submitted"));
+    }
     setTimeout(() => {
       navigate('/feedback-message');
     }, 2000);

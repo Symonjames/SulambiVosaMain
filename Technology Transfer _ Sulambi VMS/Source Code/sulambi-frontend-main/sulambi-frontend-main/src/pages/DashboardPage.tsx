@@ -10,7 +10,8 @@ import DangerousIcon from "@mui/icons-material/Dangerous";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { getDashboardAnalytics, getDashboardSummary } from "../api/dashboard";
 // REMOVED: clearAnalyticsData import - was deleting data on every page load
 import {
@@ -219,8 +220,9 @@ const Dashboard = () => {
     totalAllMembers: 0, // Total members uploaded (all statuses)
   });
 
-  const accountType = localStorage.getItem("accountType");
-  
+  const { accountDetails } = useContext(AccountDetailsContext);
+  const accountType = accountDetails.accountType;
+
   // REMOVED: Auto-clear analytics data - this was deleting the data on every page load
   // The data should persist and display in analytics widgets
 
@@ -412,7 +414,6 @@ const Dashboard = () => {
             label="Approved Events"
             icon={<StadiumIcon sx={iconSx} />}
             onClick={() => {
-              const accountType = localStorage.getItem("accountType");
               if (accountType === "admin") {
                 navigate("/admin/event-approval?status=accepted");
               } else if (accountType === "officer") {
@@ -425,7 +426,6 @@ const Dashboard = () => {
             label="Pending Events"
             icon={<PendingIcon sx={iconSx} />}
             onClick={() => {
-              const accountType = localStorage.getItem("accountType");
               if (accountType === "admin") {
                 navigate("/admin/event-approval?status=submitted");
               } else if (accountType === "officer") {
@@ -438,7 +438,6 @@ const Dashboard = () => {
             label="Not Approved Event"
             icon={<DangerousIcon sx={iconSx} />}
             onClick={() => {
-              const accountType = localStorage.getItem("accountType");
               if (accountType === "admin") {
                 navigate("/admin/event-approval?status=rejected");
               } else if (accountType === "officer") {

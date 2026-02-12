@@ -2,8 +2,12 @@ from ..models.AccountModel import AccountModel
 from ..models.MembershipModel import MembershipModel
 from ..models.SessionModel import SessionModel
 from ..modules.Mailer import threadedHtmlMailer, isEmailConfigured, validateEmailConfig, htmlMailer
-from flask import request
+from flask import request, make_response, jsonify
 import traceback
+
+# Cookie name for httpOnly auth token (not readable by JS)
+SESSION_COOKIE_NAME = "session_token"
+SESSION_COOKIE_MAX_AGE = 7 * 24 * 3600  # 7 days
 
 AccountDb = AccountModel()
 MembershipDb = MembershipModel()
@@ -50,14 +54,24 @@ def login():
       membershipData = MembershipDb.get(accountData["membershipId"])
       print(f"[AUTH_LOGIN] Member data retrieved: {membershipData is not None}")
 
-    response = {
+    payload = {
       "message": "Successfully logged in",
       "session": sessionDetails,
       "memberData": membershipData
     }
-    
-    print("[AUTH_LOGIN] ✅ Login successful, returning response")
-    return response
+    resp = make_response(jsonify(payload))
+    # Set httpOnly cookie so token is not readable by JS (Inspect / localStorage)
+    is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
+    resp.set_cookie(
+      key=SESSION_COOKIE_NAME,
+      value=sessionDetails.get("token", ""),
+      httponly=True,
+      secure=is_secure,
+      samesite="Lax",
+      max_age=SESSION_COOKIE_MAX_AGE,
+    )
+    print("[AUTH_LOGIN] ✅ Login successful, session_token cookie set")
+    return resp
     
   except KeyError as e:
     print(f"[AUTH_LOGIN] ❌ ERROR: Missing key in request: {e}")
@@ -68,13 +82,56 @@ def login():
     print(f"[AUTH_LOGIN] Traceback: {traceback.format_exc()}")
     return ({ "message": f"Server error: {str(e)}" }, 500)
 
-def logout(usertoken):
-  matchedToken = SessionDb.get(usertoken)
+def logout(usertoken=None):
+  # Prefer token from httpOnly cookie (frontend does not send token in URL/body)
+  token = usertoken or request.cookies.get(SESSION_COOKIE_NAME)
+  if not token:
+    resp = jsonify({ "message": "No session cookie (already logged out)" })
+    _clear_session_cookie(resp)
+    return resp
+  matchedToken = SessionDb.get(token)
   if (matchedToken == None):
-    return { "message": "Token does not exist (cannot logout)" }
+    resp = jsonify({ "message": "Token does not exist (cannot logout)" })
+    _clear_session_cookie(resp)
+    return resp
+  SessionDb.delete(matchedToken["id"])
+  resp = jsonify({ "message": "Successfully logged out token" })
+  _clear_session_cookie(resp)
+  return resp
 
-  result = SessionDb.delete(matchedToken["id"])
-  return { "message": "Successfully logged out token" }
+
+def _clear_session_cookie(response):
+  """Clear the session cookie on the response."""
+  response.set_cookie(
+    key=SESSION_COOKIE_NAME,
+    value="",
+    httponly=True,
+    secure=request.is_secure or request.headers.get("X-Forwarded-Proto") == "https",
+    samesite="Lax",
+    max_age=0,
+  )
+
+
+def me():
+  """Return current session info from httpOnly cookie. Used by frontend to restore accountDetails without storing token."""
+  token = request.cookies.get(SESSION_COOKIE_NAME)
+  if not token:
+    return ({ "message": "Not authenticated" }, 403)
+  sessionInfo = SessionDb.get(token)
+  if sessionInfo is None:
+    return ({ "message": "Session invalid or expired" }, 403)
+  accountSessionInfo = AccountDb.get(sessionInfo.get("userid"))
+  if accountSessionInfo is None:
+    return ({ "message": "Account not found" }, 403)
+  membershipData = None
+  if accountSessionInfo.get("accountType") == "member" and accountSessionInfo.get("membershipId"):
+    membershipData = MembershipDb.get(accountSessionInfo["membershipId"])
+  return {
+    "message": "OK",
+    "username": accountSessionInfo.get("username", ""),
+    "accountType": accountSessionInfo.get("accountType", ""),
+    "memberData": membershipData,
+  }
 
 def register():
   try:

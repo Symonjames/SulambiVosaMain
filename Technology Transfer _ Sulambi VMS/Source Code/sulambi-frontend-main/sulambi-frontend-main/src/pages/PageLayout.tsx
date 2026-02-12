@@ -72,32 +72,22 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
         open={openLogoutDialog}
         setOpen={setOpenLogoutDialog}
         onAccept={() => {
-          const usertoken = localStorage.getItem("token");
-          if (usertoken !== null) {
-            logout(usertoken)
-              .then(() => {
-                showSnackbarMessage("Successfully logged out");
-              })
-              .finally(() => {
-                // Clear ALL authentication-related data
-                localStorage.removeItem("token");
-                localStorage.removeItem("username");
-                localStorage.removeItem("accountType");
-                localStorage.removeItem("membershipCache");
-                // Clear account details context
-                setAccountDetails({
-                  accountType: "admin",
-                  username: "",
-                  details: undefined,
-                });
+          logout()
+            .then(() => {
+              showSnackbarMessage("Successfully logged out");
+            })
+            .finally(() => {
+              sessionStorage.removeItem("accountDetails");
+              localStorage.removeItem("token");
+              localStorage.removeItem("username");
+              localStorage.removeItem("accountType");
+              localStorage.removeItem("membershipCache");
+              setAccountDetails({
+                accountType: "admin",
+                username: "",
+                details: undefined,
               });
-          } else {
-            // Even if no token, clear any leftover auth data
-            localStorage.removeItem("token");
-            localStorage.removeItem("username");
-            localStorage.removeItem("accountType");
-            localStorage.removeItem("membershipCache");
-          }
+            });
           navigate("/");
         }}
       />
