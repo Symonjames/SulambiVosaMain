@@ -26,7 +26,7 @@ import SelectionCard from "../components/Cards/SelectionCard";
 import { getAllEvents } from "../api/events";
 import EventDetail from "../components/Popups/EventDetail";
 import ActiveMembersDashboard from "../components/Popups/ActiveMembersDashboard";
-import { getAllReports } from "../api/reports";
+import { getPublicReports } from "../api/reports";
 import { useNavigate } from "react-router-dom";
 import PredictiveSatisfactionRatings from "../components/Analytics/PredictiveSatisfactionRatings";
 import DropoutRiskAssessment from "../components/Analytics/DropoutRiskAssessment";
@@ -354,10 +354,10 @@ const Dashboard = () => {
     }
   }, [eventsResponse]);
 
-  // Minimal connectivity check for reports endpoint
+  // Minimal connectivity check (public endpoint, no auth required)
   useEffect(() => {
     console.log('🔍 Testing backend connectivity...');
-    getAllReports()
+    getPublicReports()
       .then(() => console.log('🔍 Reports endpoint reachable'))
       .catch((error) => console.error('❌ Reports endpoint error:', error));
   }, []);

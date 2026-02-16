@@ -19,10 +19,10 @@ export const uploadRequirements = (
   return axios.post(`${basePath}/${eventId}`, multiPartData);
 };
 
-export const acceptRequirement = (id: number) => {
+export const acceptRequirement = (id: number | string) => {
   return axios.patch(`${basePath}/accept/${id}`);
 };
 
-export const rejectRequirement = (id: number) => {
+export const rejectRequirement = (id: number | string) => {
   return axios.patch(`${basePath}/reject/${id}`);
 };

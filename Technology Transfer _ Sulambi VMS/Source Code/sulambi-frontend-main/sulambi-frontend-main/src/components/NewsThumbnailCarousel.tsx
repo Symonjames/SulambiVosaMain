@@ -3,17 +3,16 @@ import { Box, Typography, styled, IconButton } from "@mui/material";
 import ArrowBackIosIcon from "@mui/icons-material/ArrowBackIos";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import { getPublicReports } from "../api/reports";
+import { API_BASE_URL } from "../api/init";
 import { InternalReportType, ExternalReportType } from "../interface/types";
 import FormDataLoaderModal from "./Modal/FormDataLoaderModal";
 import NewsFeedEventModal from "./Popups/NewsFeedEventModal";
 
-const getBaseUrl = (): string => {
-  const apiUri = (import.meta as any).env.VITE_API_URI as string | undefined;
-  if (apiUri) return apiUri.replace("/api", "");
-  if ((import.meta as any).env.DEV) return "http://localhost:8000";
-  return window.location.origin;
-};
-const BASE_URL = getBaseUrl();
+// Uploads live on the backend; use same origin as API (handles production when frontend ≠ backend)
+const UPLOADS_BASE =
+  (import.meta as any).env.DEV && API_BASE_URL === "/api"
+    ? "http://localhost:8000"
+    : (API_BASE_URL.replace(/\/api\/?$/, "") || window.location.origin);
 
 // Nation-style news grid container
 const Section = styled(Box)({ 
@@ -229,7 +228,7 @@ const buildImageUrl = (filename?: string) => {
   if (isFullUrl) return clean;
   clean = clean.replace(/\\/g, "/");
   clean = clean.replace(/^uploads[\/\\]/, "");
-  return `${BASE_URL}/uploads/${clean}?t=${Date.now()}`;
+  return `${UPLOADS_BASE}/uploads/${clean}?t=${Date.now()}`;
 };
 
 const truncate = (t?: string, n = 120) => {

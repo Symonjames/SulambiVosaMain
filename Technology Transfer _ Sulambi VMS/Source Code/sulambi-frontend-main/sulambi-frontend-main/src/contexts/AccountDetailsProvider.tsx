@@ -36,10 +36,16 @@ const AccountDetailsProvider = ({ children }: { children: ReactNode }) => {
   });
   const [sessionChecked, setSessionChecked] = useState(false);
 
-  // On mount: if no session cache, try /auth/me (cookie) to restore session
+  // On mount: if no session cache, try /auth/me (cookie) to restore session.
+  // Skip on login page to avoid a 403 in the console (expected when not logged in).
   useEffect(() => {
     if (sessionChecked) return;
     if (accountDetails.username) {
+      setSessionChecked(true);
+      return;
+    }
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    if (path === "/login" || path.endsWith("/login")) {
       setSessionChecked(true);
       return;
     }

@@ -10,14 +10,14 @@ import PasswordIcon from "@mui/icons-material/Password";
 import RemoveRedEyeIcon from "@mui/icons-material/RemoveRedEye";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 import { login } from "../api/auth";
 import { MembershipType, SessionResponse } from "../interface/types";
 import { useNavigate } from "react-router-dom";
 import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
 import { getImagePath } from "../utils/imagePath";
-import { saveToSessionObfuscated, clearAllAppStorage } from "../utils/storage";
+import { saveToSessionObfuscated } from "../utils/storage";
 
 interface LoginResponse {
   message: string;
@@ -37,11 +37,6 @@ const OfficerLogin = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
 
   const navigate = useNavigate();
-
-  // Clear all stored data when visiting login page so Inspect → Application shows no leftover data
-  useEffect(() => {
-    clearAllAppStorage();
-  }, []);
 
   const loginButtonAction = async () => {
     console.log('[FRONTEND_LOGIN] ========================================');
@@ -200,24 +195,7 @@ const OfficerLogin = () => {
           )}
         </div>
         
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-          <button
-            type="button"
-            onClick={() => {
-              clearAllAppStorage();
-              showSnackbarMessage("All site data cleared");
-            }}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#666",
-              cursor: "pointer",
-              fontSize: "12px",
-              textDecoration: "underline"
-            }}
-          >
-            Clear all site data
-          </button>
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
           <button
             onClick={loginButtonAction}
             style={{

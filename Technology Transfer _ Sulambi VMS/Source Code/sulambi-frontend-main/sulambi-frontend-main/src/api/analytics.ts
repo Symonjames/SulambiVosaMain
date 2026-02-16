@@ -23,24 +23,15 @@ export const getEventSuccessAnalytics = async () => {
   }
 };
 
+/** Volunteer dropout analytics — uses axios + relative URL so session cookie is sent (same as satisfaction/dashboard). */
 export const getVolunteerDropoutAnalytics = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/analytics/volunteer-dropout`, {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
+    const response = await axios.get("/analytics/volunteer-dropout");
+    return response.data;
+  } catch (error: any) {
     console.error('Error fetching volunteer dropout analytics:', error);
-    throw error;
+    const message = error.response?.data?.message || error.message || 'Failed to fetch volunteer dropout analytics.';
+    throw new Error(message);
   }
 };
 
@@ -243,56 +234,22 @@ const processSatisfactionData = (evaluations: any[], year?: string) => {
   };
 };
 
-// Enhanced analytics for dropout risk
+/** Dropout risk analytics — uses axios + relative URL so session cookie is sent (same as satisfaction/dashboard). */
 export const getDropoutRiskAnalytics = async (year?: string) => {
   try {
-    const url = year 
-      ? `${API_BASE_URL}/analytics/volunteer-dropout?year=${year}`
-      : `${API_BASE_URL}/analytics/volunteer-dropout`;
-    
-    console.log('[DROPOUT API] Fetching from:', url);
-      
-    const response = await fetch(url, {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const url = year
+      ? `/analytics/volunteer-dropout?year=${year}`
+      : "/analytics/volunteer-dropout";
 
-    console.log('[DROPOUT API] Response status:', response.status, response.statusText);
-
-    // Try to parse JSON even if status is not OK
-    let data;
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      const errorText = await response.text();
-      console.error('[DROPOUT API] Failed to parse response:', errorText);
-      throw new Error(`Failed to parse response: ${errorText}`);
-    }
-
-    console.log('[DROPOUT API] Response data:', data);
-
-    // Return the data even if success is false, so frontend can handle it
-    if (!response.ok) {
-      // If backend returned error, return it with success: false
-      return {
-        success: false,
-        error: data.error || data.message || `HTTP ${response.status}`,
-        message: data.message || 'Failed to fetch dropout risk analytics',
-        data: data.data || { semesterData: [], atRiskVolunteers: [] }
-      };
-    }
-
-    return data;
+    const response = await axios.get(url);
+    return response.data;
   } catch (error: any) {
     console.error('[DROPOUT API] Error fetching dropout risk analytics:', error);
-    // Return a structured error response instead of throwing
+    const message = error.response?.data?.message || error.message || 'Failed to fetch dropout risk analytics.';
     return {
       success: false,
-      error: error.message || 'Network error or server unavailable',
-      message: 'Failed to fetch dropout risk analytics. Please check if the backend server is running.',
+      error: message,
+      message,
       data: { semesterData: [], atRiskVolunteers: [] }
     };
   }

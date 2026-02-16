@@ -276,9 +276,15 @@ const RequirementEvalPage = () => {
                     onClick: () => {
                       const idStr = String(req.id ?? "");
                       acceptRequirement(req.id)
-                        .then(() => {
+                        .then((response) => {
                           recentlyAcceptedIds.current.add(idStr);
                           recentlyRejectedIds.current.delete(idStr);
+                          // Update row immediately so status shows Approved without waiting for refetch
+                          setTableData((prev) =>
+                            prev.map((r) =>
+                              String(r.id ?? "") === idStr ? { ...r, accepted: 1 } : r
+                            )
+                          );
                           showSnackbarMessage(
                             "Successfully accepted requirement",
                             "success"
@@ -309,9 +315,15 @@ const RequirementEvalPage = () => {
                     onClick: () => {
                       const idStr = String(req.id ?? "");
                       rejectRequirement(req.id)
-                        .then(() => {
+                        .then((response) => {
                           recentlyRejectedIds.current.add(idStr);
                           recentlyAcceptedIds.current.delete(idStr);
+                          // Update row immediately so status shows Rejected without waiting for refetch
+                          setTableData((prev) =>
+                            prev.map((r) =>
+                              String(r.id ?? "") === idStr ? { ...r, accepted: 0 } : r
+                            )
+                          );
                           showSnackbarMessage(
                             "Successfully rejected requirement",
                             "success"

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Typography, styled } from "@mui/material";
-import { getAllReports } from "../api/reports";
+import { getPublicReports } from "../api/reports";
 import { InternalReportType, ExternalReportType } from "../interface/types";
 
 // Build base URL like PhotoThumbnailCarousel
@@ -119,7 +119,7 @@ const HomeNewsSection: React.FC = () => {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    getAllReports()
+    getPublicReports()
       .then((res) => {
         if (!mounted) return;
         const external = (res.data?.external || []) as CombinedReport[];
