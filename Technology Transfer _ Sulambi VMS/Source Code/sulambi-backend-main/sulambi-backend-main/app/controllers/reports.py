@@ -51,6 +51,10 @@ def getAllReports():
     "message": "Successfully retrieved all reports"
   }
 
+def getPublicReports():
+  """Same as getAllReports but for public (landing page carousel). No auth required."""
+  return getAllReports()
+
 def getReportCalculations(eventId: int, eventType: str):
   from ..database.connection import convert_boolean_value
   accepted_value = convert_boolean_value(1)

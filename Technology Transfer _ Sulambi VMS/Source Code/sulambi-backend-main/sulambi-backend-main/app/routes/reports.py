@@ -8,6 +8,10 @@ ReportsBlueprint = Blueprint('reports', __name__, url_prefix="/reports")
 def getAllReportDetails():
   return reports.getAllReports()
 
+@ReportsBlueprint.get("/public")
+def getPublicReportsRoute():
+  return reports.getPublicReports()
+
 @ReportsBlueprint.get("/analytics/external/<eventId>")
 def getExternalReportDetails(eventId):
   return reports.getReportCalculations(eventId, "external")

@@ -22,6 +22,7 @@ PUBLIC_PATHS = [
     ("POST", "/api/auth/register"),
     ("GET", "/api/events/public"),
     ("GET", "/api/events/beneficiary-eligible"),
+    ("GET", "/api/reports/public"),  # Landing page "Latest News" carousel
     ("POST", "/api/evaluation/beneficiary/validate-pin"),
     ("POST", "/api/evaluation/beneficiary"),
 ]

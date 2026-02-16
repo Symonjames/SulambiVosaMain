@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { Box, Typography, styled, IconButton } from "@mui/material";
 import ArrowBackIosIcon from "@mui/icons-material/ArrowBackIos";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
-import { getAllReports } from "../api/reports";
+import { getPublicReports } from "../api/reports";
 import { InternalReportType, ExternalReportType } from "../interface/types";
 import FormDataLoaderModal from "./Modal/FormDataLoaderModal";
 import NewsFeedEventModal from "./Popups/NewsFeedEventModal";
@@ -350,7 +350,7 @@ const NewsThumbnailCarousel: React.FC<Props> = ({ title = "Latest News", limit =
     let mounted = true;
     setLoading(true);
     
-    getAllReports()
+    getPublicReports()
       .then((res) => {
         if (!mounted) return;
         

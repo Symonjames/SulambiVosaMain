@@ -2,6 +2,11 @@ from ..models.AccountModel import AccountModel
 from ..models.MembershipModel import MembershipModel
 from ..models.SessionModel import SessionModel
 from ..modules.Mailer import threadedHtmlMailer, isEmailConfigured, validateEmailConfig, htmlMailer
+from ..config.cors_and_cookies import (
+  is_production_cross_origin,
+  cookie_attrs_cross_origin,
+  cookie_attrs_same_site,
+)
 from flask import request, make_response, jsonify
 import traceback
 import os
@@ -12,16 +17,16 @@ SESSION_COOKIE_MAX_AGE = 7 * 24 * 3600  # 7 days
 
 
 def _is_secure_for_cookie():
-  """True if we should set SameSite=None; Secure (needed for cross-origin cookies)."""
+  """True if we should set Secure (required for SameSite=None on cross-origin)."""
   if request.is_secure:
     return True
-  # Proxies (Render, etc.) often set this
   proto = request.headers.get("X-Forwarded-Proto") or request.headers.get("x-forwarded-proto")
   if proto and str(proto).strip().lower() == "https":
     return True
-  # Production fallback: if host is not localhost, assume HTTPS (e.g. Render)
   host = (request.host or "").lower()
   if "onrender.com" in host or "sulambi" in host or os.getenv("FORCE_SECURE_COOKIE") == "true":
+    return True
+  if os.getenv("FRONTEND_URL"):
     return True
   return False
 
@@ -78,33 +83,26 @@ def login():
     resp = make_response(jsonify(payload))
     is_secure = _is_secure_for_cookie()
     token_val = sessionDetails.get("token", "")
-    # Same-site (e.g. api.sulambi-vosa.com + www.sulambi-vosa.com): set Domain so cookie is sent from www to api.
+    # COOKIE_DOMAIN (e.g. .sulambi-vosa.com): same-site cookie, Lax is enough
     cookie_domain = os.getenv("COOKIE_DOMAIN", "").strip()
     if cookie_domain and cookie_domain.startswith("."):
-      # Same-site: use Lax so cookie is sent on same-site requests (www -> api)
+      attrs = cookie_attrs_same_site(is_secure)
       resp.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token_val,
-        httponly=True,
-        secure=is_secure,
-        samesite="Lax",
-        max_age=SESSION_COOKIE_MAX_AGE,
-        path="/",
         domain=cookie_domain,
+        **attrs,
       )
-      print(f"[AUTH_LOGIN] ✅ Login successful, session_token cookie set (Domain={cookie_domain}, SameSite=Lax)")
+      print(f"[AUTH_LOGIN] ✅ Login successful, session_token (Domain={cookie_domain}, SameSite=Lax)")
+    elif is_production_cross_origin() or is_secure:
+      # Cross-origin (www.sulambi-vosa.com → Render): SameSite=None; Secure so browser sends cookie
+      attrs = cookie_attrs_cross_origin()
+      resp.set_cookie(key=SESSION_COOKIE_NAME, value=token_val, **attrs)
+      print("[AUTH_LOGIN] ✅ Login successful, session_token (SameSite=None; Secure)")
     else:
-      # Cross-origin (e.g. frontend on www, API on onrender.com): SameSite=None; Secure required
-      resp.set_cookie(
-        key=SESSION_COOKIE_NAME,
-        value=token_val,
-        httponly=True,
-        secure=is_secure,
-        samesite="None" if is_secure else "Lax",
-        max_age=SESSION_COOKIE_MAX_AGE,
-        path="/",
-      )
-      print("[AUTH_LOGIN] ✅ Login successful, session_token cookie set (SameSite=None; Secure)" if is_secure else "[AUTH_LOGIN] ✅ Login successful, session_token cookie set (Lax)")
+      attrs = cookie_attrs_same_site(is_secure)
+      resp.set_cookie(key=SESSION_COOKIE_NAME, value=token_val, **attrs)
+      print("[AUTH_LOGIN] ✅ Login successful, session_token (SameSite=Lax)")
     return resp
     
   except KeyError as e:

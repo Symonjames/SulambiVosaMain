@@ -6,6 +6,11 @@ export const getAllReports = () => {
   return axios.get(`${basePath}/`);
 };
 
+/** Public endpoint for landing page / carousel (no auth). */
+export const getPublicReports = () => {
+  return axios.get(`${basePath}/public`);
+};
+
 export const getReportAnalytics = (
   eventId: number,
   type: "external" | "internal"

@@ -1,6 +1,7 @@
 from flask import Flask, send_from_directory, request
 from flask_cors import CORS
 from app.blueprint import ApiBlueprint
+from app.config.cors_and_cookies import get_cors_origins
 from dotenv import load_dotenv
 import sys
 import os
@@ -13,51 +14,30 @@ def testFunction():
 # Create Flask app (needed for both dev and production)
 Server = Flask(__name__)
 
-# Allow common development and production origins
-# Get production frontend URL from environment or use default
-PRODUCTION_FRONTEND_URL = os.getenv("FRONTEND_URL", "https://sulambi-vosa.onrender.com")
-
-allowed_origins = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:3000",
-    "http://localhost:8080",
-    PRODUCTION_FRONTEND_URL,  # Production frontend (configurable via FRONTEND_URL env var)
-    "https://www.sulambi-vosa.com",  # Custom domain with www
-    "https://sulambi-vosa.com",  # Custom domain without www
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "http://127.0.0.1:3000"
-]
+# CORS: specific origins only (never "*") when using credentials (session cookie).
+# Set FRONTEND_URL on Render: https://www.sulambi-vosa.com
+allowed_origins = get_cors_origins()
 
 def is_allowed_origin(origin):
-    """Check if origin is allowed, including Render subdomains and custom domains"""
+    """True if origin is in the allowed list (required for credentials)."""
     if not origin:
         return False
-    
-    # Check exact match
     if origin in allowed_origins:
         return True
-    
-    # Allow any Render subdomain (for flexibility in deployment)
-    if origin.endswith('.onrender.com'):
+    if origin.endswith(".onrender.com"):
         return True
-    
-    # Allow custom domain (sulambi-vosa.com) with or without www
-    if 'sulambi-vosa.com' in origin:
+    if "sulambi-vosa.com" in origin:
         return True
-    
     return False
 
-# Configure CORS - must use specific origins (not wildcard) when credentials are enabled
-# Allow all methods and headers for development
-CORS(Server, 
+# Credentials = true → must use specific origins, never "*"
+CORS(Server,
      resources={r"/*": {
          "origins": allowed_origins,
-         "allow_headers": "*",
+         "allow_headers": ["Content-Type", "Authorization"],
          "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
          "supports_credentials": True,
-         "expose_headers": "*"
+         "expose_headers": "*",
      }},
      supports_credentials=True)
 
@@ -80,22 +60,16 @@ def handle_preflight():
             print(f"[CORS] Blocked preflight request from origin: {origin}")
             return make_response(jsonify({"error": "Origin not allowed"}), 403)
 
-# Add CORS headers to all responses (including errors)
-# Must use specific origin, not wildcard, when credentials are enabled
+# Add CORS headers to all responses (including errors). Never use "*" when credentials=True.
 @Server.after_request
 def after_request(response):
-    origin = request.headers.get('Origin', '')
-    # Use the request origin if it's in allowed list or is a Render domain
-    if is_allowed_origin(origin):
-        response.headers['Access-Control-Allow-Origin'] = origin
-    elif allowed_origins:
-        # Default to first allowed origin if origin not found
-        response.headers['Access-Control-Allow-Origin'] = allowed_origins[0]
-    else:
-        response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    origin = request.headers.get("Origin", "")
+    if origin and is_allowed_origin(origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
+    # If no origin or not allowed, do not set Allow-Origin (browser will block; avoid wrong origin)
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
 # Handle errors and ensure CORS headers are set even on exceptions
@@ -109,16 +83,12 @@ def handle_error(error):
     })
     response.status_code = 500 if not hasattr(error, 'code') else error.code
     
-    # Set CORS headers even on errors
-    if is_allowed_origin(origin):
-        response.headers['Access-Control-Allow-Origin'] = origin
-    elif allowed_origins:
-        response.headers['Access-Control-Allow-Origin'] = allowed_origins[0]
-    else:
-        response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    # CORS on errors: only set origin when allowed (never "*" when credentials used)
+    if origin and is_allowed_origin(origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
 @Server.route("/uploads/<path:path>")
