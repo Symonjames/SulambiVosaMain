@@ -4,6 +4,7 @@ Global authentication and RBAC for all API routes.
 - Role-based access: reject with 403 if user role is not allowed for the path.
 - Public routes: login, register, and a few read-only/submit endpoints only.
 """
+import os
 from flask import request, g
 from ..models.AccountModel import AccountModel
 from ..models.SessionModel import SessionModel
@@ -93,12 +94,20 @@ def _validate_session():
     if not user_token:
         user_token = (request.headers.get("authorization") or "").replace("Bearer ", "").strip()
     if not user_token:
+        # No cookie and no Bearer header → browser may not be sending cookie (CORS/domain/SameSite)
+        if os.environ.get("DEBUG_AUTH"):
+            print("[AUTH] No session_token cookie or Authorization header")
         return ({"message": "Unauthorized. Please log in."}, 403)
     session_info = SessionDb.get(user_token)
     if session_info is None:
+        if os.environ.get("DEBUG_AUTH"):
+            print("[AUTH] Session not found or expired for token:", user_token[:16] + "...")
         return ({"message": "Session invalid or expired."}, 403)
-    account = AccountDb.get(session_info.get("userid"))
+    userid = session_info.get("userid")
+    account = AccountDb.get(userid)
     if account is None:
+        if os.environ.get("DEBUG_AUTH"):
+            print("[AUTH] Account not found for userid:", userid)
         return ({"message": "Account not found."}, 403)
     g.accountSessionInfo = account
     return (None, None)

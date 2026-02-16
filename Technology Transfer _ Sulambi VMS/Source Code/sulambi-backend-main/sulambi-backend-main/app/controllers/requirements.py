@@ -220,6 +220,23 @@ def getAllRequirements():
     
     processing_time = time.time() - step_start
     print(f"[REQUIREMENTS_GET_ALL] Processed {len(requirements)} requirements ({processing_time:.2f}s)")
+
+    # Deduplicate: same person + same event = keep only most recent (list is newest-first)
+    seen_keys = set()
+    deduped = []
+    for req in requirements:
+      eid = req.get("eventId")
+      if isinstance(eid, dict):
+        eid = eid.get("id")
+      t = (str(req.get("type") or "external")).strip()
+      email = (str(req.get("email") or "").strip().lower()
+      key = (eid, t, email)
+      if key in seen_keys:
+        continue
+      seen_keys.add(key)
+      deduped.append(req)
+    requirements = deduped
+    print(f"[REQUIREMENTS_GET_ALL] After dedupe (eventId+type+email): {len(requirements)} requirements")
     
     # Normalize "accepted" to 0/1/null so frontend always gets same shape (avoids
     # PostgreSQL true/false vs SQLite 1/0 or string "1"/"0" mismatch).
@@ -253,6 +270,19 @@ def getAllRequirements():
     print(f"[REQUIREMENTS_GET_ALL] Traceback: {traceback.format_exc()}")
     return ({ "message": f"Server error: {str(e)}" }, 500)
 
+def _normalize_accepted_for_response(req):
+  """Normalize accepted to 0/1/None so frontend always gets same shape (avoids DB type mismatch)."""
+  if req is None:
+    return None
+  v = req.get("accepted")
+  if v is True or v == 1 or v == "1" or (isinstance(v, str) and v and v.strip().lower() in ("1", "true", "yes")):
+    req = {**req, "accepted": 1}
+  elif v is False or v == 0 or v == "0" or (isinstance(v, str) and v and v.strip().lower() in ("0", "false", "no")):
+    req = {**req, "accepted": 0}
+  else:
+    req = {**req, "accepted": None}
+  return req
+
 def acceptRequirements(id):
   # id can be string (UUID) or int from URL - requirements table uses string primary key
   id = str(id).strip()
@@ -265,6 +295,7 @@ def acceptRequirements(id):
   accepted_db_value = db_connection.convert_boolean_value(True)
   RequirementsDb.updateSpecific(id, ["accepted"], (accepted_db_value,))
   updatedData = RequirementsDb.get(id)
+  updatedData = _normalize_accepted_for_response(updatedData)
 
   # Get event details only for mailing (optional)
   if (existence["type"] == "external"):
@@ -279,8 +310,11 @@ def acceptRequirements(id):
       "data": updatedData
     }
 
-  # create an evaluation template for user to answer
-  EvaluationDb.create(id, "", "", "", "", "", False)
+  # create an evaluation template for user to answer (best-effort; do not fail accept)
+  try:
+    EvaluationDb.create(id, "", "", "", "", "", False)
+  except Exception as e:
+    print(f"[REQUIREMENTS_ACCEPT] Warning: Could not create evaluation record: {e}")
 
   # Determine when to send evaluation email
   try:
@@ -321,6 +355,7 @@ def rejectRequirements(id):
   rejected_db_value = db_connection.convert_boolean_value(False)
   RequirementsDb.updateSpecific(id, ["accepted"], (rejected_db_value,))
   updatedData = RequirementsDb.get(id)
+  updatedData = _normalize_accepted_for_response(updatedData)
 
   if (existence["type"] == "external"):
     eventDetails = ExternalEventDb.get(existence["eventId"])

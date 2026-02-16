@@ -99,26 +99,19 @@ def getAll():
         except Exception as e:
           print(f"Error fetching signatory {signatory_id}: {e}")
     
-    # Batch check for reports
-    external_reports_map = {}
-    if all_external_event_ids:
-      for event_id in all_external_event_ids:
-        try:
-          reports = ExternalReportDb.getAndSearch(["eventId"], [event_id])
-          external_reports_map[event_id] = len(reports) > 0
-        except Exception as e:
-          print(f"Error checking external report for event {event_id}: {e}")
-          external_reports_map[event_id] = False
-    
-    internal_reports_map = {}
-    if all_internal_event_ids:
-      for event_id in all_internal_event_ids:
-        try:
-          reports = InternalReportDb.getAndSearch(["eventId"], [event_id])
-          internal_reports_map[event_id] = len(reports) > 0
-        except Exception as e:
-          print(f"Error checking internal report for event {event_id}: {e}")
-          internal_reports_map[event_id] = False
+    # Batch check for reports (one query per report type instead of per event)
+    try:
+      external_event_ids_with_reports = ExternalReportDb.get_event_ids_with_reports()
+      external_reports_map = {eid: True for eid in external_event_ids_with_reports}
+    except Exception as e:
+      print(f"Error batch-fetching external report event IDs: {e}")
+      external_reports_map = {}
+    try:
+      internal_event_ids_with_reports = InternalReportDb.get_event_ids_with_reports()
+      internal_reports_map = {eid: True for eid in internal_event_ids_with_reports}
+    except Exception as e:
+      print(f"Error batch-fetching internal report event IDs: {e}")
+      internal_reports_map = {}
     
     # external events formatting using cached data
     for i in range(len(externalEvents)):
@@ -285,10 +278,20 @@ def getPublicEvents():
     "message": "Successfully retrieved all public events"
   }
 
+def _duration_end_ms(value):
+  """Normalize durationEnd to milliseconds (DB may store seconds or ms)."""
+  v = int(value or 0)
+  if v <= 0:
+    return 0
+  if v < 1e12:
+    return v * 1000
+  return v
+
+
 def getBeneficiaryEligibleEvents():
   """
   Public route. Returns events eligible for beneficiary evaluation:
-  public, accepted (or similar), ended in the last 7 days.
+  public, accepted (or similar), ended within the last 7 days only.
   Each event includes requiresBeneficiaryPin (true if event has a PIN set).
   """
   time_now_ms = int(datetime.now().timestamp() * 1000)
@@ -302,7 +305,7 @@ def getBeneficiaryEligibleEvents():
   for event in allExternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
     to_public = event.get("toPublic") in (True, 1, "true", "1")
-    duration_end = int(event.get("durationEnd") or 0)
+    duration_end = _duration_end_ms(event.get("durationEnd"))
     ended = duration_end <= time_now_ms
     within_week = duration_end >= cutoff_ms
     if status_lower not in ["editing", "rejected"] and to_public and ended and within_week:
@@ -319,7 +322,7 @@ def getBeneficiaryEligibleEvents():
   for event in allInternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
     to_public = event.get("toPublic") in (True, 1, "true", "1")
-    duration_end = int(event.get("durationEnd") or 0)
+    duration_end = _duration_end_ms(event.get("durationEnd"))
     ended = duration_end <= time_now_ms
     within_week = duration_end >= cutoff_ms
     if status_lower not in ["editing", "rejected"] and to_public and ended and within_week:

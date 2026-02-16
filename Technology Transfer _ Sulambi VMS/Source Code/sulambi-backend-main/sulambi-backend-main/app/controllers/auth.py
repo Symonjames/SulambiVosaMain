@@ -30,6 +30,19 @@ def _is_secure_for_cookie():
     return True
   return False
 
+
+def _is_cross_origin_request():
+  """True if this request is from a known frontend origin (different from backend). Ensures we set SameSite=None so the cookie is sent on later API calls."""
+  origin = (request.headers.get("Origin") or "").strip().lower()
+  if not origin:
+    return False
+  # Known frontend hosts (browser is on one of these; backend is e.g. sulambi-backend1.onrender.com)
+  if "sulambi-vosa.com" in origin or "sulambi-frontend" in origin or "sulambi-vosa.onrender.com" in origin:
+    return True
+  if origin.endswith(".onrender.com") and "backend" not in origin:
+    return True
+  return False
+
 AccountDb = AccountModel()
 MembershipDb = MembershipModel()
 SessionDb = SessionModel()
@@ -83,8 +96,11 @@ def login():
     resp = make_response(jsonify(payload))
     is_secure = _is_secure_for_cookie()
     token_val = sessionDetails.get("token", "")
-    # Local dev (localhost): always Lax so cookie works over HTTP
+    # Local dev (localhost only): use Lax so cookie works over HTTP
     is_local = (request.host or "").lower().startswith("localhost") or "127.0.0.1" in (request.host or "")
+    # Production (Render / HTTPS): always use SameSite=None; Secure so cookie is sent from any frontend origin
+    is_production = not is_local and (is_secure or "onrender.com" in (request.host or "").lower() or os.getenv("FRONTEND_URL"))
+
     # COOKIE_DOMAIN (e.g. .sulambi-vosa.com): same-site cookie, Lax is enough
     cookie_domain = os.getenv("COOKIE_DOMAIN", "").strip()
     if cookie_domain and cookie_domain.startswith("."):
@@ -96,11 +112,11 @@ def login():
         **attrs,
       )
       print(f"[AUTH_LOGIN] ✅ Login successful, session_token (Domain={cookie_domain}, SameSite=Lax)")
-    elif (is_production_cross_origin() or is_secure) and not is_local:
-      # Cross-origin (www.sulambi-vosa.com → Render): SameSite=None; Secure so browser sends cookie
+    elif is_production or _is_cross_origin_request():
+      # Production or cross-origin: SameSite=None; Secure so browser sends cookie on API calls from www.sulambi-vosa.com etc.
       attrs = cookie_attrs_cross_origin()
       resp.set_cookie(key=SESSION_COOKIE_NAME, value=token_val, **attrs)
-      print("[AUTH_LOGIN] ✅ Login successful, session_token (SameSite=None; Secure)")
+      print(f"[AUTH_LOGIN] ✅ Login successful, session_token (SameSite=None; Secure) host={request.host} origin={request.headers.get('Origin', '')}")
     else:
       attrs = cookie_attrs_same_site(is_secure)
       resp.set_cookie(key=SESSION_COOKIE_NAME, value=token_val, **attrs)

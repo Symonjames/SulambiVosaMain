@@ -163,7 +163,8 @@ def evaluateByRequirement(requirementId):
   if requirement == None:
     return ({ "message": "Requirement not found" }, 404)
 
-  # Single submission endpoint: accept both rating (criteria) and comment fields; save all.
+  # Single volunteer evaluation endpoint (email link and QR link both use this).
+  # Accept and save both rating (criteria) and comment/text fields; no partial validation.
   data = request.get_json(silent=True) or {}
   criteria = data.get("criteria") or {}
   if isinstance(criteria, dict):
@@ -351,11 +352,24 @@ def evaluateByRequirement(requirementId):
     "data": EvaluationDb.get(evaluationTemplate["id"])
   }
 
+
+def _event_ended_within_evaluation_window(duration_end_raw):
+  """True if event ended within the last 7 days (evaluation window). duration_end in seconds or ms."""
+  from datetime import datetime
+  now_ms = int(datetime.now().timestamp() * 1000)
+  v = int(duration_end_raw or 0)
+  end_ms = v * 1000 if v > 0 and v < 1e12 else v
+  if end_ms <= 0:
+    return False
+  seven_days_ms = 7 * 24 * 60 * 60 * 1000
+  return end_ms <= now_ms and end_ms >= (now_ms - seven_days_ms)
+
+
 def validateBeneficiaryPin():
   """
   Public endpoint: validate event PIN before showing the survey.
   Expects JSON: eventId (int), eventType ('external'|'internal'), pin (5-digit string).
-  Returns 200 with { "valid": true } if PIN matches the event, else 400 with error "Wrong PIN."
+  Returns 200 with { "valid": true } if PIN matches and event ended within last 7 days, else 400.
   """
   try:
     from ..database.connection import cursorInstance, quote_identifier
@@ -388,20 +402,27 @@ def validateBeneficiaryPin():
     event_table = "internalEvents" if event_type == "internal" else "externalEvents"
     quoted_table = quote_identifier(event_table)
     if is_postgresql:
-      query = f'SELECT "beneficiaryEvaluationPin" FROM {quoted_table} WHERE id = %s'
+      query = f'SELECT "beneficiaryEvaluationPin", "durationEnd" FROM {quoted_table} WHERE id = %s'
     else:
-      query = f"SELECT beneficiaryEvaluationPin FROM {quoted_table} WHERE id = ?"
+      query = f"SELECT beneficiaryEvaluationPin, durationEnd FROM {quoted_table} WHERE id = ?"
     conn, cursor = cursorInstance()
     cursor.execute(query, (event_id,))
     event_row = cursor.fetchone()
     if not event_row:
       return {"message": "Event not found", "success": False, "error": "Wrong PIN."}, 400
     event_required_pin = (event_row[0] or "").strip() or None
+    duration_end = event_row[1] if len(event_row) > 1 else None
     if not event_required_pin:
       return {
         "message": "Event not configured",
         "success": False,
         "error": "This event does not have a PIN set. Contact the organizer."
+      }, 400
+    if not _event_ended_within_evaluation_window(duration_end):
+      return {
+        "message": "Event no longer open for evaluation",
+        "success": False,
+        "error": "This event can only be evaluated within 7 days after it ended."
       }, 400
     if submitted_pin != event_required_pin:
       return {"message": "Invalid PIN", "success": False, "error": "Wrong PIN."}, 400
@@ -531,16 +552,23 @@ def submitBeneficiaryEvaluation():
       quoted_table = quote_identifier(event_table)
       
       if is_postgresql:
-        query = f'SELECT title, "beneficiaryEvaluationPin" FROM {quoted_table} WHERE id = %s'
+        query = f'SELECT title, "beneficiaryEvaluationPin", "durationEnd" FROM {quoted_table} WHERE id = %s'
       else:
-        query = f"SELECT title, beneficiaryEvaluationPin FROM {quoted_table} WHERE id = ?"
-      
+        query = f"SELECT title, beneficiaryEvaluationPin, durationEnd FROM {quoted_table} WHERE id = ?"
+
       cursor.execute(query, (event_id,))
       event_row = cursor.fetchone()
       if event_row:
         event_title = event_row[0]
         raw_pin = event_row[1] if len(event_row) > 1 else None
         event_required_pin = (raw_pin or "").strip() or None
+        duration_end = event_row[2] if len(event_row) > 2 else None
+        if not _event_ended_within_evaluation_window(duration_end):
+          return {
+            "message": "Event no longer open for evaluation",
+            "success": False,
+            "error": "This event can only be evaluated within 7 days after it ended."
+          }, 400
       else:
         return {
           "message": "Event not found",

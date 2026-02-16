@@ -44,6 +44,7 @@ def get_cors_origins():
   else:
     # Fallback when FRONTEND_URL not set (e.g. old Render default)
     origins.extend([
+      "https://sulambi-frontend1.onrender.com",
       "https://sulambi-vosa.onrender.com",
       "https://www.sulambi-vosa.com",
       "https://sulambi-vosa.com",
