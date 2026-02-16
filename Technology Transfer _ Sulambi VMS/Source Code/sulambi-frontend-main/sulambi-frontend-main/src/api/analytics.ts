@@ -6,6 +6,7 @@ export const getEventSuccessAnalytics = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/analytics/event-success`, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -26,6 +27,7 @@ export const getVolunteerDropoutAnalytics = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/analytics/volunteer-dropout`, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -46,6 +48,7 @@ export const getPredictiveInsights = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/analytics/insights`, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -66,6 +69,7 @@ export const getAllAnalytics = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/analytics/all`, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -105,6 +109,7 @@ export const getEventSatisfactionAnalytics = async (eventId: number, eventType: 
       
     const response = await fetch(url, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -249,6 +254,7 @@ export const getDropoutRiskAnalytics = async (year?: string) => {
       
     const response = await fetch(url, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
