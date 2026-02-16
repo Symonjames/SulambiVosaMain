@@ -229,7 +229,7 @@ def getAllRequirements():
       if isinstance(eid, dict):
         eid = eid.get("id")
       t = (str(req.get("type") or "external")).strip()
-      email = (str(req.get("email") or "").strip().lower()
+      email = (str(req.get("email") or "").strip().lower())
       key = (eid, t, email)
       if key in seen_keys:
         continue
