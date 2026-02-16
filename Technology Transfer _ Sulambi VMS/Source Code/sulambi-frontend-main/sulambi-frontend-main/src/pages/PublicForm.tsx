@@ -49,31 +49,47 @@ const PublicForm = () => {
   }, [id]);
 
   useEffect(() => {
-    setFormData({
-      criteria: {},
-    });
-  }, []);
+    setFormData({});
+  }, [id]);
 
   const submitCallback = useCallback(async () => {
-    if (id) {
-      try {
-        await createEvaluation(id, formData);
-        // Dispatch event to refresh satisfaction analytics chart
-        window.dispatchEvent(new CustomEvent('satisfaction-rating-submitted'));
-        navigate("/feedback-message");
-      } catch (err: any) {
-        if (err.response.data) {
-          const message = err.response.data.message;
-          const errors = err.response.data.fieldError ?? [];
-
-          setFieldErrors(errors);
-          showSnackbarMessage(`Error Occured: ${message}`, "error");
-        }
-      } finally {
-        setDisableButton(false);
+    if (!id) return;
+    const criteria = {
+      overall: formData.overall,
+      appropriateness: formData.appropriateness,
+      expectations: formData.expectations,
+      session: formData.session,
+      time: formData.time,
+      materials: formData.materials,
+      relevance: formData.relevance,
+      explained: formData.explained,
+      learningEnvironment: formData.learningEnvironment,
+      timeManagement: formData.timeManagement,
+      keenness: formData.keenness,
+      venue: formData.venue,
+    };
+    const payload = {
+      criteria,
+      q13: formData.q13 ?? "",
+      q14: formData.q14 ?? "",
+      comment: formData.comment ?? "",
+      recommendations: formData.recommendations ?? "",
+    };
+    try {
+      await createEvaluation(id, payload);
+      window.dispatchEvent(new CustomEvent('satisfaction-rating-submitted'));
+      navigate("/feedback-message");
+    } catch (err: any) {
+      if (err.response?.data) {
+        const message = err.response.data.message;
+        const errors = err.response.data.fieldError ?? [];
+        setFieldErrors(errors);
+        showSnackbarMessage(`Error Occured: ${message}`, "error");
       }
+    } finally {
+      setDisableButton(false);
     }
-  }, [formData]);
+  }, [id, formData, navigate, showSnackbarMessage]);
 
   return (
     <FlexBox
@@ -115,9 +131,7 @@ const PublicForm = () => {
                   enableAutoFieldCheck
                   fieldErrors={fieldErrors}
                   template={[
-                    {
-                      type: "divider",
-                    },
+                    { type: "divider" },
                     [
                       {
                         type: "label",
@@ -128,9 +142,9 @@ const PublicForm = () => {
                     { type: "section", message: "Training/Seminar experience" },
                     [
                       {
+                        id: "overall",
                         type: "radiolist",
-                        message:
-                          "Overall, how would you rate the seminar/training?",
+                        message: "Overall, how would you rate the seminar/training?",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -139,22 +153,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              overall: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "appropriateness",
                         type: "radiolist",
-                        message:
-                          "How would you rate the appropriateness of time and the proper use of resources provided?",
+                        message: "How would you rate the appropriateness of time and the proper use of resources provided?",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -163,22 +168,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              appropriateness: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "expectations",
                         type: "radiolist",
-                        message:
-                          "Objectives and expectations were clearly communicated and achieved.",
+                        message: "Objectives and expectations were clearly communicated and achieved.",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -187,22 +183,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              expectations: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "session",
                         type: "radiolist",
-                        message:
-                          "Session activities were appropriate and relevant to the achievement of the learning objectives.",
+                        message: "Session activities were appropriate and relevant to the achievement of the learning objectives.",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -211,22 +198,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              session: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "time",
                         type: "radiolist",
-                        message:
-                          "Sufficient time was allotted for group discussion and comments.",
+                        message: "Sufficient time was allotted for group discussion and comments.",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -235,22 +213,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              time: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "materials",
                         type: "radiolist",
-                        message:
-                          "Materials and audio-visual aids provided were useful.",
+                        message: "Materials and audio-visual aids provided were useful.",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -259,22 +228,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              materials: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "relevance",
                         type: "radiolist",
-                        message:
-                          "The resource person/trainer displayed thorough knowledge of, and provided relevant insights on the topic/s discussed.",
+                        message: "The resource person/trainer displayed thorough knowledge of, and provided relevant insights on the topic/s discussed.",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -283,22 +243,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              relevance: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "explained",
                         type: "radiolist",
-                        message:
-                          "The resource person/trainer thoroughly explained and processed the learning activities throughout the training.",
+                        message: "The resource person/trainer thoroughly explained and processed the learning activities throughout the training.",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -307,22 +258,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              explained: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "learningEnvironment",
                         type: "radiolist",
-                        message:
-                          "The resource person/trainer created a good learning environment, sustained the attention of the participants, and encouraged their participation in the training duration.",
+                        message: "The resource person/trainer created a good learning environment, sustained the attention of the participants, and encouraged their participation in the training duration.",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -331,22 +273,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              learningEnvironment: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "timeManagement",
                         type: "radiolist",
-                        message:
-                          "The resource person/trainer managed the time well, including some adjustments in the training schedule, if needed.",
+                        message: "The resource person/trainer managed the time well, including some adjustments in the training schedule, if needed.",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -355,22 +288,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              timeManagement: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "keenness",
                         type: "radiolist",
-                        message:
-                          "The resource person/trainer demonstrated keenness to the participants' needs and other requirements related to the training.",
+                        message: "The resource person/trainer demonstrated keenness to the participants' needs and other requirements related to the training.",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -379,22 +303,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              keenness: value,
-                            },
-                          });
-                        },
                       },
                     ],
                     [
                       {
+                        id: "venue",
                         type: "radiolist",
-                        message:
-                          "The venue or platform used was conducive for learning.",
+                        message: "The venue or platform used was conducive for learning.",
                         radioListRowDirection: true,
                         selectionQuestion: [
                           { label: "Excellent", initialValue: false },
@@ -403,44 +318,13 @@ const PublicForm = () => {
                           { label: "Fair", initialValue: false },
                           { label: "Poor", initialValue: false },
                         ],
-                        onUse: (value: any) => {
-                          setFormData({
-                            ...formData,
-                            criteria: {
-                              ...formData.criteria,
-                              venue: value,
-                            },
-                          });
-                        },
                       },
                     ],
-                    {
-                      type: "section",
-                      message: "Comments / Suggestions / Complaint",
-                    },
-                    {
-                      id: "q13",
-                      type: "textQuestion",
-                      message:
-                        "Was the training helpful for you in the practice of your profession? Why or why not?",
-                    },
-                    {
-                      id: "q14",
-                      type: "textQuestion",
-                      message:
-                        "What aspect of the training has been helpful to you? What other topics would you suggest for future trainings?",
-                    },
-                    {
-                      id: "comment",
-                      type: "textQuestion",
-                      message: "Comments/Commendations/Complaints:",
-                    },
-                    {
-                      id: "recommendations",
-                      type: "textQuestion",
-                      message:
-                        "What topic for future events do you want recommend?",
-                    },
+                    { type: "section", message: "Comments / Suggestions / Complaint" },
+                    { id: "q13", type: "textQuestion", message: "Was the training helpful for you in the practice of your profession? Why or why not?" },
+                    { id: "q14", type: "textQuestion", message: "What aspect of the training has been helpful to you? What other topics would you suggest for future trainings?" },
+                    { id: "comment", type: "textQuestion", message: "Comments/Commendations/Complaints:" },
+                    { id: "recommendations", type: "textQuestion", message: "What topic for future events do you want recommend?" },
                   ]}
                 />
               </FlexBox>

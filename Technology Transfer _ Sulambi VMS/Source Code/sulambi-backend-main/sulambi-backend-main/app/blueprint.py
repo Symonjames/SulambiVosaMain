@@ -9,8 +9,12 @@ from .routes.dashboard import DashboardBlueprint
 from .routes.reports import ReportsBlueprint
 from .routes.feedback import FeedbackBlueprint
 from .routes.analytics import AnalyticsBlueprint
+from .middlewares.globalAuth import global_api_auth
 
 ApiBlueprint = Blueprint('api', __name__, url_prefix='/api')
+
+# Global auth + RBAC for all /api/* routes (runs before any blueprint handler)
+ApiBlueprint.before_request(global_api_auth)
 
 @ApiBlueprint.get('/')
 def apiIndex():

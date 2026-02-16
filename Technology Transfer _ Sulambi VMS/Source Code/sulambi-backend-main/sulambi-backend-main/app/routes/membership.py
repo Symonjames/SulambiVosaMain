@@ -1,6 +1,5 @@
 from flask import Blueprint
 from ..controllers import membership
-from ..middlewares import tokenCheck
 
 MembershipBlueprint = Blueprint('membership', __name__, url_prefix="/membership")
 

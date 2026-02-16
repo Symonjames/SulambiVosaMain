@@ -22,6 +22,7 @@ import { logout } from "../api/auth";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
 import QrCodeIcon from "@mui/icons-material/QrCode";
 import { getImagePath } from "../utils/imagePath";
+import { clearAllAppStorage } from "../utils/storage";
 
 interface Props {
   page: string;
@@ -77,11 +78,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
               showSnackbarMessage("Successfully logged out");
             })
             .finally(() => {
-              sessionStorage.removeItem("accountDetails");
-              localStorage.removeItem("token");
-              localStorage.removeItem("username");
-              localStorage.removeItem("accountType");
-              localStorage.removeItem("membershipCache");
+              clearAllAppStorage();
               setAccountDetails({
                 accountType: "admin",
                 username: "",

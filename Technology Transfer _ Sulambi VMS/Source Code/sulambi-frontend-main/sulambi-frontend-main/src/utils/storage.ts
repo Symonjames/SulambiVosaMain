@@ -88,6 +88,19 @@ export const clearStorage = (prefix?: string): void => {
 };
 
 /**
+ * Clear all app storage (localStorage + sessionStorage) for this origin.
+ * Use on logout so Inspect → Application shows no leftover data.
+ */
+export const clearAllAppStorage = (): void => {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.clear();
+    if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
+  } catch (e) {
+    console.error('Error clearing app storage:', e);
+  }
+};
+
+/**
  * Save string directly (no JSON parsing) - for simple strings
  */
 export const saveStringToStorage = (key: string, value: string): void => {

@@ -1,5 +1,4 @@
 from flask import Blueprint, request
-from ..middlewares import tokenCheck
 from ..middlewares.requiredParams import eventParams
 from ..controllers import events
 from ..controllers import signatories
@@ -98,17 +97,8 @@ def updateInternalEvent(id):
 
 @EventsBlueprint.before_request
 def eventsMiddleware():
-  # skip checks for public routes here
-  if (request.path in ["/api/events/public", "/api/events/beneficiary-eligible"]):
-    pass
-
-  elif (request.method != "OPTIONS"):
-    # user authentication check
-    userCheck = tokenCheck.authCheckMiddleware()
-    if (userCheck != None):
-      return userCheck
-
-    # parameter parsing
+  # Auth + RBAC handled by global_api_auth; only param validation here
+  if (request.method != "OPTIONS"):
     missingParams = None
     if (request.method not in ["GET", "DELETE", "PATCH"]):
       if (request.path == "/api/events/external" or (("/api/events/external" in request.path) and request.view_args.get("id"))):

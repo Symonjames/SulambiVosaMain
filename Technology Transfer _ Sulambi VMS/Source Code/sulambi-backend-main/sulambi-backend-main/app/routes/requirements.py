@@ -1,5 +1,4 @@
 from flask import Blueprint, request
-from ..middlewares import tokenCheck
 from ..controllers import requirements
 from ..middlewares.requiredParams import requirementsParams
 
@@ -29,17 +28,8 @@ def rejectRequirementsRoute(requirementId):
 
 @RequirementsBlueprint.before_request
 def requirementsMiddleware():
+  # Auth + RBAC handled by global_api_auth; only param validation here
   if (request.method != "OPTIONS"):
-    # GET /my is for members; other GET and PATCH require admin/officer
-    if (request.method == "GET" and request.path.rstrip("/").endswith("/my")):
-      userCheck = tokenCheck.authCheckMiddleware(["member", "admin", "officer"])
-      if (userCheck != None):
-        return userCheck
-    elif (request.method in ["GET", "PATCH"]):
-      userCheck = tokenCheck.authCheckMiddleware(["admin", "officer"])
-      if (userCheck != None):
-        return userCheck
-
     if (request.method not in ["GET", "DELETE", "PATCH"]):
       missingParams = None
 

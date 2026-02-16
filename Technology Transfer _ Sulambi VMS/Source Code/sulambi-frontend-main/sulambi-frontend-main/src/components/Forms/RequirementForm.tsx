@@ -18,6 +18,8 @@ interface Props {
   preventLoadingCache?: boolean;
   /** When true (e.g. homepage public event join): hide Personal Details, use short subHeader */
   forPublicEventJoin?: boolean;
+  /** When true (logged-in member joining from Member → Events): show only documents (medCert, waiver). Personal details come from profile. */
+  documentsOnly?: boolean;
   setOpen?: (state: boolean) => void;
   afterOpen?: () => void;
 }
@@ -29,6 +31,7 @@ const RequirementForm: React.FC<Props> = ({
   viewOnly,
   preventLoadingCache,
   forPublicEventJoin,
+  documentsOnly,
   setOpen,
   afterOpen,
 }) => {
@@ -40,9 +43,9 @@ const RequirementForm: React.FC<Props> = ({
 
   const submitCallback = () => {
     // Validate that both files are present
-    const hasMedCert = formData.medCert instanceof File || 
+    const hasMedCert = formData.medCert instanceof File ||
                       (formData.medCert instanceof FileList && formData.medCert.length > 0);
-    const hasWaiver = formData.waiver instanceof File || 
+    const hasWaiver = formData.waiver instanceof File ||
                     (formData.waiver instanceof FileList && formData.waiver.length > 0);
 
     if (!hasMedCert || !hasWaiver) {
@@ -54,46 +57,47 @@ const RequirementForm: React.FC<Props> = ({
       return;
     }
 
-    // Only send medCert and waiver - nothing else is required
     const formUploadable = new FormData();
     formUploadable.append("type", eventType);
 
-    // Personal details: use form fields first, then membership cache
-    let member: Partial<MembershipType> = {};
-    try {
-      const cache = localStorage.getItem("membershipCache");
-      if (cache) member = JSON.parse(cache);
-    } catch (_) {}
-    const fullname = formData.fullname ?? member.fullname;
-    const email = formData.email ?? member.email;
-    const srcode = formData.srcode ?? member.srcode;
-    const age = formData.age ?? member.age;
-    let birthday = formData.birthday ?? member.birthday;
-    if (typeof birthday === "number" && birthday) birthday = dayjs(birthday).format("MMMM D, YYYY");
-    const sex = formData.sex ?? member.sex;
-    const campus = formData.campus ?? member.campus;
-    const collegeDept = formData.collegeDept ?? member.collegeDept;
-    const yrlevelprogram = formData.yrlevelprogram ?? member.yrlevelprogram;
-    const address = formData.address ?? member.address;
-    const contactNum = formData.contactNum ?? member.contactNum;
-    const fblink = formData.fblink ?? member.fblink;
-    if (fullname) formUploadable.append("fullname", String(fullname));
-    if (email) formUploadable.append("email", String(email));
-    if (srcode) formUploadable.append("srcode", String(srcode));
-    if (age !== undefined && age !== "") formUploadable.append("age", String(age));
-    if (birthday) formUploadable.append("birthday", String(birthday));
-    if (sex) formUploadable.append("sex", String(sex));
-    if (campus) formUploadable.append("campus", String(campus));
-    if (collegeDept) formUploadable.append("collegeDept", String(collegeDept));
-    if (yrlevelprogram) formUploadable.append("yrlevelprogram", String(yrlevelprogram));
-    if (address) formUploadable.append("address", String(address));
-    if (contactNum) formUploadable.append("contactNum", String(contactNum));
-    if (fblink) formUploadable.append("fblink", String(fblink));
-    try {
-      if ((member as any).affiliation) formUploadable.append("affiliation", String((member as any).affiliation));
-    } catch (_) {}
+    // When documentsOnly (logged-in member), backend uses session/membership for personal details
+    if (!documentsOnly) {
+      let member: Partial<MembershipType> = {};
+      try {
+        const cache = localStorage.getItem("membershipCache");
+        if (cache) member = JSON.parse(cache);
+      } catch (_) {}
+      const fullname = formData.fullname ?? member.fullname;
+      const email = formData.email ?? member.email;
+      const srcode = formData.srcode ?? member.srcode;
+      const age = formData.age ?? member.age;
+      let birthday = formData.birthday ?? member.birthday;
+      if (typeof birthday === "number" && birthday) birthday = dayjs(birthday).format("MMMM D, YYYY");
+      const sex = formData.sex ?? member.sex;
+      const campus = formData.campus ?? member.campus;
+      const collegeDept = formData.collegeDept ?? member.collegeDept;
+      const yrlevelprogram = formData.yrlevelprogram ?? member.yrlevelprogram;
+      const address = formData.address ?? member.address;
+      const contactNum = formData.contactNum ?? member.contactNum;
+      const fblink = formData.fblink ?? member.fblink;
+      if (fullname) formUploadable.append("fullname", String(fullname));
+      if (email) formUploadable.append("email", String(email));
+      if (srcode) formUploadable.append("srcode", String(srcode));
+      if (age !== undefined && age !== "") formUploadable.append("age", String(age));
+      if (birthday) formUploadable.append("birthday", String(birthday));
+      if (sex) formUploadable.append("sex", String(sex));
+      if (campus) formUploadable.append("campus", String(campus));
+      if (collegeDept) formUploadable.append("collegeDept", String(collegeDept));
+      if (yrlevelprogram) formUploadable.append("yrlevelprogram", String(yrlevelprogram));
+      if (address) formUploadable.append("address", String(address));
+      if (contactNum) formUploadable.append("contactNum", String(contactNum));
+      if (fblink) formUploadable.append("fblink", String(fblink));
+      try {
+        if ((member as any).affiliation) formUploadable.append("affiliation", String((member as any).affiliation));
+      } catch (_) {}
+    }
 
-    // Only append medCert and waiver files
+    // Append medCert and waiver files
     if (formData.medCert instanceof File) {
       formUploadable.append("medCert", formData.medCert);
     } else if (formData.medCert instanceof FileList && formData.medCert.length > 0) {
@@ -130,13 +134,17 @@ const RequirementForm: React.FC<Props> = ({
       });
   };
 
-  // Reset form when modal opens; pre-fill personal details from membership cache when available
+  // Reset form when modal opens; pre-fill personal details from membership cache when available (not used when documentsOnly)
   useEffect(() => {
-    setForceRefresh(forceRefresh + 1);
+    setForceRefresh((prev) => prev + 1);
     if (open) {
       afterOpen && afterOpen();
       setFieldErrors([]);
       if (viewOnly) return;
+      if (documentsOnly) {
+        setFormData({});
+        return;
+      }
       if (preventLoadingCache) {
         try {
           const cache = localStorage.getItem("membershipCache");
@@ -164,10 +172,16 @@ const RequirementForm: React.FC<Props> = ({
     }
   }, [open]);
 
+  const showPersonalDetails = !documentsOnly && !forPublicEventJoin;
+
   return (
     <PopupModal
       header="Requirement Form"
-      subHeader={forPublicEventJoin ? "Upload the required documents for this event." : "Kindly fill up the information needed below"}
+      subHeader={
+        documentsOnly || forPublicEventJoin
+          ? "Upload the required documents for this event."
+          : "Kindly fill up the information needed below"
+      }
       open={open}
       setOpen={setOpen}
     >
@@ -218,9 +232,8 @@ const RequirementForm: React.FC<Props> = ({
                   ),
                 },
               ],
-              ...(forPublicEventJoin
-                ? []
-                : [
+              ...(showPersonalDetails
+                ? [
                     { type: "section" as const, message: "Personal Details" },
                     [{ id: "fullname", type: "text", required: true, message: "Full Name" }],
                     [
@@ -266,7 +279,8 @@ const RequirementForm: React.FC<Props> = ({
                       { id: "bloodType", type: "text", message: "Blood Type" },
                       { id: "bloodDonation", type: "text", message: "Blood Donation" },
                     ],
-                  ]),
+                  ]
+                : []),
             ]) as (FormGenTemplateProps | FormGenTemplateProps[])[]}
           />
         </FlexBox>

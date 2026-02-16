@@ -1,5 +1,4 @@
 from flask import Blueprint, request
-from ..middlewares import tokenCheck
 from ..middlewares.requiredParams import evaluationParams
 from ..controllers import evaluation
 
@@ -39,14 +38,8 @@ def createBeneficiaryEvaluation():
 
 @EvaluationBlueprint.before_request
 def evaluationMiddleware():
+  # Auth + RBAC handled by global_api_auth; only param validation here
   if (request.method != "OPTIONS"):
-
-    # token check for account session purposes
-    if (request.path == '/api/evaluation/personal'):
-      userCheck = tokenCheck.authCheckMiddleware()
-      if (userCheck != None):
-        return userCheck
-
     if (request.method not in ["GET", "DELETE", "PATCH"]):
       # Skip param check for beneficiary endpoint (public submission)
       if "/api/evaluation/beneficiary" in request.path:

@@ -8,7 +8,6 @@ import { checkReqIdValidity } from "../api/evaluation";
 import { useNavigate } from "react-router-dom";
 import { useContext, useState } from "react";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
-import VolunteerEvaluationForm from "../components/Forms/VolunteerEvaluationForm";
 import BeneficiariesEvaluationForm from "../components/Forms/BeneficiariesEvaluationForm";
 import { VolunteerActivism, People, Star, Assignment } from "@mui/icons-material";
 
@@ -17,7 +16,6 @@ const QRCode = () => {
   const navigate = useNavigate();
   const [id, setId] = useState("");
   const [showEvaluationOptions, setShowEvaluationOptions] = useState(false);
-  const [openVolunteerForm, setOpenVolunteerForm] = useState(false);
   const [openBeneficiaryForm, setOpenBeneficiaryForm] = useState(false);
   const [eventData, setEventData] = useState<any>(null);
 
@@ -25,22 +23,16 @@ const QRCode = () => {
     try {
       await checkReqIdValidity(id);
       setShowEvaluationOptions(true);
-      // You can fetch event data here if needed
-      setEventData({
-        id: id,
-        title: "Event Evaluation",
-        type: "evaluation"
-      });
+      setEventData({ id, title: "Event Evaluation", type: "evaluation" });
     } catch (err) {
       showSnackbarMessage("Cannot evaluate on the token provided", "warning");
     }
   };
 
-  const handleVolunteerSubmit = (data: any) => {
-    console.log('Volunteer Evaluation Submitted:', data);
-    showSnackbarMessage("Volunteer evaluation submitted successfully!", "success");
-    setOpenVolunteerForm(false);
-    // You can add API call here to submit volunteer evaluation
+  const handleVolunteerStart = () => {
+    if (id && id.trim()) {
+      navigate(`/evaluation/${id.trim()}`);
+    }
   };
 
   const handleBeneficiarySubmit = (data: any) => {
@@ -122,7 +114,7 @@ const QRCode = () => {
                     boxShadow: '0 8px 25px rgba(0,0,0,0.15)'
                   }
                 }}
-                onClick={() => setOpenVolunteerForm(true)}
+                onClick={handleVolunteerStart}
               >
                 <CardContent>
                   <FlexBox alignItems="center" gap={2} mb={2}>
@@ -160,7 +152,7 @@ const QRCode = () => {
                     label="Start Volunteer Evaluation"
                     icon={<Star />}
                     fullWidth
-                    onClick={() => setOpenVolunteerForm(true)}
+                    onClick={handleVolunteerStart}
                   />
                 </CardActions>
               </Card>
@@ -248,15 +240,7 @@ const QRCode = () => {
         )}
       </FlexBox>
 
-      {/* Evaluation Forms */}
-      <VolunteerEvaluationForm
-        open={openVolunteerForm}
-        setOpen={setOpenVolunteerForm}
-        eventId={eventData?.id || 1}
-        eventTitle={eventData?.title || "Event Evaluation"}
-        onSubmit={handleVolunteerSubmit}
-      />
-
+      {/* Beneficiary evaluation (PIN-based) stays as modal; volunteer uses same form as email link via /evaluation/:id */}
       <BeneficiariesEvaluationForm
         open={openBeneficiaryForm}
         setOpen={setOpenBeneficiaryForm}

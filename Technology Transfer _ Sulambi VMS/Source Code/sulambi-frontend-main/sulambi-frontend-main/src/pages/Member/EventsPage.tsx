@@ -108,6 +108,7 @@ const EventsPage = () => {
       {selectedEventId && (
         <RequirementForm
           preventLoadingCache
+          documentsOnly
           eventId={selectedEventId}
           open={openRequirementForm}
           eventType={selectedEventType}

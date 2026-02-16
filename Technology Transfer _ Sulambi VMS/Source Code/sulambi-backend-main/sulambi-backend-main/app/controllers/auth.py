@@ -3,6 +3,7 @@ from ..models.MembershipModel import MembershipModel
 from ..models.SessionModel import SessionModel
 from ..modules.Mailer import threadedHtmlMailer, isEmailConfigured, validateEmailConfig, htmlMailer
 from flask import request, make_response, jsonify
+from urllib.parse import quote
 import traceback
 
 # Cookie name for httpOnly auth token (not readable by JS)
@@ -60,19 +61,25 @@ def login():
       "memberData": membershipData
     }
     resp = make_response(jsonify(payload))
-    # Set httpOnly cookie so token is not readable by JS (Inspect / localStorage)
     is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
-    # SameSite=None + Secure required so cookie is sent on cross-origin requests (e.g. frontend on sulambi-vosa.onrender.com, API on sulambi-backend1.onrender.com)
-    samesite = "None" if is_secure else "Lax"
-    resp.set_cookie(
-      key=SESSION_COOKIE_NAME,
-      value=sessionDetails.get("token", ""),
-      httponly=True,
-      secure=is_secure,
-      samesite=samesite,
-      max_age=SESSION_COOKIE_MAX_AGE,
-    )
-    print("[AUTH_LOGIN] ✅ Login successful, session_token cookie set")
+    token_val = sessionDetails.get("token", "")
+    # Cross-origin: frontend (e.g. www.sulambi-vosa.com) and API (sulambi-backend1.onrender.com) are different origins.
+    # Cookie must have SameSite=None; Secure so the browser sends it on API requests.
+    if is_secure:
+      resp.headers["Set-Cookie"] = (
+        f"{SESSION_COOKIE_NAME}={quote(token_val)}; "
+        f"Path=/; Max-Age={SESSION_COOKIE_MAX_AGE}; HttpOnly; Secure; SameSite=None"
+      )
+    else:
+      resp.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token_val,
+        httponly=True,
+        secure=False,
+        samesite="Lax",
+        max_age=SESSION_COOKIE_MAX_AGE,
+      )
+    print("[AUTH_LOGIN] ✅ Login successful, session_token cookie set (SameSite=None)" if is_secure else "[AUTH_LOGIN] ✅ Login successful, session_token cookie set")
     return resp
     
   except KeyError as e:
@@ -105,15 +112,19 @@ def logout(usertoken=None):
 def _clear_session_cookie(response):
   """Clear the session cookie on the response."""
   is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
-  samesite = "None" if is_secure else "Lax"
-  response.set_cookie(
-    key=SESSION_COOKIE_NAME,
-    value="",
-    httponly=True,
-    secure=is_secure,
-    samesite=samesite,
-    max_age=0,
-  )
+  if is_secure:
+    response.headers["Set-Cookie"] = (
+      f"{SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None"
+    )
+  else:
+    response.set_cookie(
+      key=SESSION_COOKIE_NAME,
+      value="",
+      httponly=True,
+      secure=False,
+      samesite="Lax",
+      max_age=0,
+    )
 
 
 def me():

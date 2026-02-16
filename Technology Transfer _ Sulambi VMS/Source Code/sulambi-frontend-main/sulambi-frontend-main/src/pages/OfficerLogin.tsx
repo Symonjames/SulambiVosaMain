@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
 import { getImagePath } from "../utils/imagePath";
-import { saveToSessionObfuscated } from "../utils/storage";
+import { saveToSessionObfuscated, clearAllAppStorage } from "../utils/storage";
 
 interface LoginResponse {
   message: string;
@@ -38,13 +38,9 @@ const OfficerLogin = () => {
 
   const navigate = useNavigate();
 
-  // Clear any legacy auth data from localStorage on login page (token now in httpOnly cookie)
+  // Clear all stored data when visiting login page so Inspect → Application shows no leftover data
   useEffect(() => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    localStorage.removeItem("accountType");
-    localStorage.removeItem("membershipCache");
-    localStorage.removeItem("accountDetails");
+    clearAllAppStorage();
   }, []);
 
   const loginButtonAction = async () => {
@@ -204,7 +200,24 @@ const OfficerLogin = () => {
           )}
         </div>
         
-        <div style={{ textAlign: "right" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+          <button
+            type="button"
+            onClick={() => {
+              clearAllAppStorage();
+              showSnackbarMessage("All site data cleared");
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#666",
+              cursor: "pointer",
+              fontSize: "12px",
+              textDecoration: "underline"
+            }}
+          >
+            Clear all site data
+          </button>
           <button
             onClick={loginButtonAction}
             style={{

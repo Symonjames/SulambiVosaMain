@@ -343,7 +343,7 @@ def createNewRequirement(eventId: int):
     print(f"[REQUIREMENTS_CREATE] Creating requirement for eventId: {eventId}")
     print(f"[REQUIREMENTS_CREATE] Request form keys: {list(request.form.keys())}")
     print(f"[REQUIREMENTS_CREATE] Request files keys: {list(request.files.keys())}")
-    
+
     # Use Cloudinary for file uploads (validates PDF and images only). Local storage is disabled.
     from app.utils.multipartFileWriter import cloudinaryFileWriter
 
@@ -375,33 +375,74 @@ def createNewRequirement(eventId: int):
       print(f"[REQUIREMENTS_CREATE] ❌ ERROR: {error_msg}")
       return ({ "message": error_msg }, 500)
 
-    # Only check for duplicates if email is provided
-    email = request.form.get("email")
-    if email and email.strip():
+    medCertUrl = resultingPaths.get("medCert") or ""
+    waiverUrl = resultingPaths.get("waiver") or ""
+    event_type = request.form.get("type") or "external"
+
+    # Logged-in member: use profile from session/membership; no personal details in form
+    account_session = g.get("accountSessionInfo")
+    if account_session and account_session.get("accountType") == "member":
+      membership_id = account_session.get("membershipId")
+      if not membership_id:
+        return ({ "message": "Member profile not found. Please contact support." }, 403)
+      member_details = MembershipDb.get(membership_id)
+      if not member_details:
+        return ({ "message": "Member profile not found. Please contact support." }, 403)
+      email = (member_details.get("email") or "").strip()
+      fullname = (member_details.get("fullname") or "").strip()
+      srcode = (member_details.get("srcode") or "").strip()
+      age_val = member_details.get("age")
+      if age_val is not None and not isinstance(age_val, int):
+        try:
+          age_val = int(age_val)
+        except (TypeError, ValueError):
+          age_val = None
+      birthday = (member_details.get("birthday") or "").strip()
+      sex = (member_details.get("sex") or "").strip()
+      campus = (member_details.get("campus") or "").strip()
+      collegeDept = (member_details.get("collegeDept") or "").strip()
+      yrlevelprogram = (member_details.get("yrlevelprogram") or "").strip()
+      address = (member_details.get("address") or "").strip()
+      contactNum = (member_details.get("contactNum") or "").strip()
+      fblink = (member_details.get("fblink") or "").strip()
+      affiliation = (member_details.get("affiliation") or "N/A").strip()
+      print(f"[REQUIREMENTS_CREATE] Using member profile for: {email or fullname}")
+    else:
+      # Public or non-member: require personal details from form
+      fullname = (request.form.get("fullname") or "").strip()
+      email = (request.form.get("email") or "").strip()
+      srcode = (request.form.get("srcode") or "").strip()
+      age_str = request.form.get("age") or ""
+      age_val = None
+      if age_str and age_str.strip():
+        try:
+          age_val = int(age_str.strip())
+        except ValueError:
+          age_val = None
+      birthday = (request.form.get("birthday") or "").strip()
+      sex = (request.form.get("sex") or "").strip()
+      campus = (request.form.get("campus") or "").strip()
+      collegeDept = (request.form.get("collegeDept") or "").strip()
+      yrlevelprogram = (request.form.get("yrlevelprogram") or "").strip()
+      address = (request.form.get("address") or "").strip()
+      contactNum = (request.form.get("contactNum") or "").strip()
+      fblink = (request.form.get("fblink") or "").strip()
+      affiliation = (request.form.get("affiliation") or "N/A").strip()
+
+    if not email and not fullname:
+      return ({ "message": "Email or full name is required" }, 400)
+
+    # Duplicate check by email
+    if email:
       matchedUserRequirement = RequirementsDb.getAndSearch(
         ["eventId", "type", "email"],
-        [eventId, request.form.get("type") or "external", email]
+        [eventId, event_type, email]
       )
-
-      if (len(matchedUserRequirement) > 0):
+      if len(matchedUserRequirement) > 0:
         print(f"[REQUIREMENTS_CREATE] ❌ Duplicate requirement found for email: {email}")
         return ({ "message": "Your email has already been registered to this event" }, 403)
 
     print("[REQUIREMENTS_CREATE] Creating requirement in database...")
-    
-    # Convert empty strings to None for integer fields (PostgreSQL requirement)
-    # age column in requirements table is INTEGER (nullable), so empty strings must be None
-    age_str = request.form.get("age") or ""
-    age_value = None
-    if age_str and age_str.strip():
-      try:
-        age_value = int(age_str.strip())
-      except ValueError:
-        age_value = None
-    
-    medCertUrl = resultingPaths.get("medCert") or ""
-    waiverUrl = resultingPaths.get("waiver") or ""
-
     print(f"[REQUIREMENTS_CREATE] Saving Cloudinary URLs to database:")
     print(f"  medCert: {medCertUrl[:80]}...")
     print(f"  waiver: {waiverUrl[:80]}...")
@@ -410,27 +451,27 @@ def createNewRequirement(eventId: int):
       medCertUrl,
       waiverUrl,
       eventId,
-      request.form.get("type") or "external",
+      event_type,
       request.form.get("curriculum") or "",
       request.form.get("destination") or "",
       request.form.get("firstAid") or "",
       request.form.get("fees") or "",
       request.form.get("personnelInCharge") or "",
       request.form.get("personnelRole") or "",
-      request.form.get("fullname") or "",
-      request.form.get("email") or "",
-      request.form.get("srcode") or "",
-      age_value,  # This will be an integer or None, not a string
-      request.form.get("birthday") or "",
-      request.form.get("sex") or "",
-      request.form.get("campus") or "",
-      request.form.get("collegeDept") or "",
-      request.form.get("yrlevelprogram") or "",
-      request.form.get("address") or "",
-      request.form.get("contactNum") or "",
-      request.form.get("fblink") or "",
+      fullname,
+      email,
+      srcode,
+      age_val,
+      birthday,
+      sex,
+      campus,
+      collegeDept,
+      yrlevelprogram,
+      address,
+      contactNum,
+      fblink,
       None,
-      request.form.get("affiliation") or "N/A"
+      affiliation
     )
 
     print(f"[REQUIREMENTS_CREATE] ✅ Requirement created successfully with ID: {createdRequirement.get('id')}")

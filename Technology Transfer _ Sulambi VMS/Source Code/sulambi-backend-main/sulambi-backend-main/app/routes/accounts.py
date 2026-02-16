@@ -1,5 +1,4 @@
 from flask import Blueprint, request
-from ..middlewares import tokenCheck
 from ..middlewares.requiredParams import accountsParams
 from ..controllers import accounts
 
@@ -35,11 +34,8 @@ def createOfficerAcc():
 
 @AccountsBlueprint.before_request
 def accountsMiddleware():
+  # Auth + RBAC handled by global_api_auth (admin only for /api/accounts)
   if (request.method != "OPTIONS"):
-    userCheck = tokenCheck.authCheckMiddleware(["admin", "officer"])
-    if (userCheck != None):
-      return userCheck
-
     missingParams = None
     if (request.method not in ["GET", "DELETE", "PATCH"]):
       if ("/api/accounts/" in request.path) or ("/api/accounts/" in request.path and request.view_args.get("id")):

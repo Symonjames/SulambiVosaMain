@@ -3,6 +3,7 @@ import Landing from "./pages/Landing";
 import OfficerLogin from "./pages/OfficerLogin";
 import TemplateForm from "./pages/TemplateForm";
 import AccountDetailsProvider from "./contexts/AccountDetailsProvider";
+import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardPage from "./pages/DashboardPage";
 import EventApprovalPage from "./pages/Admin/EventApprovalPage";
 import CalendarPage from "./pages/Admin/CalendarPage";
@@ -60,8 +61,9 @@ function App() {
                       }
                     />
 
-                    {/* admin route */}
-                    <Route path="admin">
+                    {/* All admin/officer/member routes are protected: direct URL = redirect to /login if not logged in or wrong role */}
+                    {/* Protected: /admin, /admin/dashboard, /admin/event-approval, /admin/calendar, /admin/report, /admin/accounts, /admin/analytics */}
+                    <Route path="admin" element={<ProtectedRoute allowedRoles={["admin"]} />}>
                       <Route index element={<DashboardPage />} />
                       <Route path="dashboard" element={<DashboardPage />} />
                       <Route
@@ -74,8 +76,8 @@ function App() {
                       <Route path="analytics" element={<AnalyticsPage />} />
                     </Route>
 
-                    {/* officer route */}
-                    <Route path="officer">
+                    {/* Protected: /officer, /officer/dashboard, /officer/event-proposal, /officer/requirement-evaluation, /officer/membership-approval, /officer/helpdesk */}
+                    <Route path="officer" element={<ProtectedRoute allowedRoles={["officer"]} />}>
                       <Route index element={<DashboardPage />} />
                       <Route path="dashboard" element={<DashboardPage />} />
                       <Route
@@ -96,8 +98,8 @@ function App() {
                       />
                     </Route>
 
-                    {/* members route */}
-                    <Route path="member">
+                    {/* Protected: /member, /member/events, /member/qr-code-share, /member/helpdesk, /member/participation */}
+                    <Route path="member" element={<ProtectedRoute allowedRoles={["member"]} />}>
                       <Route index element={<EventsPage />} />
                       <Route path="events" element={<EventsPage />} />
                       <Route path="qr-code-share" element={<QrOfficerPage />} />

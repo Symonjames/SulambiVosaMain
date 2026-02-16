@@ -158,17 +158,20 @@ def evaluateByRequirement(requirementId):
   if requirement == None:
     return ({ "message": "Requirement not found" }, 404)
 
-  # evaluation for the event (derived from requirement id)
+  # Single submission endpoint: accept both rating (criteria) and comment fields; save all.
+  data = request.get_json(silent=True) or {}
+  criteria = data.get("criteria") or {}
+  if isinstance(criteria, dict):
+    import json
+    criteria = json.dumps(criteria)
+  q13 = data.get("q13") or ""
+  q14 = data.get("q14") or ""
+  comment = data.get("comment") or ""
+  recommendations = data.get("recommendations") or ""
+
   EvaluationDb.updateSpecific(evaluationTemplate["id"],
     ["criteria", "q13", "q14", "comment", "recommendations", "finalized"],
-    (
-      request.json["criteria"],
-      request.json["q13"],
-      request.json["q14"],
-      request.json["comment"],
-      request.json["recommendations"],
-      True
-    )
+    (criteria, q13, q14, comment, recommendations, True)
   )
 
   # Save to satisfactionSurveys table for analytics
