@@ -41,9 +41,10 @@ axios.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
     const msg = (error.response?.data as any)?.message ?? '';
-    // Always log 403 with backend message so we can see "Unauthorized...", "Session invalid...", "You do not have permission...", etc.
-    if (status === 403) {
-      console.warn('[API 403]', error.config?.url, '—', msg || error.message);
+    const authMsg = /not authenticated|unauthorized|token invalid|session expired|session invalid|not permitted|authentication required/i.test(String(msg));
+    const isAuth403 = status === 403 && authMsg;
+    if (isAuth403) {
+      // Silent: expected when not logged in or cookie not sent
     } else {
       console.error('[API_ERROR]', {
         message: error.message,

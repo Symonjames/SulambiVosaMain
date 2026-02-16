@@ -37,7 +37,6 @@ def getAll():
     # manual mapping of user details
     accountSessionInfo = g.get("accountSessionInfo")
     if not accountSessionInfo:
-      print("[EVENTS 403] GET /api/events/ — g.accountSessionInfo missing (auth middleware may not have run or session not set)")
       return ({"message": "Authentication required. Please log in."}, 403)
     
     externalEvents = ExternalEventDb.getAll()

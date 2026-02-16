@@ -83,6 +83,8 @@ def login():
     resp = make_response(jsonify(payload))
     is_secure = _is_secure_for_cookie()
     token_val = sessionDetails.get("token", "")
+    # Local dev (localhost): always Lax so cookie works over HTTP
+    is_local = (request.host or "").lower().startswith("localhost") or "127.0.0.1" in (request.host or "")
     # COOKIE_DOMAIN (e.g. .sulambi-vosa.com): same-site cookie, Lax is enough
     cookie_domain = os.getenv("COOKIE_DOMAIN", "").strip()
     if cookie_domain and cookie_domain.startswith("."):
@@ -94,7 +96,7 @@ def login():
         **attrs,
       )
       print(f"[AUTH_LOGIN] ✅ Login successful, session_token (Domain={cookie_domain}, SameSite=Lax)")
-    elif is_production_cross_origin() or is_secure:
+    elif (is_production_cross_origin() or is_secure) and not is_local:
       # Cross-origin (www.sulambi-vosa.com → Render): SameSite=None; Secure so browser sends cookie
       attrs = cookie_attrs_cross_origin()
       resp.set_cookie(key=SESSION_COOKIE_NAME, value=token_val, **attrs)
