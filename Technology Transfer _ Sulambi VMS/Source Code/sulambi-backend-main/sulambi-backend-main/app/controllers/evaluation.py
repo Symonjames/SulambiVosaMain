@@ -41,18 +41,23 @@ def getEvaluationByEvent(eventId: int, eventType: str):
 
 def getPersonalEvaluationStatus():
   accountSessionInfo = g.get("accountSessionInfo")
-  accountDetails = AccountDb.get(accountSessionInfo["id"])
-
-  if (accountSessionInfo["accountType"] != "member"):
+  if not accountSessionInfo:
+    return ({ "message": "Not authenticated. Please log in." }, 403)
+  accountDetails = AccountDb.get(accountSessionInfo.get("id"))
+  if accountDetails is None:
+    return ({ "message": "Session expired" }, 403)
+  if accountSessionInfo.get("accountType") != "member":
     return ({ "message": "Invalid account type" }, 403)
 
-  if (accountDetails == None):
-    return ({ "message": "Session expired" }, 403)
-
-  # retrieve user requirement details
-  membershipId = accountDetails["membershipId"]
+  membershipId = accountDetails.get("membershipId")
+  if not membershipId:
+    return { "message": "Successfully retrieved personal evaluation status", "data": [] }
   userDetails = MembershipDb.get(membershipId)
-  userEmail = userDetails["email"]
+  if not userDetails:
+    return { "message": "Successfully retrieved personal evaluation status", "data": [] }
+  userEmail = (userDetails.get("email") or "").strip()
+  if not userEmail:
+    return { "message": "Successfully retrieved personal evaluation status", "data": [] }
 
   # requirements and evaluation has one-to-one relationship
   matchedReqs = RequirementDb.getOrSearch(["email"], [userEmail])

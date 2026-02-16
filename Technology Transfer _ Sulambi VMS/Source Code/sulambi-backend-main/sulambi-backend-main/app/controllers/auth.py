@@ -4,10 +4,26 @@ from ..models.SessionModel import SessionModel
 from ..modules.Mailer import threadedHtmlMailer, isEmailConfigured, validateEmailConfig, htmlMailer
 from flask import request, make_response, jsonify
 import traceback
+import os
 
 # Cookie name for httpOnly auth token (not readable by JS)
 SESSION_COOKIE_NAME = "session_token"
 SESSION_COOKIE_MAX_AGE = 7 * 24 * 3600  # 7 days
+
+
+def _is_secure_for_cookie():
+  """True if we should set SameSite=None; Secure (needed for cross-origin cookies)."""
+  if request.is_secure:
+    return True
+  # Proxies (Render, etc.) often set this
+  proto = request.headers.get("X-Forwarded-Proto") or request.headers.get("x-forwarded-proto")
+  if proto and str(proto).strip().lower() == "https":
+    return True
+  # Production fallback: if host is not localhost, assume HTTPS (e.g. Render)
+  host = (request.host or "").lower()
+  if "onrender.com" in host or "sulambi" in host or os.getenv("FORCE_SECURE_COOKIE") == "true":
+    return True
+  return False
 
 AccountDb = AccountModel()
 MembershipDb = MembershipModel()
@@ -60,20 +76,35 @@ def login():
       "memberData": membershipData
     }
     resp = make_response(jsonify(payload))
-    is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
+    is_secure = _is_secure_for_cookie()
     token_val = sessionDetails.get("token", "")
-    # Cross-origin: frontend and API on different domains (e.g. sulambi-vosa.onrender.com vs sulambi-backend1.onrender.com).
-    # Cookie must be SameSite=None; Secure so the browser sends it on cross-site API requests.
-    resp.set_cookie(
-      key=SESSION_COOKIE_NAME,
-      value=token_val,
-      httponly=True,
-      secure=is_secure,
-      samesite="None" if is_secure else "Lax",
-      max_age=SESSION_COOKIE_MAX_AGE,
-      path="/",
-    )
-    print("[AUTH_LOGIN] ✅ Login successful, session_token cookie set (SameSite=None)" if is_secure else "[AUTH_LOGIN] ✅ Login successful, session_token cookie set")
+    # Same-site (e.g. api.sulambi-vosa.com + www.sulambi-vosa.com): set Domain so cookie is sent from www to api.
+    cookie_domain = os.getenv("COOKIE_DOMAIN", "").strip()
+    if cookie_domain and cookie_domain.startswith("."):
+      # Same-site: use Lax so cookie is sent on same-site requests (www -> api)
+      resp.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token_val,
+        httponly=True,
+        secure=is_secure,
+        samesite="Lax",
+        max_age=SESSION_COOKIE_MAX_AGE,
+        path="/",
+        domain=cookie_domain,
+      )
+      print(f"[AUTH_LOGIN] ✅ Login successful, session_token cookie set (Domain={cookie_domain}, SameSite=Lax)")
+    else:
+      # Cross-origin (e.g. frontend on www, API on onrender.com): SameSite=None; Secure required
+      resp.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token_val,
+        httponly=True,
+        secure=is_secure,
+        samesite="None" if is_secure else "Lax",
+        max_age=SESSION_COOKIE_MAX_AGE,
+        path="/",
+      )
+      print("[AUTH_LOGIN] ✅ Login successful, session_token cookie set (SameSite=None; Secure)" if is_secure else "[AUTH_LOGIN] ✅ Login successful, session_token cookie set (Lax)")
     return resp
     
   except KeyError as e:
@@ -105,16 +136,20 @@ def logout(usertoken=None):
 
 def _clear_session_cookie(response):
   """Clear the session cookie on the response."""
-  is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
-  response.set_cookie(
+  is_secure = _is_secure_for_cookie()
+  cookie_domain = os.getenv("COOKIE_DOMAIN", "").strip()
+  kwargs = dict(
     key=SESSION_COOKIE_NAME,
     value="",
     httponly=True,
     secure=is_secure,
-    samesite="None" if is_secure else "Lax",
+    samesite="Lax" if cookie_domain else ("None" if is_secure else "Lax"),
     max_age=0,
     path="/",
   )
+  if cookie_domain and cookie_domain.startswith("."):
+    kwargs["domain"] = cookie_domain
+  response.set_cookie(**kwargs)
 
 
 def me():

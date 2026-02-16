@@ -2,9 +2,16 @@ import axios from "axios";
 
 // Export the API base URL for use in other modules
 
-const API_BASE_URL = import.meta.env.VITE_API_URI || "http://localhost:8000/api";
+// In dev: use /api so requests go to same origin (Vite proxies to backend) and the session cookie is sent.
+const API_BASE_URL =
+  import.meta.env.VITE_API_URI ||
+  (import.meta.env.DEV ? "/api" : "http://localhost:8000/api");
 
 export { API_BASE_URL };
+
+if (typeof window !== "undefined") {
+  console.log("[API] Backend base URL:", API_BASE_URL);
+}
 
 axios.defaults.headers.common["Content-Type"] = "application/json";
 axios.defaults.headers.common.Accept = "application/json";
@@ -32,13 +39,11 @@ axios.interceptors.response.use(
     return response;
   },
   (error) => {
-    // 403 with auth-related message = cookie not sent or invalid; don't flood console
     const status = error.response?.status;
     const msg = (error.response?.data as any)?.message ?? '';
-    const authMsg = /not authenticated|unauthorized|token invalid|session expired|session invalid|not permitted/i.test(String(msg));
-    const isAuth403 = status === 403 && authMsg;
-    if (isAuth403) {
-      // Silent: expected when not logged in or cross-origin cookie not sent
+    // Always log 403 with backend message so we can see "Unauthorized...", "Session invalid...", "You do not have permission...", etc.
+    if (status === 403) {
+      console.warn('[API 403]', error.config?.url, '—', msg || error.message);
     } else {
       console.error('[API_ERROR]', {
         message: error.message,

@@ -45,7 +45,7 @@ def getMyRequirements():
   """Return current member's requirement event IDs (eventId + type) so frontend can show Joined."""
   accountSessionInfo = g.get("accountSessionInfo")
   if not accountSessionInfo:
-    return ({ "message": "Unauthorized" }, 401)
+    return ({ "message": "Unauthorized. Please log in." }, 403)
   accountDetails = AccountDb.get(accountSessionInfo["id"])
   if accountDetails is None:
     return ({ "message": "Session expired" }, 403)

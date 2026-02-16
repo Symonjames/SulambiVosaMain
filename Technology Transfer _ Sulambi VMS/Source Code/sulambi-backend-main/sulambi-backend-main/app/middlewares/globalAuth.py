@@ -28,8 +28,17 @@ PUBLIC_PATHS = [
 
 def _is_public(method, path):
     path = path.rstrip("/") or path
+    path_normalized = path.rstrip("/") or "/"
     for m, p in PUBLIC_PATHS:
-        if m == method and (path == p or path.startswith(p.rstrip("/") + "/")):
+        if m != method:
+            continue
+        p_clean = p.rstrip("/") or "/"
+        # API index: only exactly GET /api (or /api/) is public, not GET /api/events/ etc.
+        if p_clean == "/api":
+            if path_normalized == "/api":
+                return True
+            continue
+        if path == p_clean or path.startswith(p_clean + "/"):
             return True
     return False
 
@@ -83,12 +92,15 @@ def _validate_session():
     if not user_token:
         user_token = (request.headers.get("authorization") or "").replace("Bearer ", "").strip()
     if not user_token:
+        print(f"[AUTH 403] {request.method} {request.path} — no session cookie or Bearer token")
         return ({"message": "Unauthorized. Please log in."}, 403)
     session_info = SessionDb.get(user_token)
     if session_info is None:
+        print(f"[AUTH 403] {request.method} {request.path} — session invalid or expired")
         return ({"message": "Session invalid or expired."}, 403)
     account = AccountDb.get(session_info.get("userid"))
     if account is None:
+        print(f"[AUTH 403] {request.method} {request.path} — account not found")
         return ({"message": "Account not found."}, 403)
     g.accountSessionInfo = account
     return (None, None)
@@ -116,6 +128,7 @@ def global_api_auth():
     allowed = _get_allowed_roles(method, path)
     role = (g.accountSessionInfo or {}).get("accountType")
     if not role or role not in allowed:
+        print(f"[AUTH 403] {method} {path} — role '{role}' not in allowed {allowed}")
         return ({"message": "You do not have permission to access this resource."}, 403)
 
     return None

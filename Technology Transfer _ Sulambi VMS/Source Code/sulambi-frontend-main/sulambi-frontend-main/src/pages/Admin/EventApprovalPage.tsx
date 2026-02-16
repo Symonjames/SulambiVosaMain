@@ -444,7 +444,7 @@ const EventApproval = () => {
               "Status",
               "Action",
             ]}
-            componentOnLeft={[CustomLeftComponents]}
+            componentOnLeft={CustomLeftComponents}
             componentBeforeSearch={CustomComponents}
             data={tableData}
             onSearch={(key) => setSearchVal(key.toLowerCase())}
