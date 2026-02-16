@@ -4,7 +4,7 @@ import FlexBox from "../components/FlexBox";
 import FormGeneratorTemplate from "../components/Forms/FormGeneratorTemplate";
 import PopupModal from "../components/Modal/PopupModal";
 import SendIcon from "@mui/icons-material/Send";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import TextHeader from "../components/Headers/TextHeader";
 import { FormDataContext } from "../contexts/FormDataProvider";
 import { checkReqIdValidity, createEvaluation } from "../api/evaluation";
@@ -25,9 +25,9 @@ const PublicForm = () => {
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState([]);
 
-  const { formData, setFormData } = useContext(FormDataContext);
+  const { formData, setFormData, setPageFormData } = useContext(FormDataContext);
   const { id } = useParams();
-
+  const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -48,9 +48,14 @@ const PublicForm = () => {
     })();
   }, [id]);
 
+  // Single evaluation form for both email link and QR link: always start with a clean form
+  // so rating and comment fields behave the same regardless of entry point.
   useEffect(() => {
-    setFormData({});
-  }, [id]);
+    if (id) {
+      setFormData({});
+      if (location.pathname) setPageFormData(location.pathname, {});
+    }
+  }, [id, location.pathname, setFormData, setPageFormData]);
 
   const submitCallback = useCallback(async () => {
     if (!id) return;
@@ -129,6 +134,7 @@ const PublicForm = () => {
               >
                 <FormGeneratorTemplate
                   enableAutoFieldCheck
+                  viewOnly={false}
                   fieldErrors={fieldErrors}
                   template={[
                     { type: "divider" },

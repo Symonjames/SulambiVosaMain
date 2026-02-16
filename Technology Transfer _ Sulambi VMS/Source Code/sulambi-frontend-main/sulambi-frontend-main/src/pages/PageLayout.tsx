@@ -19,7 +19,6 @@ import { ReactNode, useContext, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { logout } from "../api/auth";
-import { API_BASE_URL } from "../api/init";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
 import QrCodeIcon from "@mui/icons-material/QrCode";
 import { getImagePath } from "../utils/imagePath";
@@ -336,9 +335,6 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
           sx={{ overflow: "auto" }}
         >
           {children}
-          <Typography variant="caption" display="block" sx={{ mt: 2, opacity: 0.7 }} title="Current API base URL">
-            Backend: {API_BASE_URL}
-          </Typography>
         </Box>
       </FlexBox>
     </>

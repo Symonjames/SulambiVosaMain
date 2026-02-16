@@ -18,7 +18,11 @@ const DropoutRiskAssessment: React.FC = () => {
   const [retentionRate, setRetentionRate] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthError, setIsAuthError] = useState(false);
   const [curtainOpen, setCurtainOpen] = useState(false);
+
+  const isAuthRelatedMessage = (msg: string) =>
+    /unauthorized|log in|sign in|session expired|session invalid|403/i.test(msg || '');
 
   // Load real data from API
   useEffect(() => {
@@ -26,23 +30,30 @@ const DropoutRiskAssessment: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        
+        setIsAuthError(false);
+
         const response = await getDropoutRiskAnalytics('');
-        
-        console.log('[DROPOUT COMPONENT] Response received:', response);
-        
+
         if (response && response.success) {
           setSemesterEngagementData(response.data?.semesterData || []);
           setAtRiskVolunteers(response.data?.atRiskVolunteers || []);
         } else {
           const errorMsg = response?.error || response?.message || 'Failed to load dropout risk data';
-          console.error('[DROPOUT COMPONENT] API returned error:', errorMsg);
-          setError(`Failed to load dropout risk data: ${errorMsg}`);
+          if (isAuthRelatedMessage(errorMsg)) {
+            setError('Sign in to view dropout risk.');
+            setIsAuthError(true);
+          } else {
+            setError(`Failed to load dropout risk data: ${errorMsg}`);
+          }
         }
       } catch (err: any) {
-        console.error('Error loading dropout risk data:', err);
         const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
-        setError(`Error loading dropout risk data: ${errorMessage}`);
+        if (isAuthRelatedMessage(errorMessage)) {
+          setError('Sign in to view dropout risk.');
+          setIsAuthError(true);
+        } else {
+          setError(`Error loading dropout risk data: ${errorMessage}`);
+        }
       } finally {
         setLoading(false);
       }
@@ -316,7 +327,7 @@ const DropoutRiskAssessment: React.FC = () => {
         <Typography textAlign="center" fontWeight="bold" gutterBottom>
           Dropout Risk Assessment
         </Typography>
-        <Alert severity="error" sx={{ mt: 2 }}>
+        <Alert severity={isAuthError ? 'info' : 'error'} sx={{ mt: 2 }}>
           {error}
         </Alert>
       </FlexBox>

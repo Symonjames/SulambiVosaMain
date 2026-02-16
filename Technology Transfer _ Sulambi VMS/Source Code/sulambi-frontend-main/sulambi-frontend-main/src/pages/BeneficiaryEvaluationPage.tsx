@@ -50,7 +50,21 @@ const BeneficiaryEvaluationPage = () => {
         const internalEvents: PublicEvent[] = response.data.internal ?? [];
         const combined: PublicEvent[] = [...externalEvents, ...internalEvents];
 
+        const nowMs = Date.now();
+        const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+        const cutoffMs = nowMs - sevenDaysMs;
+
+        const endMs = (e: PublicEvent) => {
+          const v = e.durationEnd;
+          if (typeof v === "number") return v < 1e12 ? v * 1000 : v;
+          return dayjs(v).valueOf();
+        };
+
         const mapped: EvaluationEventOption[] = combined
+          .filter((event) => {
+            const end = endMs(event);
+            return end <= nowMs && end >= cutoffMs;
+          })
           .map((event) => ({
             id: event.id,
             title: event.title,

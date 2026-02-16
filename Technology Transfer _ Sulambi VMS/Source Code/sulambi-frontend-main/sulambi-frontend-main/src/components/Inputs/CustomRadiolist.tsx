@@ -39,17 +39,18 @@ const CustomRadiolist: React.FC<CustomRadioProps> = ({
           radioListData.map((data) => {
             return (
               <FormControlLabel
+                key={data.label}
                 label={data.label}
                 value={data.label}
+                disabled={viewOnly}
                 control={
                   <Radio
-                    {...{
-                      checked: viewOnly ? data.label === value : undefined,
-                    }}
+                    checked={viewOnly ? data.label === value : undefined}
+                    disabled={viewOnly}
                   />
                 }
                 onChange={(event: any) => {
-                  onChange && onChange(event.target.value);
+                  if (!viewOnly) onChange && onChange(event.target.value);
                 }}
               />
             );
