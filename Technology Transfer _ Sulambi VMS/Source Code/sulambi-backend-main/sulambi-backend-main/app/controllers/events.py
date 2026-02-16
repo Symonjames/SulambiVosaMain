@@ -37,9 +37,7 @@ def getAll():
     # manual mapping of user details
     accountSessionInfo = g.get("accountSessionInfo")
     if not accountSessionInfo:
-      return ({
-        "message": "Authentication required"
-      }, 401)
+      return ({"message": "Authentication required. Please log in."}, 403)
     
     externalEvents = ExternalEventDb.getAll()
     internalEvents = InternalEventDb.getAll()

@@ -139,7 +139,9 @@ const EventsPage = () => {
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          Error loading events: {error.message || 'Unknown error'}
+          {error.response?.status === 403 || /auth|session|login|unauthorized/i.test(String(error.message || ''))
+            ? "Your session may have expired or the request was not authorized. Please log out and log in again, then click Refresh."
+            : `Error loading events: ${error.message || "Unknown error"}`}
         </Alert>
       )}
 
