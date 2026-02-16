@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import TextHeader from "../../components/Headers/TextHeader";
 import TextSubHeader from "../../components/Headers/TextSubHeader";
 import DataTable from "../../components/Tables/DataTable";
@@ -34,7 +34,7 @@ const RequirementEvalPage = () => {
   const [searchStatus, setSearchStatus] = useState(3);
   const [searchVal, setSearchVal] = useState("");
   const [debouncedSearchVal, setDebouncedSearchVal] = useState("");
-  const [tableData, setTableData] = useState<any[]>([]);
+  const [allRequirementsData, setAllRequirementsData] = useState<RequirementsDataType[]>([]);
   const [forceRefresh, setForceRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
   /** Filter by event: null = all events; otherwise { id, type, title } */
@@ -90,344 +90,174 @@ const RequirementEvalPage = () => {
       .catch(() => setEventsList([]));
   }, []);
 
+  // Fetch requirements only when forceRefresh changes (initial load or after accept/reject). Filtering is client-side.
   useEffect(() => {
     setLoading(true);
     getAllRequirements()
       .then((response) => {
-        console.log("Full API response:", response);
-        console.log("Response data:", response?.data);
-        
-        // Ensure response has the expected structure
         if (!response?.data?.data) {
-          console.warn("Invalid response structure:", response);
-          console.warn("Response keys:", Object.keys(response?.data || {}));
-          setTableData([]);
+          showSnackbarMessage("Invalid response format from server", "error");
+          setAllRequirementsData([]);
           setLoading(false);
-          showSnackbarMessage(
-            "Invalid response format from server",
-            "error"
-          );
           return;
         }
-
-        const requirementsData: RequirementsDataType[] = response.data.data;
-
-        // Check if requirementsData is an array
-        if (!Array.isArray(requirementsData)) {
-          console.warn("Requirements data is not an array:", requirementsData);
-          console.warn("Type of requirementsData:", typeof requirementsData);
-          setTableData([]);
+        const data = response.data.data;
+        if (!Array.isArray(data)) {
+          showSnackbarMessage("Requirements data format error", "error");
+          setAllRequirementsData([]);
           setLoading(false);
-          showSnackbarMessage(
-            "Requirements data format error",
-            "error"
-          );
           return;
         }
-
-        console.log("✅ Fetched requirements:", requirementsData.length, "items");
-        if (requirementsData.length > 0) {
-          console.log("Sample requirement keys:", Object.keys(requirementsData[0]));
-          console.log("Sample requirement:", requirementsData[0]);
-          console.log("eventId value:", requirementsData[0].eventId);
-          console.log("eventid value:", (requirementsData[0] as any).eventid);
-        }
-        console.log("Current search filter:", { searchVal: debouncedSearchVal, searchStatus });
-
-      const chipMap = {
-        notEvaluated: (
-          <Chip bgcolor="blue" label="not-evaluated" color="white" />
-        ),
-        approved: <Chip bgcolor="#2f7a00" label="approved" color="white" />,
-        rejected: <Chip bgcolor="#c10303" label="rejected" color="white" />,
-      };
-
-      // Normalize data - handle both camelCase and lowercase column names
-      // Also ensure eventId is properly formatted
-      const normalizedData = requirementsData.map((req: any) => {
-        // Handle eventId - could be object, number, or lowercase key
-        let eventId = req.eventId || req.eventid;
-        
-        // If eventId is still a number, it means backend didn't process it
-        // Create a placeholder object
-        if (typeof eventId === 'number' || typeof eventId === 'string') {
-          eventId = {
-            id: eventId,
-            title: `Event ID ${eventId}`,
-            status: "unknown"
-          };
-        }
-        
-        // Normalize accepted: backend may return boolean, number, or string "1"/"0".
-        // Optimistic update: if we just accepted/rejected this id, use that so the row
-        // shows correct status even when refetch returns stale data (e.g. hosted DB lag).
-        const idStr = String(req.id ?? "");
-        let accepted: number | null;
-        if (recentlyAcceptedIds.current.has(idStr)) {
-          accepted = 1;
-        } else if (recentlyRejectedIds.current.has(idStr)) {
-          accepted = 0;
-        } else {
-          const raw = req.accepted;
-          accepted =
-            raw === true || raw === 1 || raw === "1" || String(raw).trim() === "1"
-              ? 1
-              : raw === false || raw === 0 || raw === "0" || String(raw).trim() === "0"
-              ? 0
-              : null;
-        }
-
-        return {
-          ...req,
-          eventId: eventId,
-          accepted,
-        };
-      });
-
-      // Log each requirement before filtering
-      normalizedData.forEach((req, index) => {
-        console.log(`Requirement ${index}:`, {
-          id: req.id,
-          eventId: req.eventId,
-          eventTitle: typeof req.eventId === 'object' ? req.eventId?.title : 'N/A',
-          fullname: req.fullname,
-          email: req.email,
-          type: req.type,
-          accepted: req.accepted,
-        });
-      });
-
-      const afterSearchFilter = normalizedData
-          .filter((req) => {
-            // Use debounced search value
-            if (!debouncedSearchVal || debouncedSearchVal.trim() === "") return true;
-            
-            const searchLower = debouncedSearchVal.toLowerCase().trim();
-            const searchTerms = searchLower.split(/\s+/).filter(term => term.length > 0);
-            
-            // If multiple search terms, all must match (AND logic)
-            if (searchTerms.length === 0) return true;
-            
-            // Build searchable text from all relevant fields (coerce to string; API may return numbers)
-            const eventTitle = String(req.eventId?.title ?? "Unknown Event").toLowerCase();
-            const fullname = String(req.fullname ?? "").toLowerCase();
-            const srcode = String(req.srcode ?? "").toLowerCase();
-            const collegeDept = String(req.collegeDept ?? "").toLowerCase();
-            const email = String(req.email ?? "").toLowerCase();
-            const campus = String(req.campus ?? "").toLowerCase();
-            const yrlevelprogram = String(req.yrlevelprogram ?? "").toLowerCase();
-            const address = String(req.address ?? "").toLowerCase();
-            const contactNum = String(req.contactNum ?? "").toLowerCase();
-            const eventType = String(req.type ?? "").toLowerCase();
-            
-            // Combine all searchable fields
-            const searchableText = `${eventTitle} ${fullname} ${srcode} ${collegeDept} ${email} ${campus} ${yrlevelprogram} ${address} ${contactNum} ${eventType}`;
-            
-            // Check if all search terms are found in the searchable text
-            return searchTerms.every(term => searchableText.includes(term));
-          });
-      
-      console.log("After search filter:", afterSearchFilter.length, "requirements");
-      
-      const afterStatusFilter = afterSearchFilter
-          .filter((req) => {
-            if (searchStatus === 3) return true; // Show all
-            if (searchStatus === 2) {
-              // Show not evaluated (accepted not yet set)
-              return req.accepted === null;
-            }
-            // Show specific status (0 = rejected, 1 = approved)
-            return req.accepted === searchStatus;
-          });
-
-      const afterEventFilter = eventFilter
-        ? afterStatusFilter.filter((req) => {
-            const reqId = req.eventId != null && typeof req.eventId === "object" ? req.eventId.id : req.eventId;
-            const reqType = (req.type ?? "external").toString();
-            return Number(reqId) === eventFilter.id && reqType === eventFilter.type;
-          })
-        : afterStatusFilter;
-      
-      console.log("After status filter:", afterStatusFilter.length, "requirements");
-      if (eventFilter) console.log("After event filter:", afterEventFilter.length, "requirements for", eventFilter.title);
-
-      const filteredAndMappedData = afterEventFilter
-          .map((req) => [
-            req.eventId?.title || "Unknown Event",
-            req.fullname || "N/A",
-            req.accepted === 0
-              ? chipMap.rejected
-              : req.accepted === 1
-              ? chipMap.approved
-              : chipMap.notEvaluated,
-            req.accepted === null ? (
-              <MenuButtonTemplate
-                items={[
-                  {
-                    label: "View Requirement",
-                    onClick: () => {
-                      setSelectedFormData(req);
-                      setFormData(req);
-                      setViewFormData(true);
-                    },
-                  },
-                  {
-                    label: "Accept",
-                    onClick: () => {
-                      const idStr = String(req.id ?? "");
-                      acceptRequirement(req.id)
-                        .then((response) => {
-                          recentlyAcceptedIds.current.add(idStr);
-                          recentlyRejectedIds.current.delete(idStr);
-                          // Update row immediately so status shows Approved without waiting for refetch
-                          setTableData((prev) =>
-                            prev.map((r) =>
-                              String(r.id ?? "") === idStr ? { ...r, accepted: 1 } : r
-                            )
-                          );
-                          showSnackbarMessage(
-                            "Successfully accepted requirement",
-                            "success"
-                          );
-                          setForceRefresh((n) => n + 1);
-                        })
-                        .catch((err) => {
-                          const status = err.response?.status;
-                          const msg = err.response?.data?.message;
-                          if (status === 401 || status === 403) {
-                            showSnackbarMessage(
-                              "Please log in as officer or admin to approve requirements.",
-                              "error"
-                            );
-                          } else if (msg) {
-                            showSnackbarMessage(`Accept failed: ${msg}`, "error");
-                          } else {
-                            showSnackbarMessage(
-                              "An error occurred in accepting requirement",
-                              "error"
-                            );
-                          }
-                        });
-                    },
-                  },
-                  {
-                    label: "Reject",
-                    onClick: () => {
-                      const idStr = String(req.id ?? "");
-                      rejectRequirement(req.id)
-                        .then((response) => {
-                          recentlyRejectedIds.current.add(idStr);
-                          recentlyAcceptedIds.current.delete(idStr);
-                          // Update row immediately so status shows Rejected without waiting for refetch
-                          setTableData((prev) =>
-                            prev.map((r) =>
-                              String(r.id ?? "") === idStr ? { ...r, accepted: 0 } : r
-                            )
-                          );
-                          showSnackbarMessage(
-                            "Successfully rejected requirement",
-                            "success"
-                          );
-                          setForceRefresh((n) => n + 1);
-                        })
-                        .catch((err) => {
-                          const status = err.response?.status;
-                          const msg = err.response?.data?.message;
-                          if (status === 401 || status === 403) {
-                            showSnackbarMessage(
-                              "Please log in as officer or admin to reject requirements.",
-                              "error"
-                            );
-                          } else if (msg) {
-                            showSnackbarMessage(`Reject failed: ${msg}`, "error");
-                          } else {
-                            showSnackbarMessage(
-                              "An error occurred in rejecting requirement",
-                              "error"
-                            );
-                          }
-                        });
-                    },
-                  },
-                ]}
-              />
-            ) : (
-              <MenuButtonTemplate
-                items={[
-                  {
-                    label: "View Requirement",
-                    onClick: () => {
-                      setSelectedFormData(req);
-                      setFormData(req);
-                      setViewFormData(true);
-                    },
-                  },
-                  {
-                    label: "Show Evaluation Form",
-                    onClick: () => {
-                      navigate(`/evaluation/${req.id}`);
-                    },
-                  },
-                ]}
-              />
-            ),
-          ]);
-
-      console.log("✅ Final processed table data:", filteredAndMappedData.length, "rows");
-      
-      if (filteredAndMappedData.length === 0 && requirementsData.length > 0) {
-        console.warn("⚠️ All requirements filtered out!");
-        console.warn("Total requirements:", requirementsData.length);
-        console.warn("After search filter:", afterSearchFilter.length);
-        console.warn("After status filter:", afterStatusFilter.length);
-        console.warn("Search status:", searchStatus);
-        console.warn("Search value:", searchVal);
-      }
-      
-      setTableData(filteredAndMappedData);
-      setLoading(false);
-      // Clear optimistic IDs after this refetch so next load uses API data
-      recentlyAcceptedIds.current.clear();
-      recentlyRejectedIds.current.clear();
+        setAllRequirementsData(data);
+        setLoading(false);
+        recentlyAcceptedIds.current.clear();
+        recentlyRejectedIds.current.clear();
       })
       .catch((err) => {
-        console.error("❌ Error fetching requirements:", err);
-        console.error("Error details:", err.response?.data || err.message);
-        console.error("Error stack:", err.stack);
-        console.error("Error status:", err.response?.status);
-        
-        // Check if it's an authentication error
         if (err.response?.status === 403) {
-          const errorMessage = err.response?.data?.message || "Unauthorized";
-          console.error("⚠️ Authentication error - user may not be logged in or session expired");
-          
-          // Show user-friendly error message
-          if (errorMessage.includes("Unauthorized") || errorMessage.includes("Token")) {
-            showSnackbarMessage(
-              "Please log in to view requirements. Your session may have expired.",
-              "error"
-            );
-            // Optionally redirect to login after a delay
-            setTimeout(() => {
-              navigate("/login");
-            }, 2000);
+          const msg = err.response?.data?.message || "";
+          if (msg.includes("Unauthorized") || msg.includes("Token")) {
+            showSnackbarMessage("Please log in to view requirements. Your session may have expired.", "error");
+            setTimeout(() => navigate("/login"), 2000);
           } else {
-            showSnackbarMessage(
-              `Access denied: ${errorMessage}`,
-              "error"
-            );
+            showSnackbarMessage(`Access denied: ${msg}`, "error");
           }
         } else {
-          showSnackbarMessage(
-            `An error occurred while fetching requirements: ${err.message || "Unknown error"}`,
-            "error"
-          );
+          showSnackbarMessage(`An error occurred while fetching requirements: ${err.message || "Unknown error"}`, "error");
         }
-        
-        setTableData([]);
+        setAllRequirementsData([]);
         setLoading(false);
       });
-  }, [forceRefresh, debouncedSearchVal, searchStatus, eventFilter, showSnackbarMessage, setFormData]);
+  }, [forceRefresh, showSnackbarMessage, navigate]);
+
+  const chipMap = useMemo(() => ({
+    notEvaluated: <Chip bgcolor="blue" label="not-evaluated" color="white" />,
+    approved: <Chip bgcolor="#2f7a00" label="approved" color="white" />,
+    rejected: <Chip bgcolor="#c10303" label="rejected" color="white" />,
+  }), []);
+
+  const tableData = useMemo(() => {
+    if (!allRequirementsData.length) return [];
+
+    const normalizedData = allRequirementsData.map((req: any) => {
+      let eventId = req.eventId || req.eventid;
+      if (typeof eventId === "number" || typeof eventId === "string") {
+        eventId = { id: eventId, title: `Event ID ${eventId}`, status: "unknown" };
+      }
+      const idStr = String(req.id ?? "");
+      let accepted: number | null;
+      if (recentlyAcceptedIds.current.has(idStr)) accepted = 1;
+      else if (recentlyRejectedIds.current.has(idStr)) accepted = 0;
+      else {
+        const raw = req.accepted;
+        accepted = raw === true || raw === 1 || raw === "1" || String(raw).trim() === "1" ? 1
+          : raw === false || raw === 0 || raw === "0" || String(raw).trim() === "0" ? 0
+          : null;
+      }
+      return { ...req, eventId, accepted };
+    });
+
+    const afterSearch = normalizedData.filter((req) => {
+      if (!debouncedSearchVal || !debouncedSearchVal.trim()) return true;
+      const terms = debouncedSearchVal.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      if (!terms.length) return true;
+      const text = [
+        req.eventId?.title ?? "Unknown Event",
+        req.fullname ?? "",
+        req.srcode ?? "",
+        req.collegeDept ?? "",
+        req.email ?? "",
+        req.campus ?? "",
+        req.yrlevelprogram ?? "",
+        req.address ?? "",
+        req.contactNum ?? "",
+        req.type ?? "",
+      ].join(" ").toLowerCase();
+      return terms.every((t) => text.includes(t));
+    });
+
+    const afterStatus = afterSearch.filter((req) => {
+      if (searchStatus === 3) return true;
+      if (searchStatus === 2) return req.accepted === null;
+      return req.accepted === searchStatus;
+    });
+
+    const afterEvent = eventFilter
+      ? afterStatus.filter((req) => {
+          const reqId = req.eventId != null && typeof req.eventId === "object" ? req.eventId.id : req.eventId;
+          return Number(reqId) === eventFilter.id && (req.type ?? "external") === eventFilter.type;
+        })
+      : afterStatus;
+
+    return afterEvent.map((req) => [
+      req.eventId?.title || "Unknown Event",
+      req.fullname || "N/A",
+      req.accepted === 0 ? chipMap.rejected : req.accepted === 1 ? chipMap.approved : chipMap.notEvaluated,
+      req.accepted === null ? (
+        <MenuButtonTemplate
+          items={[
+            {
+              label: "View Requirement",
+              onClick: () => {
+                setSelectedFormData(req);
+                setFormData(req);
+                setViewFormData(true);
+              },
+            },
+            {
+              label: "Accept",
+              onClick: () => {
+                const idStr = String(req.id ?? "");
+                acceptRequirement(req.id)
+                  .then(() => {
+                    recentlyAcceptedIds.current.add(idStr);
+                    recentlyRejectedIds.current.delete(idStr);
+                    setAllRequirementsData((prev) => prev.map((r) => (String(r.id) === idStr ? { ...r, accepted: 1 } : r)));
+                    showSnackbarMessage("Successfully accepted requirement", "success");
+                    setForceRefresh((n) => n + 1);
+                  })
+                  .catch((err) => {
+                    if (err.response?.status === 401 || err.response?.status === 403) {
+                      showSnackbarMessage("Please log in as officer or admin to approve requirements.", "error");
+                    } else {
+                      showSnackbarMessage(`Accept failed: ${err.response?.data?.message || "Unknown"}`, "error");
+                    }
+                  });
+              },
+            },
+            {
+              label: "Reject",
+              onClick: () => {
+                const idStr = String(req.id ?? "");
+                rejectRequirement(req.id)
+                  .then(() => {
+                    recentlyRejectedIds.current.add(idStr);
+                    recentlyAcceptedIds.current.delete(idStr);
+                    setAllRequirementsData((prev) => prev.map((r) => (String(r.id) === idStr ? { ...r, accepted: 0 } : r)));
+                    showSnackbarMessage("Successfully rejected requirement", "success");
+                    setForceRefresh((n) => n + 1);
+                  })
+                  .catch((err) => {
+                    if (err.response?.status === 401 || err.response?.status === 403) {
+                      showSnackbarMessage("Please log in as officer or admin to reject requirements.", "error");
+                    } else {
+                      showSnackbarMessage(`Reject failed: ${err.response?.data?.message || "Unknown"}`, "error");
+                    }
+                  });
+              },
+            },
+          ]}
+        />
+      ) : (
+        <MenuButtonTemplate
+          items={[
+            { label: "View Requirement", onClick: () => { setSelectedFormData(req); setFormData(req); setViewFormData(true); } },
+            { label: "Show Evaluation Form", onClick: () => navigate(`/evaluation/${req.id}`) },
+          ]}
+        />
+      ),
+    ]);
+  }, [allRequirementsData, debouncedSearchVal, searchStatus, eventFilter, chipMap, setFormData, showSnackbarMessage, navigate]);
 
   const ModRightComponents = [
     <CustomDropdown
@@ -504,10 +334,10 @@ const RequirementEvalPage = () => {
             </Typography>
             <Typography variant="body2" style={{ marginBottom: "20px" }}>
               {eventFilter
-                ? "No members have joined this event yet. Members with accounts can see and join all approved events from their Events page (even if not on homepage). Use \"Show on homepage\" to also list the event on the public homepage."
+                ? "No members have joined this event yet. Members with accounts can see and join all approved events from their Events page (even if not on homepage). Use \"Make Public\" to also list the event on the public homepage."
                 : debouncedSearchVal || searchStatus !== 3
                   ? "Try adjusting your search or filter criteria"
-                  : "Members appear here after they join events. Members with accounts see all approved events on their Events page. \"Show on homepage\" only controls whether the event appears on the public homepage for visitors."}
+                  : "Members appear here after they join events. Members with accounts see all approved events on their Events page. \"Make Public\" only controls whether the event appears on the public homepage for visitors."}
             </Typography>
             {debouncedSearchVal && (
               <Typography variant="caption" style={{ 

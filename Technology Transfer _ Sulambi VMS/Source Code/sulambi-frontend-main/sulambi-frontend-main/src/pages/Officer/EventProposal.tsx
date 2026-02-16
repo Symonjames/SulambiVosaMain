@@ -128,10 +128,10 @@ const EventProposal = () => {
       } else {
         await publicizeInternalEvent(selectedFormData.id);
       }
-      showSnackbarMessage("Event is now shown on the homepage", "success");
+      showSnackbarMessage("Event is now public (shown on homepage)", "success");
     } catch {
       showSnackbarMessage(
-        "An error occurred while showing the event on the homepage"
+        "An error occurred while making the event public"
       );
     } finally {
       setRefreshTable(refreshTable + 1);
@@ -232,7 +232,7 @@ const EventProposal = () => {
                     ...(eventdata.status === "accepted" && !eventdata.toPublic
                       ? [
                           {
-                            label: "Show on homepage",
+                            label: "Make Public",
                             icon: <PublicIcon />,
                             onClick: async () => {
                               try {
@@ -241,10 +241,10 @@ const EventProposal = () => {
                                 } else {
                                   await publicizeExternalEvent(eventdata.id);
                                 }
-                                showSnackbarMessage("Event is now shown on the homepage", "success");
+                                showSnackbarMessage("Event is now public (shown on homepage)", "success");
                                 setRefreshTable((r) => r + 1);
                               } catch {
-                                showSnackbarMessage("An error occurred while showing the event on the homepage", "error");
+                                showSnackbarMessage("An error occurred while making the event public", "error");
                                 setRefreshTable((r) => r + 1);
                               }
                             },
@@ -508,7 +508,7 @@ const EventProposal = () => {
             selectedFormData.status === "accepted" &&
             !selectedFormData.toPublic ? (
               <PrimaryButton
-                label="Show on homepage"
+                label="Make Public"
                 startIcon={<PublicIcon />}
                 onClick={makePublicOnClick}
               />
