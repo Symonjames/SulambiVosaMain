@@ -581,50 +581,52 @@ const FormGeneratorTemplate = ({
                   <PrimaryButton
                     label="View Uploaded File"
                     startIcon={<RemoveRedEyeIcon />}
-                    onClick={() => {
+                    onClick={async () => {
                       if (!raw) return;
-                      // Check if it's a Cloudinary URL or other full URL
                       const isFullUrl = raw.startsWith("http://") || raw.startsWith("https://");
-                      
                       let fileSource: string;
                       let isPdf: boolean;
-                      
+
                       if (isFullUrl) {
-                        // Use Cloudinary URL or other full URL directly
                         fileSource = raw;
                         const lower = raw.toLowerCase();
-                        // Known image extensions: treat as image so LocalImageViewer can display (avoids wrong range requests)
                         const hasImageExt = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?|$)/i.test(lower) ||
                           lower.includes("/image/upload/");
-                        // PDF: explicit .pdf or PDF hints in path/query, or Cloudinary raw upload with no image ext
-                        // (raw uploads without extension are often PDFs/docs; treating as PDF uses fetch() for full file, not img range requests)
+                        const hasPdfExt = lower.endsWith(".pdf") || lower.includes(".pdf?") ||
+                          lower.includes("/pdf/") || lower.includes("format=pdf") || lower.includes("fl_pdf");
                         const isCloudinaryRaw = lower.includes("res.cloudinary.com") && lower.includes("/raw/upload/");
-                        isPdf =
-                          lower.endsWith(".pdf") ||
-                          lower.includes(".pdf?") ||
-                          lower.includes("/pdf/") ||
-                          lower.includes("format=pdf") ||
-                          lower.includes("fl_pdf") ||
-                          (lower.includes("pdf") && !hasImageExt) ||
-                          (isCloudinaryRaw && !hasImageExt);
+
+                        if (hasPdfExt) {
+                          isPdf = true;
+                        } else if (hasImageExt) {
+                          isPdf = false;
+                        } else if (isCloudinaryRaw) {
+                          // No extension: detect type via Content-Type so PDF shows in PDF viewer, images in image viewer
+                          try {
+                            const res = await fetch(raw, { method: "HEAD" });
+                            const ct = (res.headers.get("Content-Type") || "").toLowerCase();
+                            isPdf = ct.includes("application/pdf");
+                            if (!isPdf && !ct.startsWith("image/")) {
+                              isPdf = true;
+                            }
+                          } catch {
+                            isPdf = true;
+                          }
+                        } else {
+                          isPdf = (lower.includes("pdf") && !hasImageExt) || false;
+                        }
                       } else {
-                        // Handle local uploads
                         const base = (BASE_API_URL as string).replace("/api", "");
                         const rootUri = `${base}/uploads`;
-
-                        // Backend may store paths like "uploads/<file>" or "uploads\\<file>".
-                        // Normalize into a URL path relative to /uploads/<path>
                         const normalized = raw.replace(/\\/g, "/");
                         const relative = normalized.startsWith("uploads/")
                           ? normalized.slice("uploads/".length)
                           : normalized;
-
                         fileSource = `${rootUri}/${relative}`;
                         const lower = relative.toLowerCase();
                         isPdf = lower.endsWith(".pdf");
                       }
-                      
-                      // View in-system: PDF in LocalPdfViewer, everything else in LocalImageViewer (images display; other URLs will try to load)
+
                       setFileDetails({
                         source: fileSource,
                         type: isPdf ? "pdf" : "image",

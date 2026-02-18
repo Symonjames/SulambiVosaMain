@@ -144,12 +144,16 @@ const RequirementForm: React.FC<Props> = ({
       afterOpen && afterOpen();
       setFieldErrors([]);
       if (viewOnly && initialData && Object.keys(initialData).length > 0) {
-        // Normalize so form always has medCert/waiver (API may return medCert, medcert, or med_cert)
+        // Normalize so form always has medCert/waiver and bloodType/bloodDonation (API may use different casing)
         const d = { ...initialData };
         const medCertVal = d.medCert ?? (d as any).medcert ?? (d as any).med_cert;
         const waiverVal = d.waiver ?? (d as any).waiver;
         if (medCertVal != null) d.medCert = typeof medCertVal === "string" ? medCertVal : String(medCertVal);
         if (waiverVal != null) d.waiver = typeof waiverVal === "string" ? waiverVal : String(waiverVal);
+        const bloodTypeVal = d.bloodType ?? (d as any).blood_type;
+        const bloodDonationVal = d.bloodDonation ?? (d as any).blood_donation;
+        if (bloodTypeVal != null && bloodTypeVal !== "") d.bloodType = typeof bloodTypeVal === "string" ? bloodTypeVal : String(bloodTypeVal);
+        if (bloodDonationVal != null && bloodDonationVal !== "") d.bloodDonation = typeof bloodDonationVal === "string" ? bloodDonationVal : String(bloodDonationVal);
         setFormData(d);
         return;
       }

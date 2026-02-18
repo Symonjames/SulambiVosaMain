@@ -124,20 +124,20 @@ def getAllRequirements():
       except Exception as e:
         print(f"[REQUIREMENTS_GET_ALL] Warning: Failed to batch fetch internal events: {e}")
 
-    # OPTIMIZATION: Batch fetch members for backfilling to avoid individual queries
+    # OPTIMIZATION: Batch fetch members for backfilling and for bloodType/bloodDonation
     step_start = time.time()
     emails_to_lookup = set()
     srcodes_to_lookup = set()
     requirements_needing_backfill = []
     
     for index, requirement in enumerate(requirements):
+      email = requirement.get("email")
+      srcode = requirement.get("srcode")
+      if email and str(email).strip():
+        emails_to_lookup.add(str(email).strip())
+      if srcode and str(srcode).strip():
+        srcodes_to_lookup.add(str(srcode).strip())
       if not requirement.get("fullname"):
-        email = requirement.get("email")
-        srcode = requirement.get("srcode")
-        if email and str(email).strip():
-          emails_to_lookup.add(str(email).strip())
-        if srcode and str(srcode).strip():
-          srcodes_to_lookup.add(str(srcode).strip())
         requirements_needing_backfill.append(index)
     
     # Batch fetch members by email and srcode
@@ -162,28 +162,25 @@ def getAllRequirements():
     # Now process requirements using cached events and members (no additional DB connections)
     step_start = time.time()
     for index, requirement in enumerate(requirements):
-      # Backfill participant details if missing using cached members
-      if index in requirements_needing_backfill:
-        try:
-          email = requirements[index].get("email")
-          srcode = requirements[index].get("srcode")
-          
-          member = None
-          if email and str(email).strip() in members_by_email:
-            member = members_by_email[str(email).strip()]
-          elif srcode and str(srcode).strip() in members_by_srcode:
-            member = members_by_srcode[str(srcode).strip()]
-          
-          if member:
+      # Backfill participant details if missing; always enrich bloodType/bloodDonation from member when found
+      try:
+        email = requirements[index].get("email")
+        srcode = requirements[index].get("srcode")
+        member = None
+        if email and str(email).strip() in members_by_email:
+          member = members_by_email[str(email).strip()]
+        elif srcode and str(srcode).strip() in members_by_srcode:
+          member = members_by_srcode[str(srcode).strip()]
+        if member:
+          if index in requirements_needing_backfill:
             requirements[index]["fullname"] = member.get("fullname") or requirements[index].get("fullname")
             requirements[index]["email"] = member.get("email") or requirements[index].get("email")
             requirements[index]["srcode"] = member.get("srcode") or requirements[index].get("srcode")
             requirements[index]["collegeDept"] = member.get("collegeDept") or requirements[index].get("collegeDept")
-            requirements[index]["bloodDonation"] = _blood_donation_label(member.get("bloodDonation"))
-            requirements[index]["bloodType"] = member.get("bloodType") or ""
-        except Exception as e:
-          # Non-fatal: still return requirements list
-          print("[requirements] Warning: failed to backfill member details:", e)
+          requirements[index]["bloodDonation"] = _blood_donation_label(member.get("bloodDonation"))
+          requirements[index]["bloodType"] = member.get("bloodType") or ""
+      except Exception as e:
+        print("[requirements] Warning: failed to backfill/enrich member details:", e)
 
       eventType = requirements[index].get("type", "external")
       eventIdValue = requirements[index].get("eventId")

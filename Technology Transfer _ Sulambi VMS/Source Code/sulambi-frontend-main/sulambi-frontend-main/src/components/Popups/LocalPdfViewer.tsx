@@ -112,7 +112,15 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
         "Please try downloading the file using the download button below, or refresh the page."
       );
     } else {
-      setError("Failed to parse PDF. The file may be corrupted.");
+      const isCloudinary = url && (url.includes("res.cloudinary.com") || url.includes("cloudinary.com"));
+      setError(
+        isCloudinary
+          ? "This file might not be a PDF (e.g. Word document). Click the download icon to open in a new tab."
+          : "Failed to parse PDF. The file may be corrupted."
+      );
+      if (isCloudinary && url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
     }
     setLoading(false);
   };
