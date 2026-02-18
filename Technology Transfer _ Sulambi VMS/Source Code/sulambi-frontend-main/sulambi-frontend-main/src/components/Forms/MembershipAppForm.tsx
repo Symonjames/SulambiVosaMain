@@ -97,6 +97,14 @@ const MembershipAppForm: React.FC<MembershipAppFormProps> = ({
     if (!dataLoader) setFormData({});
   }, [open]);
 
+  // When viewOnly (e.g. officer viewing application), show all sections including volunteerism and reasons
+  useEffect(() => {
+    if (viewOnly && open) {
+      setShowQ7(true);
+      setShowQ10(true);
+    }
+  }, [viewOnly, open]);
+
   const submitAction = async () => {
     setFieldErrors([]);
 

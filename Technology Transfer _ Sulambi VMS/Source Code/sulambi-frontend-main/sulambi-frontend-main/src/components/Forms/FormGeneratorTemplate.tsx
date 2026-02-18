@@ -615,14 +615,11 @@ const FormGeneratorTemplate = ({
                         isPdf = lower.endsWith(".pdf");
                       }
                       
-                      // For full URLs that are not PDFs (e.g. Cloudinary raw uploads, docx), open in new tab so user can view/download
-                      if (isFullUrl && !isPdf) {
-                        window.open(raw, "_blank", "noopener,noreferrer");
-                        return;
-                      }
+                      // View in-system: PDF in LocalPdfViewer, image in LocalImageViewer, other URLs (e.g. Cloudinary raw, docx) in iframe modal
+                      const type = isPdf ? "pdf" : (isFullUrl && !isPdf ? "iframe" : "image");
                       setFileDetails({
                         source: fileSource,
-                        type: isPdf ? "pdf" : "image",
+                        type,
                       });
                       setOpenViewer(true);
                     }}
@@ -963,7 +960,13 @@ const FormGeneratorTemplate = ({
                 key={`textQuestion-${index}`}
                 question={value.message ?? ""}
                 required={value.required}
-                value={formData[value.id ?? ""] ?? value.value}
+                value={
+                  (value.id != null && (formData[value.id] !== undefined && formData[value.id] !== null))
+                    ? formData[value.id]
+                    : (value.id != null && (formData[String(value.id).toLowerCase()] !== undefined && formData[String(value.id).toLowerCase()] !== null))
+                      ? formData[String(value.id).toLowerCase()]
+                      : (formData[value.id ?? ""] ?? value.value ?? "")
+                }
                 error={value.id ? fieldErrors.includes(value.id) : false}
                 placeholder={value.placeholder}
                 disabled={viewOnly ?? value.disabled}
