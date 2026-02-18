@@ -615,11 +615,10 @@ const FormGeneratorTemplate = ({
                         isPdf = lower.endsWith(".pdf");
                       }
                       
-                      // View in-system: PDF in LocalPdfViewer, image in LocalImageViewer, other URLs (e.g. Cloudinary raw, docx) in iframe modal
-                      const type = isPdf ? "pdf" : (isFullUrl && !isPdf ? "iframe" : "image");
+                      // View in-system: PDF in LocalPdfViewer, everything else in LocalImageViewer (images display; other URLs will try to load)
                       setFileDetails({
                         source: fileSource,
-                        type,
+                        type: isPdf ? "pdf" : "image",
                       });
                       setOpenViewer(true);
                     }}
