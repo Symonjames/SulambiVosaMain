@@ -540,7 +540,15 @@ const FormGeneratorTemplate = ({
               <ViewOnlyField
                 flex={value.flex}
                 question={value.message ?? ""}
-                value={formData[value.id ?? ""] ?? value.value}
+                value={
+                  (value.id != null && (formData[value.id] !== undefined && formData[value.id] !== null))
+                    ? formData[value.id]
+                    : (value.id != null && (formData[String(value.id).toLowerCase()] !== undefined && formData[String(value.id).toLowerCase()] !== null))
+                      ? formData[String(value.id).toLowerCase()]
+                      : (value.value !== undefined && value.value !== null)
+                        ? value.value
+                        : (formData[value.id ?? ""] ?? value.value ?? "")
+                }
               />
             );
 
@@ -607,13 +615,11 @@ const FormGeneratorTemplate = ({
                         isPdf = lower.endsWith(".pdf");
                       }
                       
-                      console.log("[PDF_VIEWER] File detection:", {
-                        raw,
-                        fileSource,
-                        isPdf,
-                        isFullUrl
-                      });
-
+                      // For full URLs that are not PDFs (e.g. Cloudinary raw uploads, docx), open in new tab so user can view/download
+                      if (isFullUrl && !isPdf) {
+                        window.open(raw, "_blank", "noopener,noreferrer");
+                        return;
+                      }
                       setFileDetails({
                         source: fileSource,
                         type: isPdf ? "pdf" : "image",

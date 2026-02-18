@@ -804,6 +804,7 @@ def updateEvent(id, eventType: str):
         }, 500)
 
   if (eventType == "external"):
+    import json
     matchedEvent = ExternalEventDb.get(id)
     if (matchedEvent == None): return ({
       "message": "External Event provided does not exist"
@@ -816,39 +817,68 @@ def updateEvent(id, eventType: str):
       return ({"message": ext_beneficiary_pin_result}, 400)
     ext_beneficiary_pin = ext_beneficiary_pin_result
 
-    updatedEvent = ExternalEventDb.update(id, (
-      j.get("extensionServiceType") or matchedEvent.get("extensionServiceType") or "",
-      j.get("title") or matchedEvent.get("title") or "",
-      j.get("location") or matchedEvent.get("location") or "",
-      j.get("durationStart") if j.get("durationStart") is not None else matchedEvent.get("durationStart"),
-      j.get("durationEnd") if j.get("durationEnd") is not None else matchedEvent.get("durationEnd"),
-      j.get("sdg") or matchedEvent.get("sdg") or "",
-      j.get("orgInvolved") or matchedEvent.get("orgInvolved") or "",
-      j.get("programInvolved") or matchedEvent.get("programInvolved") or "",
-      j.get("projectLeader") or matchedEvent.get("projectLeader") or "",
-      j.get("partners") or matchedEvent.get("partners") or "",
-      j.get("beneficiaries") or matchedEvent.get("beneficiaries") or "",
-      j.get("totalCost") if j.get("totalCost") is not None else matchedEvent.get("totalCost"),
-      j.get("sourceOfFund") or matchedEvent.get("sourceOfFund") or "",
-      j.get("rationale") or matchedEvent.get("rationale") or "",
-      j.get("objectives") or matchedEvent.get("objectives") or "",
-      j.get("expectedOutput") or matchedEvent.get("expectedOutput") or "",
-      j.get("description") or matchedEvent.get("description") or "",
-      j.get("financialPlan") or matchedEvent.get("financialPlan") or "",
-      j.get("dutiesOfPartner") or matchedEvent.get("dutiesOfPartner") or "",
-      j.get("evaluationMechanicsPlan") or matchedEvent.get("evaluationMechanicsPlan") or "",
-      j.get("sustainabilityPlan") or matchedEvent.get("sustainabilityPlan") or "",
-      accountSessionInfo["id"],
-      "editing",
-      j.get("evaluationSendTime") if j.get("evaluationSendTime") is not None else matchedEvent.get("evaluationSendTime"),
-      False,
-      matchedEvent.get("signatoriesId"),
-      matchedEvent.get("createdAt"),
-      matchedEvent.get("feedback_id"),
-      j.get("externalServiceType") or matchedEvent.get("externalServiceType") or "[]",
-      j.get("eventProposalType") or matchedEvent.get("eventProposalType") or "[]",
-      ext_beneficiary_pin
-    ))
+    def _to_str(v, fallback):
+      if v is None:
+        return fallback if fallback is not None else ""
+      if isinstance(v, (dict, list)):
+        try:
+          return json.dumps(v)
+        except Exception:
+          return fallback if fallback is not None else ""
+      return str(v) if v != "" else (fallback if fallback is not None else "")
+
+    def _to_float(v, fallback):
+      if v is None:
+        return float(fallback) if fallback is not None else 0.0
+      try:
+        return float(v)
+      except (TypeError, ValueError):
+        return float(fallback) if fallback is not None else 0.0
+
+    eval_plan = j.get("evaluationMechanicsPlan") if j.get("evaluationMechanicsPlan") is not None else matchedEvent.get("evaluationMechanicsPlan")
+    financial_plan = j.get("financialPlan") if j.get("financialPlan") is not None else matchedEvent.get("financialPlan")
+    ext_svc = j.get("externalServiceType") if j.get("externalServiceType") is not None else matchedEvent.get("externalServiceType")
+    evt_proposal = j.get("eventProposalType") if j.get("eventProposalType") is not None else matchedEvent.get("eventProposalType")
+
+    try:
+      updatedEvent = ExternalEventDb.update(id, (
+        j.get("extensionServiceType") or matchedEvent.get("extensionServiceType") or "",
+        j.get("title") or matchedEvent.get("title") or "",
+        j.get("location") or matchedEvent.get("location") or "",
+        j.get("durationStart") if j.get("durationStart") is not None else matchedEvent.get("durationStart"),
+        j.get("durationEnd") if j.get("durationEnd") is not None else matchedEvent.get("durationEnd"),
+        j.get("sdg") or matchedEvent.get("sdg") or "",
+        j.get("orgInvolved") or matchedEvent.get("orgInvolved") or "",
+        j.get("programInvolved") or matchedEvent.get("programInvolved") or "",
+        j.get("projectLeader") or matchedEvent.get("projectLeader") or "",
+        j.get("partners") or matchedEvent.get("partners") or "",
+        j.get("beneficiaries") or matchedEvent.get("beneficiaries") or "",
+        _to_float(j.get("totalCost"), matchedEvent.get("totalCost")),
+        j.get("sourceOfFund") or matchedEvent.get("sourceOfFund") or "",
+        j.get("rationale") or matchedEvent.get("rationale") or "",
+        j.get("objectives") or matchedEvent.get("objectives") or "",
+        j.get("expectedOutput") or matchedEvent.get("expectedOutput") or "",
+        j.get("description") or matchedEvent.get("description") or "",
+        _to_str(financial_plan, matchedEvent.get("financialPlan")),
+        j.get("dutiesOfPartner") or matchedEvent.get("dutiesOfPartner") or "",
+        _to_str(eval_plan, matchedEvent.get("evaluationMechanicsPlan")),
+        j.get("sustainabilityPlan") or matchedEvent.get("sustainabilityPlan") or "",
+        accountSessionInfo["id"],
+        "editing",
+        j.get("evaluationSendTime") if j.get("evaluationSendTime") is not None else matchedEvent.get("evaluationSendTime"),
+        False,
+        matchedEvent.get("signatoriesId"),
+        matchedEvent.get("createdAt"),
+        matchedEvent.get("feedback_id"),
+        _to_str(ext_svc, matchedEvent.get("externalServiceType") or "[]"),
+        _to_str(evt_proposal, matchedEvent.get("eventProposalType") or "[]"),
+        ext_beneficiary_pin
+      ))
+    except Exception as e:
+      print(f"[UPDATE_EXTERNAL_EVENT] Error: {e}")
+      import traceback
+      traceback.print_exc()
+      return ({"message": f"Error updating external event: {str(e)}"}, 500)
 
   return {
     "message": "Successfully updated event",
