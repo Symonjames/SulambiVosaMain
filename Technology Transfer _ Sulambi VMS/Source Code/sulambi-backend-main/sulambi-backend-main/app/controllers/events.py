@@ -810,7 +810,7 @@ def updateEvent(id, eventType: str):
       "message": "External Event provided does not exist"
     }, 404)
 
-    j = request.json
+    j = request.json if request.json is not None else {}
     ext_beneficiary_pin_raw = (j.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
     ok, ext_beneficiary_pin_result = _validate_beneficiary_pin(ext_beneficiary_pin_raw)
     if not ok:
@@ -835,18 +835,37 @@ def updateEvent(id, eventType: str):
       except (TypeError, ValueError):
         return float(fallback) if fallback is not None else 0.0
 
+    def _to_int(v, fallback):
+      if v is None:
+        return int(fallback) if fallback is not None else 0
+      try:
+        return int(float(v))
+      except (TypeError, ValueError):
+        return int(fallback) if fallback is not None else 0
+
     eval_plan = j.get("evaluationMechanicsPlan") if j.get("evaluationMechanicsPlan") is not None else matchedEvent.get("evaluationMechanicsPlan")
     financial_plan = j.get("financialPlan") if j.get("financialPlan") is not None else matchedEvent.get("financialPlan")
     ext_svc = j.get("externalServiceType") if j.get("externalServiceType") is not None else matchedEvent.get("externalServiceType")
     evt_proposal = j.get("eventProposalType") if j.get("eventProposalType") is not None else matchedEvent.get("eventProposalType")
 
     try:
+      duration_start = _to_int(j.get("durationStart"), matchedEvent.get("durationStart"))
+      duration_end = _to_int(j.get("durationEnd"), matchedEvent.get("durationEnd"))
+      evaluation_send_time = _to_int(j.get("evaluationSendTime"), matchedEvent.get("evaluationSendTime"))
+      created_by_id = accountSessionInfo.get("id")
+      if created_by_id is None:
+        return ({"message": "Session error: missing account id"}, 401)
+      try:
+        created_by_id = int(created_by_id)
+      except (TypeError, ValueError):
+        return ({"message": "Session error: invalid account id"}, 401)
+
       updatedEvent = ExternalEventDb.update(id, (
         j.get("extensionServiceType") or matchedEvent.get("extensionServiceType") or "",
         j.get("title") or matchedEvent.get("title") or "",
         j.get("location") or matchedEvent.get("location") or "",
-        j.get("durationStart") if j.get("durationStart") is not None else matchedEvent.get("durationStart"),
-        j.get("durationEnd") if j.get("durationEnd") is not None else matchedEvent.get("durationEnd"),
+        duration_start,
+        duration_end,
         j.get("sdg") or matchedEvent.get("sdg") or "",
         j.get("orgInvolved") or matchedEvent.get("orgInvolved") or "",
         j.get("programInvolved") or matchedEvent.get("programInvolved") or "",
@@ -863,9 +882,9 @@ def updateEvent(id, eventType: str):
         j.get("dutiesOfPartner") or matchedEvent.get("dutiesOfPartner") or "",
         _to_str(eval_plan, matchedEvent.get("evaluationMechanicsPlan")),
         j.get("sustainabilityPlan") or matchedEvent.get("sustainabilityPlan") or "",
-        accountSessionInfo["id"],
+        created_by_id,
         "editing",
-        j.get("evaluationSendTime") if j.get("evaluationSendTime") is not None else matchedEvent.get("evaluationSendTime"),
+        evaluation_send_time,
         False,
         matchedEvent.get("signatoriesId"),
         matchedEvent.get("createdAt"),
