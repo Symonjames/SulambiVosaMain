@@ -203,7 +203,10 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
           location: formData.location || ""
         },
         participationFrequency: formData.participationFrequency || "First time",
-        additionalComments: formData.comment || ""
+        additionalComments: formData.comment || "",
+        q13: formData.q13 ?? "",
+        q14: formData.q14 ?? "",
+        recommendations: formData.recommendations ?? ""
       };
 
       // Submit to analytics service (include PIN when event requires it)

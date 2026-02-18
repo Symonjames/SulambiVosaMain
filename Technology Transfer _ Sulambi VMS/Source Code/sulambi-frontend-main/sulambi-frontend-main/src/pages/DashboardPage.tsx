@@ -10,7 +10,7 @@ import DangerousIcon from "@mui/icons-material/Dangerous";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { getDashboardAnalytics, getDashboardSummary } from "../api/dashboard";
 // REMOVED: clearAnalyticsData import - was deleting data on every page load
@@ -22,6 +22,7 @@ import {
 } from "../interface/types";
 import { BarChart } from "@mui/x-charts";
 import { Box, Typography } from "@mui/material";
+import CustomDropdown from "../components/Inputs/CustomDropdown";
 import SelectionCard from "../components/Cards/SelectionCard";
 import { getAllEvents } from "../api/events";
 import EventDetail from "../components/Popups/EventDetail";
@@ -204,6 +205,7 @@ const Dashboard = () => {
   const [events, setEvents] = useState<
     (ExternalEventProposalType | InternalEventProposalType)[]
   >([]);
+  const [eventYearFilter, setEventYearFilter] = useState<string>("");
 
   // Photos grid now fetches its own data
 
@@ -362,6 +364,32 @@ const Dashboard = () => {
       .catch((error) => console.error('❌ Reports endpoint error:', error));
   }, []);
 
+  // Unique years from events (by start date) for the year filter
+  const eventYears = useMemo(() => {
+    const years = new Set<number>();
+    events.forEach((evt) => {
+      const start = evt.durationStart;
+      if (start == null) return;
+      const ms = start > 1e12 ? start : start * 1000;
+      const y = new Date(ms).getFullYear();
+      if (!isNaN(y)) years.add(y);
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [events]);
+
+  // Events filtered by selected year (start year)
+  const eventsFilteredByYear = useMemo(() => {
+    if (!eventYearFilter || eventYearFilter === "all") return events;
+    const yearNum = parseInt(eventYearFilter, 10);
+    if (isNaN(yearNum)) return events;
+    return events.filter((evt) => {
+      const start = evt.durationStart;
+      if (start == null) return false;
+      const ms = start > 1e12 ? start : start * 1000;
+      return new Date(ms).getFullYear() === yearNum;
+    });
+  }, [events, eventYearFilter]);
+
   return (
     <>
       <EventDetail
@@ -387,19 +415,31 @@ const Dashboard = () => {
             <TextHeader>DASHBOARD</TextHeader>
             <TextSubHeader>View your analytics here</TextSubHeader>
           </Box>
-          <Box sx={{ width: '320px', maxWidth: '320px', marginLeft: 'auto' }}>
-            <ProjectSearchBar
-              onSearchResults={(results) => {
-                console.log('Search results:', results);
-              }}
-              onYearFilter={(year) => {
-                console.log('Year filter:', year);
-              }}
-              placeholder="Search projects, locations, or descriptions..."
-              showFilters={false}
-              maxWidth="100%"
+          <FlexBox gap="10px" alignItems="center" sx={{ marginLeft: "auto", flexWrap: "wrap" }}>
+            <CustomDropdown
+              label="Year"
+              width="120px"
+              initialValue={eventYearFilter || "all"}
+              menu={[
+                { key: "All years", value: "all" },
+                ...eventYears.map((y) => ({ key: String(y), value: String(y) })),
+              ]}
+              onChange={(e) => setEventYearFilter(e.target.value === "all" ? "" : e.target.value)}
             />
-          </Box>
+            <Box sx={{ width: "320px", maxWidth: "320px" }}>
+              <ProjectSearchBar
+                onSearchResults={(results) => {
+                  console.log("Search results:", results);
+                }}
+                onYearFilter={(year) => {
+                  console.log("Year filter:", year);
+                }}
+                placeholder="Search projects, locations, or descriptions..."
+                showFilters={false}
+                maxWidth="100%"
+              />
+            </Box>
+          </FlexBox>
         </FlexBox>
         <FlexBox
           width="100%"
@@ -560,7 +600,7 @@ const Dashboard = () => {
             width={180}
           />
           <EventsBox
-            events={events}
+            events={eventsFilteredByYear}
             onEventClick={(evt) => {
               setEventId(evt.id);
               if ((evt as ExternalEventProposalType).location)

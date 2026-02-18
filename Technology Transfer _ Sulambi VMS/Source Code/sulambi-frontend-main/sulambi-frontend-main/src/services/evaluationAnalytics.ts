@@ -47,6 +47,12 @@ export interface BeneficiaryEvaluationData {
   };
   participationFrequency: string;
   additionalComments: string;
+  /** Q13 text: meaningful and impactful experience */
+  q13?: string;
+  /** Q14 text: skills developed / other opportunities */
+  q14?: string;
+  /** Recommendations for improving future programs */
+  recommendations?: string;
 }
 
 class EvaluationAnalyticsService {
@@ -192,11 +198,11 @@ class EvaluationAnalyticsService {
         eventType: eventType,
         criteria: criteria,
         comment: data.additionalComments || '',
-        recommendations: '',
-        q13: '', // Empty for beneficiaries
-        q14: data.overallSatisfaction.toString(), // Beneficiary rating
-        email: data.demographics?.location || '', // Use location or empty
-        name: '' // Anonymous beneficiary
+        recommendations: data.recommendations ?? '',
+        q13: data.q13 ?? '',
+        q14: data.q14 ?? data.overallSatisfaction.toString(),
+        email: data.demographics?.location || '',
+        name: ''
       };
       if (pin != null && pin !== '') {
         payload.pin = pin;

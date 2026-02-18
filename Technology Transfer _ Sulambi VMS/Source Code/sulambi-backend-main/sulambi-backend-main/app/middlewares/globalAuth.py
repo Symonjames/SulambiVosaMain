@@ -26,6 +26,9 @@ PUBLIC_PATHS = [
     ("GET", "/api/reports/public"),  # Landing page "Latest News" carousel
     ("POST", "/api/evaluation/beneficiary/validate-pin"),
     ("POST", "/api/evaluation/beneficiary"),
+    # Volunteer evaluation by email link (requirementId in URL is the token; no login required)
+    ("GET", "/api/evaluation/validity"),
+    ("POST", "/api/evaluation"),
 ]
 
 def _is_public(method, path):

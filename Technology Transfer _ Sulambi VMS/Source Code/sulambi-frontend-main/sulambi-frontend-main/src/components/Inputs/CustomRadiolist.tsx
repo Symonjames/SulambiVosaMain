@@ -45,7 +45,7 @@ const CustomRadiolist: React.FC<CustomRadioProps> = ({
                 disabled={viewOnly}
                 control={
                   <Radio
-                    checked={viewOnly ? data.label === value : undefined}
+                    checked={data.label === value}
                     disabled={viewOnly}
                   />
                 }

@@ -76,6 +76,7 @@ const EventProposal = () => {
     type: "",
     searchText: "",
   });
+  const [searchYear, setSearchYear] = useState<string>("");
 
   const [showEvaluationList, setShowEvaluationList] = useState(false);
   const [showEventAnalysis, setShowEventAnalysis] = useState(false);

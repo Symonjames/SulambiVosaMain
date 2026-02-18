@@ -5,6 +5,7 @@ import CustomInput from "../Inputs/CustomInput";
 import CustomDropdown from "../Inputs/CustomDropdown";
 import CustomDivider from "../Divider/CustomDivider";
 import { Typography, IconButton, Box } from "@mui/material";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import CustomCheckbox from "../Inputs/CustomCheckbox";
 import { CheckBoxDataType, RadioListDataType } from "../../interface/types";
 import PrimaryButton from "../Buttons/PrimaryButton";
@@ -922,10 +923,9 @@ const FormGeneratorTemplate = ({
                 onChange={(selectedRadio) => {
                   if (enableAutoFieldCheck && value.id) {
                     immutableSetFormData({ [value.id]: selectedRadio });
-                    value.onUse && value.onUse(event);
+                    value.onUse && value.onUse(selectedRadio);
                     return;
                   }
-
                   value.onUse && value.onUse(selectedRadio);
                 }}
               />
@@ -1021,19 +1021,28 @@ const FormGeneratorTemplate = ({
                 required={value.required}
               >
                 <DatePicker
+                  format="MM/DD/YYYY"
+                  disabled={viewOnly ?? value.disabled}
                   value={
-                    value.id
+                    value.id && formData[value.id] != null && formData[value.id] !== ""
                       ? dayjs(formData[value.id]).isValid()
-                        ? formData[value.id]
-                          ? dayjs(formData[value.id])
-                          : undefined
-                        : value.value ?? undefined
-                      : undefined
+                        ? dayjs(formData[value.id])
+                        : null
+                      : value.value != null
+                        ? dayjs(value.value).isValid()
+                          ? dayjs(value.value)
+                          : null
+                        : null
                   }
+                  slots={{
+                    openPickerIcon: CalendarMonthIcon,
+                  }}
                   slotProps={{
                     textField: {
                       fullWidth: true,
                       size: "small",
+                      placeholder: "MM/DD/YYYY",
+                      inputProps: { readOnly: false },
                       sx: {
                         borderRadius: "10px",
                         border:
@@ -1047,12 +1056,15 @@ const FormGeneratorTemplate = ({
                     },
                   }}
                   onChange={(val) => {
-                    if (val && enableAutoFieldCheck && value.id) {
+                    if (val != null && dayjs(val).isValid() && enableAutoFieldCheck && value.id) {
                       immutableSetFormData({
-                        [value.id]: val.toDate().getTime(),
+                        [value.id]: dayjs(val).toDate().getTime(),
                       });
                       value.onUse && value.onUse(val);
                       return;
+                    }
+                    if (val == null && enableAutoFieldCheck && value.id) {
+                      immutableSetFormData({ [value.id]: undefined });
                     }
                     value.onUse && value.onUse(val);
                   }}
