@@ -54,13 +54,20 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
         if (!isCloudinaryUrl) {
           fetchOptions.credentials = "include";
         }
+        // Request full file so we get a proper preview (avoid 206 Partial Content with 1 byte)
+        if (isCloudinaryUrl) {
+          (headers as Record<string, string>)["Range"] = "bytes=0-";
+        }
         
         // For Cloudinary URLs, don't use credentials (they're public and cause CORS issues)
         // Cloudinary files are publicly accessible via URL
         
-        // Fetch PDF
-        const response = await fetch(url, fetchOptions);
-
+        // Fetch PDF (request full file for Cloudinary to avoid broken 206 partial response)
+        let response = await fetch(url, fetchOptions);
+        if (response.status === 416 && isCloudinaryUrl) {
+          delete (headers as Record<string, string>)["Range"];
+          response = await fetch(url, fetchOptions);
+        }
         if (!response.ok) {
           if (response.status === 404 && isLocalUrl) {
             throw new Error(

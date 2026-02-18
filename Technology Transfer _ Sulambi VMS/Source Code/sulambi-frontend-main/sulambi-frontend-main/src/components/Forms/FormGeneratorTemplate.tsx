@@ -495,11 +495,20 @@ const FormGeneratorTemplate = ({
 }: Props) => {
   const [templateState, setTemplateState] = useState(template);
   const { formData, immutableSetFormData } = useContext(FormDataContext);
-  const { setFileDetails, setOpenViewer } = useContext(ImageViewerContext);
+  const { setFileDetails, setOpenViewer, openViewer } = useContext(ImageViewerContext);
+  const imageBlobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     setTemplateState(template);
   }, [forceRefresh, viewOnly]);
+
+  // Revoke blob URL when image viewer closes so we don't leak object URLs
+  useEffect(() => {
+    if (!openViewer && imageBlobUrlRef.current) {
+      URL.revokeObjectURL(imageBlobUrlRef.current);
+      imageBlobUrlRef.current = null;
+    }
+  }, [openViewer]);
 
   return template.length > 0 ? (
     <>
@@ -627,10 +636,26 @@ const FormGeneratorTemplate = ({
                         isPdf = lower.endsWith(".pdf");
                       }
 
-                      setFileDetails({
-                        source: fileSource,
-                        type: isPdf ? "pdf" : "image",
-                      });
+                      const isCloudinary = fileSource && (fileSource.includes("res.cloudinary.com") || fileSource.includes("cloudinary.com"));
+                      if (!isPdf && isCloudinary) {
+                        try {
+                          let res = await fetch(fileSource, { headers: { Range: "bytes=0-" } });
+                          if (res.status === 416) res = await fetch(fileSource);
+                          if (!res.ok) throw new Error(res.statusText);
+                          const blob = await res.blob();
+                          const blobUrl = URL.createObjectURL(blob);
+                          if (imageBlobUrlRef.current) URL.revokeObjectURL(imageBlobUrlRef.current);
+                          imageBlobUrlRef.current = blobUrl;
+                          setFileDetails({ source: blobUrl, type: "image" });
+                        } catch {
+                          setFileDetails({ source: fileSource, type: "image" });
+                        }
+                      } else {
+                        setFileDetails({
+                          source: fileSource,
+                          type: isPdf ? "pdf" : "image",
+                        });
+                      }
                       setOpenViewer(true);
                     }}
                   />
