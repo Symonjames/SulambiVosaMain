@@ -403,16 +403,86 @@ export const RomanListValues: React.FC<RomanListValuesProps> = ({
   );
 };
 
+type MonitoringRow = {
+  label: string;
+  performanceIndicator: string;
+  baselineData: string;
+  performanceTarget: string;
+  dataSource: string;
+  collectionMethod: string;
+  frequencyOfDataCollection: string;
+  officeResponsible: string;
+};
+
+/** Normalize evaluationMechanicsPlan from repeater shape ({ "0": {...}, "1": {...} }) or old shape (objectivesImpact, etc.) into rows for display */
+function getMonitoringRows(parsed: any): MonitoringRow[] {
+  if (!parsed || typeof parsed !== "object") return [];
+  const hasRepeaterShape =
+    Object.keys(parsed).length > 0 &&
+    Object.keys(parsed).every((k) => /^\d+$/.test(k)) &&
+    Object.values(parsed).some(
+      (v: any) => v && typeof v === "object" && "specificObjective" in v
+    );
+  if (hasRepeaterShape) {
+    return Object.keys(parsed)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => {
+        const row = parsed[k];
+        return {
+          label: row.specificObjective ?? "",
+          performanceIndicator: row.performanceIndicator ?? "",
+          baselineData: row.baselineData ?? "",
+          performanceTarget: row.performanceTarget ?? "",
+          dataSource: row.dataSource ?? "",
+          collectionMethod: row.collectionMethod ?? "",
+          frequencyOfDataCollection: row.frequencyOfCollection ?? "",
+          officeResponsible: row.personResponsible ?? "",
+        };
+      });
+  }
+  const oldRows: MonitoringRow[] = [];
+  const pushOld = (labelKey: string, defaultLabel: string, obj: any) => {
+    if (!obj && !(labelKey in parsed)) return;
+    const label = (parsed[labelKey] ?? defaultLabel) as string;
+    oldRows.push({
+      label,
+      performanceIndicator: obj?.performanceIndicator ?? "",
+      baselineData: obj?.baselineData ?? "",
+      performanceTarget: obj?.performanceTarget ?? "",
+      dataSource: obj?.dataSource ?? "",
+      collectionMethod: obj?.collectionMethod ?? "",
+      frequencyOfDataCollection: obj?.frequencyOfDataCollection ?? "",
+      officeResponsible: obj?.officeResponsible ?? "",
+    });
+  };
+  pushOld("objectivesImpactLabel", "Impact", parsed.objectivesImpact);
+  pushOld("objectivesOutcomeLabel", "Outcome", parsed.objectivesOutcome);
+  pushOld("objectivesOutputLabel", "Output", parsed.objectivesOutput);
+  pushOld("objectivesActivitiesLabel", "Activities", parsed.objectivesActivities);
+  pushOld("objectivesInputLabel", "Input", parsed.objectivesInput);
+  return oldRows;
+}
+
+const cellStyle = {
+  wordWrap: "break-word" as const,
+  overflowWrap: "break-word" as const,
+  wordBreak: "break-word" as const,
+  whiteSpace: "normal" as const,
+  verticalAlign: "top" as const,
+  textAlign: "center" as const,
+  padding: "1px 2px" as const,
+  border: "0.5px solid #000" as const,
+  minWidth: 0,
+  overflow: "hidden" as const,
+};
+
 const EvaluationMechanicsTable: React.FC<EvaluationMechanicsProps> = ({
   data,
 }) => {
-  // Helper function to get objective label
-  // Note: data is already the parsed evaluationMechanicsPlan object (not the full event data)
+  const rows = getMonitoringRows(data);
   const getObjectiveLabel = (labelKey: string, defaultValue: string): string => {
-    if (!data || typeof data !== 'object') return defaultValue;
-    
-    // data is already the parsed evaluationMechanicsPlan object
-    return data[labelKey] || defaultValue;
+    if (!data || typeof data !== "object") return defaultValue;
+    return (data[labelKey] as string) || defaultValue;
   };
   return (
     <table className="bsuFormChild compact eval-compact internal-event-table-with-top-border" style={{ border: "0.5px solid #000", borderTop: "0.5px solid #000", borderBottom: "0.5px solid #000", borderLeft: "0.5px solid #000", borderRight: "0.5px solid #000", outline: "none", marginLeft: "auto", marginRight: "auto", width: "90%", boxSizing: "border-box", borderCollapse: "collapse", borderSpacing: 0, fontSize: "10pt", tableLayout: "fixed", maxWidth: "90%" }}>
@@ -549,644 +619,18 @@ const EvaluationMechanicsTable: React.FC<EvaluationMechanicsProps> = ({
             Offices/ Persons Responsible
           </td>
         </tr>
-        <tr>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {getObjectiveLabel("objectivesImpactLabel", "Impact")}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesImpact
-              ? data.objectivesImpact.performanceIndicator ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesImpact
-              ? data.objectivesImpact.baselineData ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesImpact
-              ? data.objectivesImpact.performanceTarget ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesImpact
-              ? data.objectivesImpact.dataSource ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesImpact
-              ? data.objectivesImpact.collectionMethod ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesImpact
-              ? data.objectivesImpact.frequencyOfDataCollection ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesImpact
-              ? data.objectivesImpact.officeResponsible ?? ""
-              : ""}
-          </td>
-        </tr>
-        <tr>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {getObjectiveLabel("objectivesOutcomeLabel", "Outcome")}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutcome
-              ? data.objectivesOutcome.performanceIndicator ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutcome
-              ? data.objectivesOutcome.baselineData ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutcome
-              ? data.objectivesOutcome.performanceTarget ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutcome
-              ? data.objectivesOutcome.dataSource ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutcome
-              ? data.objectivesOutcome.collectionMethod ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutcome
-              ? data.objectivesOutcome.frequencyOfDataCollection ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutcome
-              ? data.objectivesOutcome.officeResponsible ?? ""
-              : ""}
-          </td>
-        </tr>
-        <tr>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {getObjectiveLabel("objectivesOutputLabel", "Output")}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutput
-              ? data.objectivesOutput.performanceIndicator ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutput
-              ? data.objectivesOutput.baselineData ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutput
-              ? data.objectivesOutput.performanceTarget ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutput
-              ? data.objectivesOutput.dataSource ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutput
-              ? data.objectivesOutput.collectionMethod ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutput
-              ? data.objectivesOutput.frequencyOfDataCollection ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesOutput
-              ? data.objectivesOutput.officeResponsible ?? ""
-              : ""}
-          </td>
-        </tr>
-        <tr>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {getObjectiveLabel("objectivesActivitiesLabel", "Activities")}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesActivities
-              ? data.objectivesActivities.performanceIndicator ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesActivities
-              ? data.objectivesActivities.baselineData ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesActivities
-              ? data.objectivesActivities.performanceTarget ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesActivities
-              ? data.objectivesActivities.dataSource ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesActivities
-              ? data.objectivesActivities.collectionMethod ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesActivities
-              ? data.objectivesActivities.frequencyOfDataCollection ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesActivities
-              ? data.objectivesActivities.officeResponsible ?? ""
-              : ""}
-          </td>
-        </tr>
-        <tr>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {getObjectiveLabel("objectivesInputLabel", "Input")}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesInput
-              ? data.objectivesInput.performanceIndicator ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesInput
-              ? data.objectivesInput.baselineData ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesInput
-              ? data.objectivesInput.performanceTarget ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesInput ? data.objectivesInput.dataSource ?? "" : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesInput
-              ? data.objectivesInput.collectionMethod ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesInput
-              ? data.objectivesInput.frequencyOfDataCollection ?? ""
-              : ""}
-          </td>
-          <td className="fontSet" colSpan={1} style={{ 
-            wordWrap: "break-word",
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-            verticalAlign: "top",
-            textAlign: "center",
-            padding: "1px 2px",
-            border: "0.5px solid #000", // Ultra thin black border
-            minWidth: "0",
-            overflow: "hidden"
-          }}>
-            {data.objectivesInput
-              ? data.objectivesInput.officeResponsible ?? ""
-              : ""}
-          </td>
-        </tr>
+        {rows.map((row, idx) => (
+          <tr key={idx}>
+            <td className="fontSet" colSpan={1} style={cellStyle}>{row.label}</td>
+            <td className="fontSet" colSpan={1} style={cellStyle}>{row.performanceIndicator}</td>
+            <td className="fontSet" colSpan={1} style={cellStyle}>{row.baselineData}</td>
+            <td className="fontSet" colSpan={1} style={cellStyle}>{row.performanceTarget}</td>
+            <td className="fontSet" colSpan={1} style={cellStyle}>{row.dataSource}</td>
+            <td className="fontSet" colSpan={1} style={cellStyle}>{row.collectionMethod}</td>
+            <td className="fontSet" colSpan={1} style={cellStyle}>{row.frequencyOfDataCollection}</td>
+            <td className="fontSet" colSpan={1} style={cellStyle}>{row.officeResponsible}</td>
+          </tr>
+        ))}
       </tbody>
     </table>
   );
