@@ -3,7 +3,7 @@ import FlexBox from "../FlexBox";
 import TextHeaderNormal from "../Headers/TextHeaderNormal";
 import CustomInput from "../Inputs/CustomInput";
 import SearchIcon from "@mui/icons-material/Search";
-import { ReactNode, cloneElement, isValidElement } from "react";
+import { ReactNode, cloneElement, isValidElement, useState, useCallback } from "react";
 
 interface DataTableProps {
   title: string;
@@ -16,6 +16,8 @@ interface DataTableProps {
   onSearch?: (key: string) => void;
   /** Placeholder for the search input (e.g. "Search by event title only") */
   searchPlaceholder?: string;
+  /** When true, search runs only on Enter key or search icon click (not on every keystroke) */
+  searchOnSubmitOnly?: boolean;
 }
 
 const Table: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -36,7 +38,13 @@ const DataTable: React.FC<DataTableProps> = ({
   componentOnLeft,
   onSearch,
   searchPlaceholder = "Search by name, email, SR code, event, department...",
+  searchOnSubmitOnly = false,
 }) => {
+  const [searchInputVal, setSearchInputVal] = useState("");
+  const runSearch = useCallback(() => {
+    if (onSearch) onSearch(searchInputVal);
+  }, [onSearch, searchInputVal]);
+
   return (
     <Box
       margin="auto"
@@ -69,9 +77,15 @@ const DataTable: React.FC<DataTableProps> = ({
           )}
           <CustomInput
             placeholder={searchPlaceholder}
-            onChange={(event) => onSearch && onSearch(event.target.value)}
+            value={searchOnSubmitOnly ? searchInputVal : undefined}
+            onChange={(event) => {
+              const v = event.target.value;
+              if (searchOnSubmitOnly) setSearchInputVal(v);
+              else if (onSearch) onSearch(v);
+            }}
+            onKeyDown={searchOnSubmitOnly ? (e) => { if (e.key === "Enter") runSearch(); } : undefined}
             endIcon={
-              <IconButton>
+              <IconButton onClick={searchOnSubmitOnly ? runSearch : undefined}>
                 <SearchIcon />
               </IconButton>
             }

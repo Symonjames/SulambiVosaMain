@@ -582,8 +582,10 @@ const EventProposal = () => {
             data={tableData}
             componentBeforeSearch={ModRightComponents}
             componentOnLeft={ModLeftComponents}
+            searchPlaceholder="Search name of event"
+            searchOnSubmitOnly
             onSearch={(key) => {
-              setSearchVal(key.toLowerCase());
+              setSearchVal(key.toLowerCase().trim());
             }}
           />
         )}

@@ -809,45 +809,44 @@ def updateEvent(id, eventType: str):
       "message": "External Event provided does not exist"
     }, 404)
 
-    ext_beneficiary_pin_raw = (request.json.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
+    j = request.json
+    ext_beneficiary_pin_raw = (j.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
     ok, ext_beneficiary_pin_result = _validate_beneficiary_pin(ext_beneficiary_pin_raw)
     if not ok:
       return ({"message": ext_beneficiary_pin_result}, 400)
     ext_beneficiary_pin = ext_beneficiary_pin_result
 
-    print("created at", matchedEvent.get("createdAt"))
-
-    updatedEvent = ExternalEventDb.update( id, (
-      request.json["extensionServiceType"],
-      request.json["title"],
-      request.json["location"],
-      request.json["durationStart"],
-      request.json["durationEnd"],
-      request.json["sdg"],
-      request.json["orgInvolved"],
-      request.json["programInvolved"],
-      request.json["projectLeader"],
-      request.json["partners"],
-      request.json["beneficiaries"],
-      request.json["totalCost"],
-      request.json["sourceOfFund"],
-      request.json["rationale"],
-      request.json["objectives"],
-      request.json["expectedOutput"],
-      request.json["description"],
-      request.json["financialPlan"],
-      request.json["dutiesOfPartner"],
-      request.json["evaluationMechanicsPlan"],
-      request.json["sustainabilityPlan"],
+    updatedEvent = ExternalEventDb.update(id, (
+      j.get("extensionServiceType") or matchedEvent.get("extensionServiceType") or "",
+      j.get("title") or matchedEvent.get("title") or "",
+      j.get("location") or matchedEvent.get("location") or "",
+      j.get("durationStart") if j.get("durationStart") is not None else matchedEvent.get("durationStart"),
+      j.get("durationEnd") if j.get("durationEnd") is not None else matchedEvent.get("durationEnd"),
+      j.get("sdg") or matchedEvent.get("sdg") or "",
+      j.get("orgInvolved") or matchedEvent.get("orgInvolved") or "",
+      j.get("programInvolved") or matchedEvent.get("programInvolved") or "",
+      j.get("projectLeader") or matchedEvent.get("projectLeader") or "",
+      j.get("partners") or matchedEvent.get("partners") or "",
+      j.get("beneficiaries") or matchedEvent.get("beneficiaries") or "",
+      j.get("totalCost") if j.get("totalCost") is not None else matchedEvent.get("totalCost"),
+      j.get("sourceOfFund") or matchedEvent.get("sourceOfFund") or "",
+      j.get("rationale") or matchedEvent.get("rationale") or "",
+      j.get("objectives") or matchedEvent.get("objectives") or "",
+      j.get("expectedOutput") or matchedEvent.get("expectedOutput") or "",
+      j.get("description") or matchedEvent.get("description") or "",
+      j.get("financialPlan") or matchedEvent.get("financialPlan") or "",
+      j.get("dutiesOfPartner") or matchedEvent.get("dutiesOfPartner") or "",
+      j.get("evaluationMechanicsPlan") or matchedEvent.get("evaluationMechanicsPlan") or "",
+      j.get("sustainabilityPlan") or matchedEvent.get("sustainabilityPlan") or "",
       accountSessionInfo["id"],
       "editing",
-      request.json["evaluationSendTime"],
+      j.get("evaluationSendTime") if j.get("evaluationSendTime") is not None else matchedEvent.get("evaluationSendTime"),
       False,
       matchedEvent.get("signatoriesId"),
       matchedEvent.get("createdAt"),
       matchedEvent.get("feedback_id"),
-      request.json.get("externalServiceType") or "[]",
-      request.json.get("eventProposalType") or "[]",
+      j.get("externalServiceType") or matchedEvent.get("externalServiceType") or "[]",
+      j.get("eventProposalType") or matchedEvent.get("eventProposalType") or "[]",
       ext_beneficiary_pin
     ))
 

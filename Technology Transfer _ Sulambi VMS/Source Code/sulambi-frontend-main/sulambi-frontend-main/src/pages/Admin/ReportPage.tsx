@@ -178,11 +178,6 @@ const ReportPage = () => {
                     onClick: () => viewExternalReportAction(report),
                   },
                   {
-                    label: "Edit Report",
-                    icon: <EditIcon />,
-                    onClick: () => editExternalReportAction(report),
-                  },
-                  {
                     label: "Delete Report",
                     icon: <DeleteForeverIcon />,
                     onClick: () => handleDeleteReport(report, "external"),
@@ -212,11 +207,6 @@ const ReportPage = () => {
                     label: "View Report",
                     icon: <RemoveRedEyeIcon />,
                     onClick: () => viewInternalReportAction(report),
-                  },
-                  {
-                    label: "Edit Report",
-                    icon: <EditIcon />,
-                    onClick: () => editInternalReportAction(report),
                   },
                   { 
                     label: "Delete Report", 
@@ -294,48 +284,7 @@ const ReportPage = () => {
             setSelectedReport(undefined);
           }
         }}
-        beforePrintComponent={[
-          <PrimaryButton
-            key="edit-report"
-            label="Edit Report"
-            startIcon={<EditIcon />}
-            sx={{
-              backgroundColor: "#1976d2",
-            }}
-            onClick={() => {
-              // Close the view modal
-              setOpenFormDataLoader(false);
-              // Open edit form with the selected report data
-              const reportType = selectedReport && 'budgetUtilized' in selectedReport ? "internal" : "external";
-              setReportToEdit({
-                report: selectedReport!,
-                type: reportType as "external" | "internal",
-              });
-              setOpenEditForm(true);
-            }}
-          />,
-          <PrimaryButton
-            key="align-text"
-            label={`Align text to ${textPos === "left" ? "Justify" : "Left"}`}
-            startIcon={<HistoryEduIcon />}
-            sx={{
-              backgroundColor:
-                textPos === "left" ? "var(--text-landing)" : "orange",
-            }}
-            onClick={() => {
-              if (textPos === "left") setTextPos("justify");
-              else setTextPos("left");
-            }}
-          />,
-          <PrimaryButton
-            key="update-signatories"
-            label="Update Signatories"
-            startIcon={<HistoryEduIcon />}
-            onClick={() => {
-              setOpenUpdateSignatories(true);
-            }}
-          />,
-        ]}
+        beforePrintComponent={[]}
       />
       <PageLayout page="report">
         <TextHeader>REPORTS</TextHeader>

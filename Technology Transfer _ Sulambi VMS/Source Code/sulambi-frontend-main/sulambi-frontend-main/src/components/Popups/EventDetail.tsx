@@ -8,6 +8,7 @@ import {
   InternalEventProposalType,
 } from "../../interface/types";
 import dayjs from "dayjs";
+import SafeHtmlRenderer from "../Inputs/SafeHtmlRenderer";
 
 interface ResponseData {
   event: ExternalEventProposalType | InternalEventProposalType;
@@ -63,8 +64,16 @@ const EventDetail: React.FC<Props> = (props) => {
             (response?.event as InternalEventProposalType)?.participant ??
             ""}
         </Typography>
-        <Typography>
-          <b>Description : </b> {response?.event.description}
+        <Typography component="div">
+          <b>Description : </b>{" "}
+          {response?.event?.description != null && /<[^>]+>/.test(String(response.event.description)) ? (
+            <SafeHtmlRenderer
+              htmlContent={String(response.event.description)}
+              style={{ marginTop: 4, display: "block" }}
+            />
+          ) : (
+            response?.event?.description ?? ""
+          )}
         </Typography>
         <br />
         <CustomDivider />

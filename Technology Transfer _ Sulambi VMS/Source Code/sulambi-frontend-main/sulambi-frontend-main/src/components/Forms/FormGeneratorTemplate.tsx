@@ -545,22 +545,32 @@ const FormGeneratorTemplate = ({
             );
 
           if (viewOnly && value.type === "file")
-            return (
+            return (() => {
+              // Resolve file value: formData[id], formData[lowercase id] (API may return lowercase), or value.value
+              const id = value.id;
+              const raw =
+                (id != null && formData[id] != null && String(formData[id]).trim() !== "")
+                  ? String(formData[id])
+                  : (id != null && typeof formData[String(id).toLowerCase()] === "string" && formData[String(id).toLowerCase()].trim() !== "")
+                    ? String(formData[String(id).toLowerCase()])
+                    : (value.value != null && String(value.value).trim() !== "")
+                      ? String(value.value)
+                      : "";
+              const hasFile = raw !== "" && raw !== "N/A";
+              return (
               <FlexBox
+                key={`file-${index}`}
                 flexDirection="column"
                 flex={value.flex ?? 1}
                 width="100%"
               >
                 <Typography>{value.message}</Typography>
-                {value.id && formData[value.id] && String(formData[value.id]).trim() !== "" && String(formData[value.id]) !== "N/A" ? (
+                {hasFile ? (
                   <PrimaryButton
                     label="View Uploaded File"
                     startIcon={<RemoveRedEyeIcon />}
                     onClick={() => {
-                      const id = value.id;
-                      if (id == null) return;
-                      const raw = String(formData[id]);
-                      
+                      if (!raw) return;
                       // Check if it's a Cloudinary URL or other full URL
                       const isFullUrl = raw.startsWith("http://") || raw.startsWith("https://");
                       
@@ -617,7 +627,8 @@ const FormGeneratorTemplate = ({
                   </Typography>
                 )}
               </FlexBox>
-            );
+              );
+            })();
 
           if (value.type === "break") return <br key={`break-${index}`} />;
 
