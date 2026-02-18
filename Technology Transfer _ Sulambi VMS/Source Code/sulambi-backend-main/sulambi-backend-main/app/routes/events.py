@@ -98,14 +98,18 @@ def updateInternalEvent(id):
 @EventsBlueprint.before_request
 def eventsMiddleware():
   # Auth + RBAC handled by global_api_auth; only param validation here
+  # Require all params only for CREATE (POST). For UPDATE (PUT) the controller merges with existing event.
   if (request.method != "OPTIONS"):
     missingParams = None
     if (request.method not in ["GET", "DELETE", "PATCH"]):
-      if (request.path == "/api/events/external" or (("/api/events/external" in request.path) and request.view_args.get("id"))):
+      if (request.path == "/api/events/external" and request.method == "POST"):
         missingParams = eventParams.externalEventParamCheck()
-
-      if (request.path == "/api/events/internal" or (("/api/events/internal" in request.path) and request.view_args.get("id"))):
+      elif (("/api/events/external" in request.path) and request.view_args.get("id")):
+        pass  # PUT update: no strict param check
+      elif (request.path == "/api/events/internal" and request.method == "POST"):
         missingParams = eventParams.internalEventParamCheck()
+      elif (("/api/events/internal" in request.path) and request.view_args.get("id")):
+        pass  # PUT update: no strict param check
 
       if (missingParams != None):
         return missingParams
