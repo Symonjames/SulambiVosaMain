@@ -843,6 +843,20 @@ def updateEvent(id, eventType: str):
       except (TypeError, ValueError):
         return int(fallback) if fallback is not None else 0
 
+    def _to_timestamp_str(v):
+      """Convert createdAt to a string PostgreSQL timestamp (timestamp without time zone) accepts."""
+      if v is None:
+        return datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+      if isinstance(v, datetime):
+        return v.strftime("%Y-%m-%d %H:%M:%S")
+      if isinstance(v, (int, float)):
+        if v > 1e10:  # milliseconds
+          return datetime.fromtimestamp(v / 1000).strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.fromtimestamp(v).strftime("%Y-%m-%d %H:%M:%S")
+      if isinstance(v, str) and v.strip():
+        return v
+      return datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+
     eval_plan = j.get("evaluationMechanicsPlan") if j.get("evaluationMechanicsPlan") is not None else matchedEvent.get("evaluationMechanicsPlan")
     financial_plan = j.get("financialPlan") if j.get("financialPlan") is not None else matchedEvent.get("financialPlan")
     ext_svc = j.get("externalServiceType") if j.get("externalServiceType") is not None else matchedEvent.get("externalServiceType")
@@ -887,7 +901,7 @@ def updateEvent(id, eventType: str):
         evaluation_send_time,
         False,
         matchedEvent.get("signatoriesId"),
-        matchedEvent.get("createdAt"),
+        _to_timestamp_str(matchedEvent.get("createdAt")),
         matchedEvent.get("feedback_id"),
         _to_str(ext_svc, matchedEvent.get("externalServiceType") or "[]"),
         _to_str(evt_proposal, matchedEvent.get("eventProposalType") or "[]"),
