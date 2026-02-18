@@ -9,10 +9,6 @@ const API_BASE_URL =
 
 export { API_BASE_URL };
 
-if (typeof window !== "undefined") {
-  console.log("[API] Backend base URL:", API_BASE_URL);
-}
-
 axios.defaults.headers.common["Content-Type"] = "application/json";
 axios.defaults.headers.common.Accept = "application/json";
 axios.interceptors.request.use((config) => {
@@ -31,11 +27,13 @@ axios.interceptors.request.use((config) => {
 // Add response interceptor for error logging
 axios.interceptors.response.use(
   (response) => {
-    console.log('[API_RESPONSE]', {
-      status: response.status,
-      url: response.config.url,
-      data: response.data
-    });
+    if (import.meta.env.DEV) {
+      console.log('[API_RESPONSE]', {
+        status: response.status,
+        url: response.config.url,
+        data: response.data
+      });
+    }
     return response;
   },
   (error) => {

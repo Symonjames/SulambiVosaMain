@@ -16,6 +16,8 @@ interface Props {
   eventType: "external" | "internal";
   viewOnly?: boolean;
   preventLoadingCache?: boolean;
+  /** When viewOnly: requirement data to display (ensures Documents section is not blank) */
+  initialData?: Record<string, any>;
   /** When true (e.g. homepage public event join): hide Personal Details, use short subHeader */
   forPublicEventJoin?: boolean;
   /** When true (logged-in member joining from Member → Events): show only documents (medCert, waiver). Personal details come from profile. */
@@ -30,6 +32,7 @@ const RequirementForm: React.FC<Props> = ({
   eventType,
   viewOnly,
   preventLoadingCache,
+  initialData,
   forPublicEventJoin,
   documentsOnly,
   setOpen,
@@ -134,12 +137,22 @@ const RequirementForm: React.FC<Props> = ({
       });
   };
 
-  // Reset form when modal opens; pre-fill personal details from membership cache when available (not used when documentsOnly)
+  // Reset form when modal opens; pre-fill from initialData when viewOnly so Documents (medCert, waiver) and Personal Details display
   useEffect(() => {
     setForceRefresh((prev) => prev + 1);
     if (open) {
       afterOpen && afterOpen();
       setFieldErrors([]);
+      if (viewOnly && initialData && Object.keys(initialData).length > 0) {
+        // Normalize so form always has medCert/waiver (API may return medCert, medcert, or med_cert)
+        const d = { ...initialData };
+        const medCertVal = d.medCert ?? (d as any).medcert ?? (d as any).med_cert;
+        const waiverVal = d.waiver ?? (d as any).waiver;
+        if (medCertVal != null) d.medCert = typeof medCertVal === "string" ? medCertVal : String(medCertVal);
+        if (waiverVal != null) d.waiver = typeof waiverVal === "string" ? waiverVal : String(waiverVal);
+        setFormData(d);
+        return;
+      }
       if (viewOnly) return;
       if (documentsOnly) {
         setFormData({});
@@ -170,7 +183,7 @@ const RequirementForm: React.FC<Props> = ({
         setFormData({});
       }
     }
-  }, [open]);
+  }, [open, viewOnly, initialData]);
 
   const showPersonalDetails = !documentsOnly && !forPublicEventJoin;
 

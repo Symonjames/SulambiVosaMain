@@ -315,8 +315,9 @@ const RequirementEvalPage = () => {
       <RequirementForm
         preventLoadingCache
         viewOnly
-        eventId={selectedFormData.eventId?.id || selectedFormData.eventId || 0}
-        eventType={selectedFormData.type || "external"}
+        initialData={selectedFormData}
+        eventId={selectedFormData?.eventId?.id || selectedFormData?.eventId || 0}
+        eventType={selectedFormData?.type || "external"}
         open={viewFormData}
         setOpen={setViewFormData}
       />

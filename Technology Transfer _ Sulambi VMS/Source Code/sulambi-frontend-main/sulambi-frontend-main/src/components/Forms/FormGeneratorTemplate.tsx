@@ -554,16 +554,20 @@ const FormGeneratorTemplate = ({
 
           if (viewOnly && value.type === "file")
             return (() => {
-              // Resolve file value: formData[id], formData[lowercase id] (API may return lowercase), or value.value
+              // Resolve file value: formData[id], formData[lowercase], formData[snake_case], or value.value
               const id = value.id;
+              const idStr = id != null ? String(id) : "";
+              const snake = idStr.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "");
               const raw =
                 (id != null && formData[id] != null && String(formData[id]).trim() !== "")
                   ? String(formData[id])
-                  : (id != null && typeof formData[String(id).toLowerCase()] === "string" && formData[String(id).toLowerCase()].trim() !== "")
-                    ? String(formData[String(id).toLowerCase()])
-                    : (value.value != null && String(value.value).trim() !== "")
-                      ? String(value.value)
-                      : "";
+                  : (idStr && typeof formData[idStr.toLowerCase()] === "string" && formData[idStr.toLowerCase()].trim() !== "")
+                    ? String(formData[idStr.toLowerCase()])
+                    : (idStr && typeof formData[snake] === "string" && formData[snake].trim() !== "")
+                      ? String(formData[snake])
+                      : (value.value != null && String(value.value).trim() !== "")
+                        ? String(value.value)
+                        : "";
               const hasFile = raw !== "" && raw !== "N/A";
               return (
               <FlexBox
@@ -588,16 +592,21 @@ const FormGeneratorTemplate = ({
                       if (isFullUrl) {
                         // Use Cloudinary URL or other full URL directly
                         fileSource = raw;
-                        // Check if URL ends with .pdf or contains pdf in path/query
                         const lower = raw.toLowerCase();
-                        // More robust PDF detection: check extension, content-type hints, or Cloudinary format
-                        isPdf = 
-                          lower.endsWith(".pdf") || 
+                        // Known image extensions: treat as image so LocalImageViewer can display (avoids wrong range requests)
+                        const hasImageExt = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?|$)/i.test(lower) ||
+                          lower.includes("/image/upload/");
+                        // PDF: explicit .pdf or PDF hints in path/query, or Cloudinary raw upload with no image ext
+                        // (raw uploads without extension are often PDFs/docs; treating as PDF uses fetch() for full file, not img range requests)
+                        const isCloudinaryRaw = lower.includes("res.cloudinary.com") && lower.includes("/raw/upload/");
+                        isPdf =
+                          lower.endsWith(".pdf") ||
                           lower.includes(".pdf?") ||
                           lower.includes("/pdf/") ||
                           lower.includes("format=pdf") ||
                           lower.includes("fl_pdf") ||
-                          (lower.includes("pdf") && !lower.match(/\.(jpg|jpeg|png|gif|webp|svg)/));
+                          (lower.includes("pdf") && !hasImageExt) ||
+                          (isCloudinaryRaw && !hasImageExt);
                       } else {
                         // Handle local uploads
                         const base = (BASE_API_URL as string).replace("/api", "");
@@ -624,7 +633,17 @@ const FormGeneratorTemplate = ({
                     }}
                   />
                 ) : (
-                  <Typography color="text.secondary" sx={{ fontStyle: "italic", padding: "8px" }}>
+                  <Typography
+                    color="text.secondary"
+                    sx={{
+                      fontStyle: "italic",
+                      padding: "8px 12px",
+                      border: "1px dashed",
+                      borderColor: "text.secondary",
+                      borderRadius: 1,
+                      backgroundColor: "action.hover",
+                    }}
+                  >
                     No file uploaded
                   </Typography>
                 )}
