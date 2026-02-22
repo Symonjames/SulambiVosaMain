@@ -245,6 +245,71 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
     }
   };
 
+  const categorizedEvents = useMemo(() => {
+    const now = dayjs();
+    const nowMs = Date.now();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const cutoffMs = nowMs - sevenDaysMs;
+
+    const endMs = (option: EvaluationEventOption) => {
+      const v = option.durationEnd;
+      if (typeof v === "number") return v < 1e12 ? v * 1000 : v;
+      return dayjs(v).valueOf();
+    };
+
+    const startMs = (option: EvaluationEventOption) => {
+      const v = option.durationStart;
+      if (typeof v === "number") return v < 1e12 ? v * 1000 : v;
+      return dayjs(v).valueOf();
+    };
+
+    const ongoing: EvaluationEventOption[] = [];
+    const endedWithin7Days: EvaluationEventOption[] = [];
+
+    availableEvents.forEach((option) => {
+      const end = endMs(option);
+      const start = startMs(option);
+      // Ongoing: started but not ended yet
+      if (start <= nowMs && end > nowMs) {
+        ongoing.push(option);
+      } else if (end <= nowMs && end >= cutoffMs) {
+        // Ended within 7 days
+        endedWithin7Days.push(option);
+      }
+    });
+
+    return { ongoing, endedWithin7Days };
+  }, [availableEvents]);
+
+  const allEventsMenu = useMemo(() => {
+    const menu: { key: string; value: string }[] = [];
+    
+    // Add ongoing events first
+    categorizedEvents.ongoing.forEach((option) => {
+      const end = dayjs(option.durationEnd);
+      const label = `[Ongoing] ${option.title} • Ends ${end.format("MMM D, YYYY h:mm A")}`;
+      menu.push({
+        key: label,
+        value: option.id.toString(),
+      });
+    });
+
+    // Add ended within 7 days events
+    categorizedEvents.endedWithin7Days.forEach((option) => {
+      const end = dayjs(option.durationEnd);
+      const now = dayjs();
+      const daysSinceEnd = now.diff(end, "day", true);
+      const daysRemaining = Math.max(0, Math.ceil(7 - daysSinceEnd));
+      const label = `[Ended] ${option.title} • Ended ${end.format("MMM D, YYYY h:mm A")}${daysRemaining > 0 ? ` • ${daysRemaining} day(s) remaining` : ""}`;
+      menu.push({
+        key: label,
+        value: option.id.toString(),
+      });
+    });
+
+    return menu;
+  }, [categorizedEvents]);
+
   const pinStepContent = (
     <Box display="flex" flexDirection="column" gap={3}>
       {availableEvents.length > 1 && (
@@ -253,23 +318,11 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
             Select the event you participated in
           </Typography>
           <CustomDropdown
-            label="Finished Event (1 week after event ends)"
+            label="Available Events"
             width="100%"
             disabled={isLoadingEvents || availableEvents.length === 0}
             initialValue={selectedEventId ?? ""}
-            menu={availableEvents.map((option) => {
-              const end = dayjs(option.durationEnd);
-              const now = dayjs();
-              const daysSinceEnd = now.diff(end, 'day', true);
-              const daysRemaining = Math.max(0, Math.ceil(7 - daysSinceEnd));
-              const label = `${option.title} • Ended ${end.format(
-                "MMM D, YYYY h:mm A"
-              )}${daysRemaining > 0 ? ` • ${daysRemaining} day(s) remaining` : ''}`;
-              return {
-                key: label,
-                value: option.id.toString(),
-              };
-            })}
+            menu={allEventsMenu}
             onChange={(event) => setSelectedEventId(event.target.value)}
           />
         </Box>
@@ -284,12 +337,17 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
               p: 2,
             }}
           >
-            <Typography variant="subtitle2" sx={{ opacity: 0.9 }}>
+            <Typography variant="subtitle2" sx={{ opacity: 0.9 }} gutterBottom>
               You are about to evaluate
             </Typography>
-            <Typography variant="subtitle1" fontWeight="bold">
-              {selectedEvent.title}
-            </Typography>
+            <CustomDropdown
+              label="Select Event"
+              width="100%"
+              disabled={isLoadingEvents || availableEvents.length === 0}
+              initialValue={selectedEventId ?? ""}
+              menu={allEventsMenu}
+              onChange={(event) => setSelectedEventId(event.target.value)}
+            />
           </Box>
           <Box>
             <Typography variant="subtitle1" fontWeight="bold" gutterBottom>

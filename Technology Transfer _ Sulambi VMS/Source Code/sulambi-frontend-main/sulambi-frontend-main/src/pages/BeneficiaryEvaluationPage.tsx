@@ -60,10 +60,18 @@ const BeneficiaryEvaluationPage = () => {
           return dayjs(v).valueOf();
         };
 
+        const startMs = (e: PublicEvent) => {
+          const v = e.durationStart;
+          if (typeof v === "number") return v < 1e12 ? v * 1000 : v;
+          return dayjs(v).valueOf();
+        };
+
         const mapped: EvaluationEventOption[] = combined
           .filter((event) => {
             const end = endMs(event);
-            return end <= nowMs && end >= cutoffMs;
+            const start = startMs(event);
+            // Include ongoing events (started but not ended) and events ended within 7 days
+            return (end > nowMs && start <= nowMs) || (end <= nowMs && end >= cutoffMs);
           })
           .map((event) => ({
             id: event.id,
@@ -76,9 +84,18 @@ const BeneficiaryEvaluationPage = () => {
               event.eventTypeIndicator ?? event.eventType ?? "external",
             requiresBeneficiaryPin: !!event.requiresBeneficiaryPin,
           }))
-          .sort((a, b) =>
-            dayjs(b.durationEnd).valueOf() - dayjs(a.durationEnd).valueOf()
-          );
+          .sort((a, b) => {
+            // Sort: ongoing events first, then by end date (most recent first)
+            const aEnd = dayjs(a.durationEnd).valueOf();
+            const bEnd = dayjs(b.durationEnd).valueOf();
+            const now = Date.now();
+            const aIsOngoing = aEnd > now;
+            const bIsOngoing = bEnd > now;
+            
+            if (aIsOngoing && !bIsOngoing) return -1;
+            if (!aIsOngoing && bIsOngoing) return 1;
+            return bEnd - aEnd;
+          });
 
         setEligibleEvents(mapped);
       } catch (error) {
