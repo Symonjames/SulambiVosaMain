@@ -16,10 +16,11 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FlexBox from '../FlexBox';
 import { FormDataContext } from '../../contexts/FormDataProvider';
+import { looseJsonParse } from '../../utils/looseJson';
 
 interface EditableGanttTableProps {
   fieldKey: string;
-  initialData?: { [rowIndex: string]: { [colKey: string]: string } };
+  initialData?: any; // may be object OR string; we hydrate safely
   initialColumns?: string[];
   viewOnly?: boolean;
 }
@@ -32,19 +33,52 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
 }) => {
   const { immutableSetFormData } = useContext(FormDataContext);
   const isInitialized = useRef(false);
+  const hydratedOnceRef = useRef(false);
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hydratedInitialData = useRef<{ [rowIndex: string]: { [colKey: string]: string } }>({});
+  if (!hydratedOnceRef.current) {
+    // Hydrate once per mount; FormGeneratorTemplate keys the component by event id so this is safe.
+    const parsed =
+      typeof initialData === 'string'
+        ? looseJsonParse<{ [rowIndex: string]: { [colKey: string]: string } }>(initialData, {})
+        : (initialData || {});
+    hydratedInitialData.current = (parsed && typeof parsed === 'object') ? parsed : {};
+    hydratedOnceRef.current = true;
+  }
+
+  const initialRowKeys = Object.keys(hydratedInitialData.current || {});
+  const shouldDeferHydration = initialRowKeys.length > 150;
+  const [isHydrating, setIsHydrating] = useState<boolean>(
+    shouldDeferHydration && initialRowKeys.length > 0
+  );
   
   // Initialize columns - extract from initialData if available, otherwise use initialColumns
   const [columns, setColumns] = useState<string[]>(() => {
+    const dataObj = hydratedInitialData.current;
     // If we have initialData, extract column names from the row keys
-    if (Object.keys(initialData).length > 0) {
+    if (dataObj && typeof dataObj === 'object' && Object.keys(dataObj).length > 0) {
       const extractedColumns: string[] = [];
       const columnSet = new Set<string>();
       
-      // Get all unique column keys from all rows
-      Object.keys(initialData).forEach((rowIndex) => {
-        const row = initialData[rowIndex];
-        if (row) {
+      // Preserve order from the first row, then add any extra keys found later.
+      const rowIndices = Object.keys(dataObj);
+      const firstKey = rowIndices.sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0))[0];
+      const firstRow = firstKey != null ? (dataObj as any)[firstKey] : undefined;
+      if (firstRow && typeof firstRow === 'object') {
+        Object.keys(firstRow).forEach((colKey) => {
+          if (!columnSet.has(colKey)) {
+            columnSet.add(colKey);
+            extractedColumns.push(colKey);
+          }
+        });
+      }
+      // For large tables, avoid scanning every row on the initial render.
+      // Columns are typically small (months), so sampling is sufficient and prevents UI freezes.
+      const sampleKeys = rowIndices.slice(0, 200);
+      sampleKeys.forEach((rowIndex) => {
+        const row = (dataObj as any)[rowIndex];
+        if (row && typeof row === 'object') {
           Object.keys(row).forEach((colKey) => {
             if (!columnSet.has(colKey)) {
               columnSet.add(colKey);
@@ -121,30 +155,44 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
   }, [columns.length]); // Only update when column count changes - intentionally not including columnNames
 
   const [rows, setRows] = useState<{ [rowIndex: string]: { [colKey: string]: string } }>(() => {
-    if (Object.keys(initialData).length > 0) {
+    const dataObj = hydratedInitialData.current;
+    if (dataObj && typeof dataObj === 'object' && Object.keys(dataObj).length > 0) {
+      // For very large tables, defer setting rows until after first paint
+      // so the modal doesn't freeze on open.
+      if (shouldDeferHydration) return {};
       isInitialized.current = true;
-      return initialData;
+      return dataObj;
     }
     return {};
   });
 
   const [rowCount, setRowCount] = useState(() => {
-    const existingRows = Object.keys(initialData);
+    const existingRows = Object.keys(hydratedInitialData.current || {});
+    if (shouldDeferHydration && existingRows.length > 0) return 0;
     return existingRows.length > 0 ? Math.max(...existingRows.map(r => parseInt(r) || 0)) + 1 : 0;
   });
 
-  // Only initialize from props once, don't reset on prop changes
+  // Hydrate rows after mount for large tables (prevents UI freeze on open).
   useEffect(() => {
-    if (!isInitialized.current && Object.keys(initialData).length > 0) {
-      setRows(initialData);
-      isInitialized.current = true;
+    if (!shouldDeferHydration) return;
+    const dataObj = hydratedInitialData.current;
+    if (!dataObj || typeof dataObj !== "object") {
+      setIsHydrating(false);
+      return;
     }
-  }, []); // Empty dependency array - only run on mount
-  
-  // Mark as initialized after first render to prevent resets
-  useEffect(() => {
-    isInitialized.current = true;
-  }, []);
+    const keys = Object.keys(dataObj);
+    if (keys.length === 0) {
+      setIsHydrating(false);
+      return;
+    }
+    const t = setTimeout(() => {
+      setRows(dataObj);
+      setRowCount(Math.max(...keys.map((k) => parseInt(k) || 0)) + 1);
+      isInitialized.current = true;
+      setIsHydrating(false);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [shouldDeferHydration]);
 
   // Update form data whenever rows or columns change (debounced to prevent focus loss)
   useEffect(() => {
@@ -153,8 +201,8 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
       clearTimeout(updateTimeoutRef.current);
     }
     
-    // Only update if component is initialized (to avoid updating during initial mount)
-    if (isInitialized.current) {
+    // Only update if component is initialized and not hydrating
+    if (isInitialized.current && !isHydrating) {
       updateTimeoutRef.current = setTimeout(() => {
         // Save rows data - column names are already in the row keys when renamed
         // When columns are renamed, the row keys are updated, so column names persist in the data
@@ -169,7 +217,7 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [rows, columns, fieldKey, immutableSetFormData]);
+  }, [rows, columns, fieldKey, immutableSetFormData, isHydrating]);
 
   const handleCellChange = useCallback((rowIndex: string, colKey: string, value: string) => {
     setRows((prev) => {
@@ -304,6 +352,13 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
         padding: 0,
       }
     }}>
+      {!viewOnly && isHydrating && (
+        <Box sx={{ py: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Loading work plan...
+          </Typography>
+        </Box>
+      )}
       <TableContainer 
         component={viewOnly ? 'div' : Paper}
         sx={{ 

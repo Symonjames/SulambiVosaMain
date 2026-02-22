@@ -43,6 +43,7 @@ import ReportForm from "../../components/Forms/ReportForm";
 import SignatoriesForm from "../../components/Forms/SignatoriesForm";
 import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
 import LoadingSpinner from "../../components/Loading/LoadingSpinner";
+import { toJsonString } from "../../utils/looseJson";
 
 const EventProposal = () => {
   const { formData, setFormData } = useContext(FormDataContext);
@@ -377,6 +378,19 @@ const EventProposal = () => {
                   if (eventType[1] == "external") {
                     // Process formData the same way as submitCallback - stringify objects
                     const processedFormData = { ...formData };
+                    // Persist checkbox/selection fields as JSON strings for backend storage
+                    if (processedFormData.sdg && typeof processedFormData.sdg === "object") {
+                      processedFormData.sdg = toJsonString(processedFormData.sdg, "[]");
+                    }
+                    if (processedFormData.extensionServiceType && typeof processedFormData.extensionServiceType === "object") {
+                      processedFormData.extensionServiceType = toJsonString(processedFormData.extensionServiceType, "[]");
+                    }
+                    if (processedFormData.externalServiceType && typeof processedFormData.externalServiceType === "object") {
+                      processedFormData.externalServiceType = toJsonString(processedFormData.externalServiceType, "[]");
+                    }
+                    if (processedFormData.eventProposalType && typeof processedFormData.eventProposalType === "object") {
+                      processedFormData.eventProposalType = toJsonString(processedFormData.eventProposalType, "[]");
+                    }
                     if (processedFormData.financialPlan && typeof processedFormData.financialPlan === 'object') {
                       processedFormData.financialPlan = JSON.stringify(processedFormData.financialPlan);
                     }
@@ -406,6 +420,9 @@ const EventProposal = () => {
                   if (eventType[1] == "internal") {
                     // Process formData the same way as submitCallback - stringify objects
                     const processedFormData = { ...formData };
+                    if (processedFormData.eventProposalType && typeof processedFormData.eventProposalType === "object") {
+                      processedFormData.eventProposalType = toJsonString(processedFormData.eventProposalType, "[]");
+                    }
                     if (processedFormData.workPlan && typeof processedFormData.workPlan === 'object') {
                       processedFormData.workPlan = JSON.stringify(processedFormData.workPlan);
                     }

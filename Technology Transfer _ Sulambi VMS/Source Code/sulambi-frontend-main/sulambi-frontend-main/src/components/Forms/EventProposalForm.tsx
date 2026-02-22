@@ -15,6 +15,7 @@ import {
 import { IconButton } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
+import { looseJsonParse, toJsonString } from "../../utils/looseJson";
 
 interface Props {
   open: boolean;
@@ -71,13 +72,22 @@ const EventProposalForm: React.FC<Props> = ({
             setProposalType(type);
             // Normalize financialPlan for external so fieldRepeater can use it
             const data = response.data.data || {};
+            const parseObj = <T,>(val: unknown, fallback: T): T =>
+              looseJsonParse<T>(val, fallback);
+            const parseCheckboxList = (val: unknown): string[] => {
+              const parsed = parseObj<any>(val, []);
+              if (Array.isArray(parsed)) return parsed.filter((x) => typeof x === "string");
+              if (parsed && typeof parsed === "object") {
+                // Support legacy object shape: { "Label": true, ... }
+                return Object.keys(parsed).filter((k) => Boolean((parsed as any)[k]));
+              }
+              return [];
+            };
+
             let financialPlan: any = {};
             try {
               if (data.financialPlan) {
-                const parsed =
-                  typeof data.financialPlan === "string"
-                    ? JSON.parse(data.financialPlan)
-                    : data.financialPlan;
+                const parsed = parseObj<any>(data.financialPlan, {});
                 if (Array.isArray(parsed)) {
                   financialPlan = parsed.reduce((acc: any, row: any, idx: number) => {
                     acc[idx] = row;
@@ -98,8 +108,15 @@ const EventProposalForm: React.FC<Props> = ({
               const rawData = response.data.data?.evaluationMechanicsPlan;
               if (!rawData) return { "0": { ...EMPTY_M_E_ROW } };
               try {
-                const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                const parsed = parseObj<any>(rawData, {});
                 if (!parsed || typeof parsed !== 'object') return { "0": { ...EMPTY_M_E_ROW } };
+                if (Array.isArray(parsed)) {
+                  const rows: Record<string, any> = {};
+                  parsed.forEach((row, idx) => {
+                    rows[String(idx)] = row;
+                  });
+                  return Object.keys(rows).length > 0 ? rows : { "0": { ...EMPTY_M_E_ROW } };
+                }
                 const hasOldExternalShape =
                   'objectivesImpact' in parsed ||
                   'objectivesOutcome' in parsed ||
@@ -141,28 +158,23 @@ const EventProposalForm: React.FC<Props> = ({
 
             setFormData({
               ...response.data.data,
-              sdg: response.data.data?.sdg
-                ? JSON.parse(response.data.data.sdg)
-                : {},
+              // These fields may be stored as JSON OR Python-style repr (single quotes).
+              // Parse best-effort; never throw and block editing.
+              sdg: response.data.data?.sdg ? parseCheckboxList(response.data.data.sdg) : [],
               extensionServiceType: response.data.data?.extensionServiceType
-                ? JSON.parse(response.data.data.extensionServiceType)
-                : {},
+                ? parseCheckboxList(response.data.data.extensionServiceType)
+                : [],
               externalServiceType: response.data.data?.externalServiceType
-                ? JSON.parse(response.data.data.externalServiceType)
-                : {},
+                ? parseCheckboxList(response.data.data.externalServiceType)
+                : [],
               eventProposalType: response.data.data?.eventProposalType
-                ? JSON.parse(response.data.data.eventProposalType)
-                : {},
-              workPlan: response.data.data?.workPlan
-                ? (typeof response.data.data.workPlan === 'string' 
-                    ? JSON.parse(response.data.data.workPlan) 
-                    : response.data.data.workPlan)
-                : {},
+                ? parseCheckboxList(response.data.data.eventProposalType)
+                : [],
+              // Keep workPlan as-is (string/object). EditableGanttTable will hydrate it lazily.
+              workPlan: response.data.data?.workPlan ?? {},
               financialPlan,
               financialRequirement: response.data.data?.financialRequirement
-                ? (typeof response.data.data.financialRequirement === 'string'
-                    ? JSON.parse(response.data.data.financialRequirement)
-                    : response.data.data.financialRequirement)
+                ? parseObj<any>(response.data.data.financialRequirement, {})
                 : {},
               evaluationMechanicsPlan: parsedEvaluationMechanicsPlan,
             });
@@ -193,6 +205,10 @@ const EventProposalForm: React.FC<Props> = ({
       // Stringify object fields for backend compatibility
       const processedFormData = { ...formData };
       if (proposalType === "internal") {
+        // Ensure checkbox/selection objects are persisted as JSON strings (not "[object Object]" or Python-style repr)
+        if (processedFormData.eventProposalType && typeof processedFormData.eventProposalType === "object") {
+          processedFormData.eventProposalType = toJsonString(processedFormData.eventProposalType, "[]");
+        }
         if (processedFormData.workPlan && typeof processedFormData.workPlan === 'object') {
           processedFormData.workPlan = JSON.stringify(processedFormData.workPlan);
         }
@@ -210,6 +226,17 @@ const EventProposalForm: React.FC<Props> = ({
       
       if (proposalType === "external") {
         const payload: any = { ...processedFormData };
+        // Persist these as JSON strings so edits can reliably JSON.parse them later.
+        if (payload.sdg && typeof payload.sdg === "object") payload.sdg = toJsonString(payload.sdg, "[]");
+        if (payload.extensionServiceType && typeof payload.extensionServiceType === "object") {
+          payload.extensionServiceType = toJsonString(payload.extensionServiceType, "[]");
+        }
+        if (payload.externalServiceType && typeof payload.externalServiceType === "object") {
+          payload.externalServiceType = toJsonString(payload.externalServiceType, "[]");
+        }
+        if (payload.eventProposalType && typeof payload.eventProposalType === "object") {
+          payload.eventProposalType = toJsonString(payload.eventProposalType, "[]");
+        }
         if (payload.financialPlan && typeof payload.financialPlan === 'object') {
           payload.financialPlan = JSON.stringify(payload.financialPlan);
         }

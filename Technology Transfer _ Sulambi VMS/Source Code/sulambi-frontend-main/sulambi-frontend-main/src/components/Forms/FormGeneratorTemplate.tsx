@@ -1162,7 +1162,9 @@ const FormGeneratorTemplate = ({
                   </Typography>
                 )}
                 <EditableGanttTable
-                  key={`gantt-${value.fieldKey}-${viewOnly}`}
+                  // Remount per event so editing loads the correct saved workPlan.
+                  // (EditableGanttTable is intentionally memoized to avoid focus loss while typing.)
+                  key={`gantt-${value.fieldKey}-${viewOnly}-${String((formData as any)?.id ?? "new")}`}
                   fieldKey={value.fieldKey}
                   initialData={value.initialData || (formData[value.fieldKey] && Object.keys(formData[value.fieldKey]).length > 0 ? formData[value.fieldKey] : {})}
                   initialColumns={value.initialColumns || ['Activities', 'Month 1', 'Month 2', 'Month 3', 'Month 4', 'Month 5', 'Month 6']}
