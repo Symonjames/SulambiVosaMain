@@ -39,11 +39,36 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
   const hydratedInitialData = useRef<{ [rowIndex: string]: { [colKey: string]: string } }>({});
   if (!hydratedOnceRef.current) {
     // Hydrate once per mount; FormGeneratorTemplate keys the component by event id so this is safe.
-    const parsed =
-      typeof initialData === 'string'
-        ? looseJsonParse<{ [rowIndex: string]: { [colKey: string]: string } }>(initialData, {})
-        : (initialData || {});
-    hydratedInitialData.current = (parsed && typeof parsed === 'object') ? parsed : {};
+    const parseWorkPlan = (val: unknown): { [rowIndex: string]: { [colKey: string]: string } } => {
+      const parsed =
+        typeof val === 'string'
+          ? looseJsonParse<any>(val, {})
+          : (val || {});
+
+      // Detect a corrupted "character map" shape, e.g. {"0": "{", "1": "\"", ...}
+      // This can occur if a JSON string was spread into an object and then saved.
+      // Attempt to reconstruct the original JSON string and parse again.
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const keys = Object.keys(parsed);
+        if (keys.length > 40 && keys.every((k) => /^\d+$/.test(k))) {
+          const values = keys
+            .sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0))
+            .map((k) => (parsed as any)[k]);
+          const stringLikeCount = values.filter((v) => typeof v === "string" && String(v).length <= 2).length;
+          if (stringLikeCount / values.length >= 0.8) {
+            const reconstructed = values.map((v) => (typeof v === "string" ? v : "")).join("");
+            const reparsed = looseJsonParse<any>(reconstructed, null);
+            if (reparsed && typeof reparsed === "object") {
+              return reparsed as { [rowIndex: string]: { [colKey: string]: string } };
+            }
+          }
+        }
+      }
+
+      return (parsed && typeof parsed === 'object') ? parsed : {};
+    };
+
+    hydratedInitialData.current = parseWorkPlan(initialData);
     hydratedOnceRef.current = true;
   }
 
