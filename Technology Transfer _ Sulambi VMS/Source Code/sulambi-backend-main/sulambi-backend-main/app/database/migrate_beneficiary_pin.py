@@ -16,7 +16,7 @@ def run_beneficiary_pin_migration():
     try:
         from . import connection
         conn, cursor = connection.cursorInstance()
-        is_postgresql = DATABASE_URL and DATABASE_URL.startswith("postgresql://")
+        is_postgresql = connection.is_postgresql_url(DATABASE_URL)
         try:
             if is_postgresql:
                 # PostgreSQL: column created unquoted = lowercase (matches Model normalization)

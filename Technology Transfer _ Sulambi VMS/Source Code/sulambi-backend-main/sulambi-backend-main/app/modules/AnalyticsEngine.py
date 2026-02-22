@@ -8,6 +8,7 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 import joblib
 import os
 from ..database.connection import cursorInstance, quote_identifier, DATABASE_URL
+from ..database.connection import is_postgresql_url
 
 class AnalyticsEngine:
     def __init__(self):
@@ -85,7 +86,7 @@ class AnalyticsEngine:
     def prepare_volunteer_dropout_data(self):
         """Prepare data for volunteer dropout risk prediction"""
         # Determine boolean value based on database type
-        is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+        is_postgresql = is_postgresql_url(DATABASE_URL)
         accepted_value = 'true' if is_postgresql else '1'
         
         membership_table = quote_identifier('membership')

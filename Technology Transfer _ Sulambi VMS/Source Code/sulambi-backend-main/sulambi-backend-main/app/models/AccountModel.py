@@ -26,7 +26,8 @@ class AccountModel(Model):
     # psycopg2 handles Python True/False correctly, so we can use Python boolean
     # But we need to ensure the query uses proper boolean comparison
     from ..database.connection import DATABASE_URL
-    is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+    from ..database.connection import is_postgresql_url
+    is_postgresql = is_postgresql_url(DATABASE_URL)
     
     if is_postgresql:
       # PostgreSQL: use boolean True directly (psycopg2 handles it)

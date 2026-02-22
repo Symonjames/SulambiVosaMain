@@ -5,10 +5,11 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from ..database.connection import cursorInstance, quote_identifier, convert_placeholders
+from ..database.connection import is_postgresql_url
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
-is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+is_postgresql = is_postgresql_url(DATABASE_URL)
 
 
 def ensure_table(conn, cursor):

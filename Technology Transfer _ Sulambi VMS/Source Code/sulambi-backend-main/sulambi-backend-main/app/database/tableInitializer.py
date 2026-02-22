@@ -8,7 +8,7 @@ conn, cursor = connection.cursorInstance()
 
 # Detect database type
 DATABASE_URL = os.getenv("DATABASE_URL")
-is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+is_postgresql = connection.is_postgresql_url(DATABASE_URL)
 
 # Helper function to convert SQLite syntax to PostgreSQL
 def convert_sql(sql):

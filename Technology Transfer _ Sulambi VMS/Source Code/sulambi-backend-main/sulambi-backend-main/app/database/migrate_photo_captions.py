@@ -15,7 +15,8 @@ def migrate_photo_captions():
     """Add photoCaptions column to existing report tables if it doesn't exist"""
     
     from .connection import DATABASE_URL
-    is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+    from .connection import is_postgresql_url
+    is_postgresql = is_postgresql_url(DATABASE_URL)
     
     try:
         # Check if photoCaptions column exists in externalReport table

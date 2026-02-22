@@ -262,8 +262,8 @@ def evaluateByRequirement(requirementId):
       pass
     
     # Check if already exists - handle both SQLite and PostgreSQL
-    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders, convert_boolean_value
-    is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders, convert_boolean_value, is_postgresql_url
+    is_postgresql = is_postgresql_url(DATABASE_URL)
     
     if is_postgresql:
       check_query = """
@@ -401,7 +401,8 @@ def validateBeneficiaryPin():
       }, 400
 
     DATABASE_URL = os.getenv("DATABASE_URL")
-    is_postgresql = DATABASE_URL and DATABASE_URL.startswith("postgresql://")
+    from ..database.connection import is_postgresql_url
+    is_postgresql = is_postgresql_url(DATABASE_URL)
     event_table = "internalEvents" if event_type == "internal" else "externalEvents"
     quoted_table = quote_identifier(event_table)
     if is_postgresql:
@@ -612,7 +613,8 @@ def submitBeneficiaryEvaluation():
       from ..database.connection import quote_identifier, convert_placeholders
       import os
       DATABASE_URL = os.getenv("DATABASE_URL")
-      is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+      from ..database.connection import is_postgresql_url
+      is_postgresql = is_postgresql_url(DATABASE_URL)
       
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
       quoted_table = quote_identifier(event_table)
@@ -688,8 +690,8 @@ def submitBeneficiaryEvaluation():
     requirement_id = str(uuid.uuid4())
     
     # Check if PostgreSQL and use appropriate syntax
-    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders, convert_boolean_value
-    is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders, convert_boolean_value, is_postgresql_url
+    is_postgresql = is_postgresql_url(DATABASE_URL)
     
     # Get table name with proper quoting
     table_name = quote_identifier('satisfactionSurveys')
@@ -885,7 +887,8 @@ def submitVolunteerEvaluation():
     try:
       from ..database.connection import quote_identifier
       DATABASE_URL = os.getenv("DATABASE_URL")
-      is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+      from ..database.connection import is_postgresql_url
+      is_postgresql = is_postgresql_url(DATABASE_URL)
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
       quoted_table = quote_identifier(event_table)
       if is_postgresql:
@@ -918,8 +921,8 @@ def submitVolunteerEvaluation():
     import uuid
     requirement_id = str(uuid.uuid4())
 
-    from ..database.connection import DATABASE_URL, quote_identifier, convert_boolean_value
-    is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+    from ..database.connection import DATABASE_URL, quote_identifier, convert_boolean_value, is_postgresql_url
+    is_postgresql = is_postgresql_url(DATABASE_URL)
     table_name = quote_identifier('satisfactionSurveys')
 
     if is_postgresql:

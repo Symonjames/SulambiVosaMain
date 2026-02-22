@@ -144,8 +144,8 @@ def getVolunteerDropoutAnalytics(year=None):
         
         # Check if volunteerParticipationHistory table exists
         # Use database-agnostic query - detect from connection type
-        from ..database.connection import is_postgresql_connection, DATABASE_URL
-        is_postgresql = (DATABASE_URL and DATABASE_URL.startswith('postgresql://')) or is_postgresql_connection(conn)
+        from ..database.connection import is_postgresql_connection, DATABASE_URL, is_postgresql_url
+        is_postgresql = is_postgresql_url(DATABASE_URL) or is_postgresql_connection(conn)
         
         table_exists = None
         try:
@@ -807,6 +807,44 @@ def getSatisfactionAnalytics(year=None):
     Processes evaluation data to extract satisfaction ratings and trends
     """
     try:
+        # Convert various rating representations to numeric (1-5).
+        # Production data can store labels ("Excellent") while analytics expects numbers.
+        rating_label_map = {
+            "excellent": 5.0,
+            "very satisfactory": 4.0,
+            "very_satisfactory": 4.0,
+            "satisfactory": 3.0,
+            "fair": 2.0,
+            "poor": 1.0,
+        }
+
+        def _to_score(val, default=0.0) -> float:
+            if val is None:
+                return float(default)
+            if isinstance(val, (int, float)):
+                try:
+                    return float(val)
+                except Exception:
+                    return float(default)
+            # Strings: could be numeric "4", or label "Excellent"
+            try:
+                s = str(val).strip()
+            except Exception:
+                return float(default)
+            if not s:
+                return float(default)
+            lowered = s.lower().strip()
+            if lowered in rating_label_map:
+                return float(rating_label_map[lowered])
+            # Allow "Very Satisfactory" with extra spaces
+            lowered_norm = " ".join(lowered.split())
+            if lowered_norm in rating_label_map:
+                return float(rating_label_map[lowered_norm])
+            try:
+                return float(s)
+            except Exception:
+                return float(default)
+
         # 0) Prefer pre-aggregated semester_satisfaction only when no year filter (so 2026/new years use live data)
         if not year:
             try:
@@ -815,8 +853,8 @@ def getSatisfactionAnalytics(year=None):
                 from ..database.connection import quote_identifier
                 semester_satisfaction_table = quote_identifier('semester_satisfaction')
                 from ..database.connection import convert_placeholders
-                from ..database.connection import DATABASE_URL
-                is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+                from ..database.connection import DATABASE_URL, is_postgresql_url
+                is_postgresql = is_postgresql_url(DATABASE_URL)
                 if is_postgresql:
                     topIssues_col = '"topIssues"'
                 else:
@@ -882,8 +920,8 @@ def getSatisfactionAnalytics(year=None):
         evaluation_table = quote_identifier('evaluation')
         requirements_table = quote_identifier('requirements')
         # Import here to avoid circular imports
-        from ..database.connection import DATABASE_URL
-        is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+        from ..database.connection import DATABASE_URL, is_postgresql_url
+        is_postgresql = is_postgresql_url(DATABASE_URL)
         
         # Use boolean true/false for PostgreSQL, 1/0 for SQLite
         finalized_condition = "e.finalized = true" if is_postgresql else "e.finalized = 1"
@@ -1053,11 +1091,11 @@ def getSatisfactionAnalytics(year=None):
                 
                 # Check for overall satisfaction
                 if 'overall' in criteria:
-                    satisfaction_score = criteria['overall']
+                    satisfaction_score = _to_score(criteria.get('overall'), 4.0)
                 elif 'satisfaction' in criteria:
-                    satisfaction_score = criteria['satisfaction']
+                    satisfaction_score = _to_score(criteria.get('satisfaction'), 4.0)
                 elif 'rating' in criteria:
-                    satisfaction_score = criteria['rating']
+                    satisfaction_score = _to_score(criteria.get('rating'), 4.0)
                 else:
                     # Calculate average from available ratings
                     rating_keys = ['excellent', 'very_satisfactory', 'satisfactory', 'fair', 'poor']
@@ -1069,12 +1107,14 @@ def getSatisfactionAnalytics(year=None):
                             if rating:
                                 satisfaction_score = score_map[rating_keys[i]]
                                 break
+                # Ensure numeric (never string) so aggregation doesn't crash
+                satisfaction_score = _to_score(satisfaction_score, 4.0)
                 
                 # Use q13 and q14 to determine if volunteer or beneficiary
                 # q13 = volunteer satisfaction score, q14 = beneficiary satisfaction score
                 if q13:
                     try:
-                        vol_score = float(q13) if q13 else satisfaction_score
+                        vol_score = _to_score(q13, satisfaction_score)
                         satisfactionBySemester[semester]['volunteers'].append(vol_score)
                         volunteerSatisfaction.append(vol_score)
                         satisfactionBySemester[semester]['overall'].append(vol_score)
@@ -1085,7 +1125,7 @@ def getSatisfactionAnalytics(year=None):
                 
                 if q14:
                     try:
-                        ben_score = float(q14) if q14 else satisfaction_score
+                        ben_score = _to_score(q14, satisfaction_score)
                         satisfactionBySemester[semester]['beneficiaries'].append(ben_score)
                         beneficiarySatisfaction.append(ben_score)
                         satisfactionBySemester[semester]['overall'].append(ben_score)
@@ -1195,6 +1235,40 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
     Returns volunteer and beneficiary ratings separately
     """
     try:
+        rating_label_map = {
+            "excellent": 5.0,
+            "very satisfactory": 4.0,
+            "very_satisfactory": 4.0,
+            "satisfactory": 3.0,
+            "fair": 2.0,
+            "poor": 1.0,
+        }
+
+        def _to_score(val, default=0.0) -> float:
+            if val is None:
+                return float(default)
+            if isinstance(val, (int, float)):
+                try:
+                    return float(val)
+                except Exception:
+                    return float(default)
+            try:
+                s = str(val).strip()
+            except Exception:
+                return float(default)
+            if not s:
+                return float(default)
+            lowered = s.lower().strip()
+            if lowered in rating_label_map:
+                return float(rating_label_map[lowered])
+            lowered_norm = " ".join(lowered.split())
+            if lowered_norm in rating_label_map:
+                return float(rating_label_map[lowered_norm])
+            try:
+                return float(s)
+            except Exception:
+                return float(default)
+
         from ..database.connection import cursorInstance
         conn, cursor = cursorInstance()
         
@@ -1218,12 +1292,12 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         event_title, event_start, event_end = event_row
         
         # Get satisfaction surveys for this specific event (primary source)
-        from ..database.connection import quote_identifier, DATABASE_URL
+        from ..database.connection import quote_identifier, DATABASE_URL, is_postgresql_url
         satisfaction_surveys_table = quote_identifier('satisfactionSurveys')
         evaluation_table = quote_identifier('evaluation')
         requirements_table = quote_identifier('requirements')
         from ..database.connection import convert_placeholders
-        is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+        is_postgresql = is_postgresql_url(DATABASE_URL)
         
         # Use boolean true/false for PostgreSQL, 1/0 for SQLite
         finalized_condition1 = "finalized = true" if is_postgresql else "finalized = 1"
@@ -1334,11 +1408,11 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
                 # Extract satisfaction score
                 satisfaction_score = 4.0
                 if 'overall' in criteria:
-                    satisfaction_score = criteria['overall']
+                    satisfaction_score = _to_score(criteria.get('overall'), 4.0)
                 elif 'satisfaction' in criteria:
-                    satisfaction_score = criteria['satisfaction']
+                    satisfaction_score = _to_score(criteria.get('satisfaction'), 4.0)
                 elif 'rating' in criteria:
-                    satisfaction_score = criteria['rating']
+                    satisfaction_score = _to_score(criteria.get('rating'), 4.0)
                 else:
                     rating_keys = ['excellent', 'very_satisfactory', 'satisfactory', 'fair', 'poor']
                     ratings = [criteria.get(key, 0) for key in rating_keys]
@@ -1348,11 +1422,12 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
                             if rating:
                                 satisfaction_score = score_map[rating_keys[i]]
                                 break
+                satisfaction_score = _to_score(satisfaction_score, 4.0)
                 
                 # Use q13 and q14 to determine if volunteer or beneficiary
                 if q13:
                     try:
-                        vol_score = float(q13) if q13 else satisfaction_score
+                        vol_score = _to_score(q13, satisfaction_score)
                         volunteerScores.append(vol_score)
                         allScores.append(vol_score)
                     except:
@@ -1361,7 +1436,7 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
                 
                 if q14:
                     try:
-                        ben_score = float(q14) if q14 else satisfaction_score
+                        ben_score = _to_score(q14, satisfaction_score)
                         beneficiaryScores.append(ben_score)
                         allScores.append(ben_score)
                     except:

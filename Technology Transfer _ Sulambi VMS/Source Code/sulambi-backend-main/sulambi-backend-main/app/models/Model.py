@@ -7,7 +7,7 @@ load_dotenv()
 
 # Detect if we're using PostgreSQL
 DATABASE_URL = os.getenv("DATABASE_URL")
-is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+is_postgresql = connection.is_postgresql_url(DATABASE_URL)
 
 class Model:
   def __init__(self):

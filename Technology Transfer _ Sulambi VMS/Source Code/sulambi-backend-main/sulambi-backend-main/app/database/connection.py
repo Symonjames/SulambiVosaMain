@@ -6,15 +6,28 @@ load_dotenv()
 DB_PATH = os.getenv("DB_PATH")
 DATABASE_URL = os.getenv("DATABASE_URL")  # For PostgreSQL (production)
 
+def is_postgresql_url(url: str | None) -> bool:
+  """
+  Render/Heroku-style Postgres URLs may be either:
+  - postgresql://...
+  - postgres://...
+  Treat both as PostgreSQL.
+  """
+  if not url:
+    return False
+  return url.startswith("postgresql://") or url.startswith("postgres://")
+
+IS_POSTGRESQL = is_postgresql_url(DATABASE_URL)
+
 def quote_identifier(identifier):
     """Quote identifier for PostgreSQL (case-sensitive), leave unquoted for SQLite"""
-    if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
+    if IS_POSTGRESQL:
         return f'"{identifier}"'
     return identifier
 
 def convert_placeholders(query):
     """Convert SQLite ? placeholders to PostgreSQL %s placeholders if needed"""
-    if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
+    if IS_POSTGRESQL:
         return query.replace('?', '%s')
     return query
 
@@ -30,7 +43,7 @@ def convert_boolean_value(value):
     """Convert boolean value for database compatibility
     PostgreSQL uses true/false, SQLite uses 1/0
     """
-    if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
+    if IS_POSTGRESQL:
         # PostgreSQL: convert 1/0 to true/false
         if value == 1 or value == True:
             return True
@@ -50,7 +63,7 @@ def convert_boolean_condition(condition):
     PostgreSQL: column = true/false
     SQLite: column = 1/0
     """
-    if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
+    if IS_POSTGRESQL:
         # Replace = 1 with = true, = 0 with = false
         condition = condition.replace(' = 1', ' = true')
         condition = condition.replace(' = 0', ' = false')
@@ -60,7 +73,7 @@ def convert_boolean_condition(condition):
 
 def cursorInstance():
   # Use PostgreSQL if DATABASE_URL is provided (production)
-  if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
+  if IS_POSTGRESQL:
     try:
       import psycopg2
       from urllib.parse import urlparse
