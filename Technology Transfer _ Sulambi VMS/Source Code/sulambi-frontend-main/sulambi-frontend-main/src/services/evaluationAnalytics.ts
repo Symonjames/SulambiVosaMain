@@ -63,7 +63,16 @@ class EvaluationAnalyticsService {
     eventId: string,
     eventType: 'external' | 'internal',
     data: VolunteerEvaluationData,
-    startTime: number
+    startTime: number,
+    backendPayload?: {
+      criteria: Record<string, string>;
+      q13: string;
+      q14: string;
+      comment: string;
+      recommendations: string;
+      email?: string;
+      name?: string;
+    }
   ): Promise<EvaluationAnalytics> {
     const completionTime = Math.floor((Date.now() - startTime) / 1000);
     
@@ -95,8 +104,47 @@ class EvaluationAnalyticsService {
 
     this.analytics.push(analytics);
     
-    // In a real application, this would send to your backend API
-    console.log('Volunteer Evaluation Analytics:', analytics);
+    // Persist to backend so analytics dashboard can show volunteer ratings.
+    try {
+      const axios = (await import('../api/init')).default;
+      const ratingToText = (rating: number): string => {
+        if (rating >= 5) return "Excellent";
+        if (rating >= 4) return "Very Satisfactory";
+        if (rating >= 3) return "Satisfactory";
+        if (rating >= 2) return "Fair";
+        return "Poor";
+      };
+      const criteria = backendPayload?.criteria ?? {
+        overall: ratingToText(data.overallSatisfaction),
+        appropriateness: ratingToText(data.eventOrganization),
+        expectations: ratingToText(data.communication),
+        session: ratingToText(data.learningExperience),
+        time: "Satisfactory", // legacy fallback
+        materials: ratingToText(data.supportProvided),
+      };
+      const payload: Record<string, unknown> = {
+        eventId: parseInt(eventId, 10),
+        eventType,
+        criteria,
+        q13: backendPayload?.q13 ?? data.skillDevelopment ?? "",
+        q14: backendPayload?.q14 ?? data.challenges ?? "",
+        comment: backendPayload?.comment ?? data.improvements ?? "",
+        recommendations: backendPayload?.recommendations ?? data.additionalComments ?? "",
+        email: backendPayload?.email ?? "",
+        name: backendPayload?.name ?? "",
+      };
+      const resp = await axios.post("/evaluation/volunteer", payload);
+      if (!resp.data?.success) {
+        throw new Error(resp.data?.error || resp.data?.message || "Failed to submit volunteer evaluation");
+      }
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to submit volunteer evaluation. Please try again.";
+      throw new Error(msg);
+    }
     
     return analytics;
   }
@@ -200,7 +248,7 @@ class EvaluationAnalyticsService {
         comment: data.additionalComments || '',
         recommendations: data.recommendations ?? '',
         q13: data.q13 ?? '',
-        q14: data.q14 ?? data.overallSatisfaction.toString(),
+        q14: data.q14 ?? '',
         email: data.demographics?.location || '',
         name: ''
       };

@@ -162,51 +162,103 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
         return;
       }
 
-      if (selectedEvent.requiresBeneficiaryPin && !(eventPin || "").trim()) {
+      if (selectedEvent.requiresBeneficiaryPin) {
+        const pin = (eventPin || "").trim();
+        if (pin.length !== 5) {
+          showSnackbarMessage(
+            "This event requires a 5-digit event PIN. Please enter the PIN provided at the event.",
+            "warning"
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Require all questions to be answered (ratings + text questions) before submitting.
+      const ratingLabels = [
+        "Excellent",
+        "Very Satisfactory",
+        "Satisfactory",
+        "Fair",
+        "Poor",
+      ] as const;
+      const isValidRating = (v: unknown): v is (typeof ratingLabels)[number] =>
+        typeof v === "string" && (ratingLabels as readonly string[]).includes(v);
+
+      const criteria = (formData as any)?.criteria ?? {};
+      const requiredRatingFields: Array<{ key: string; label: string }> = [
+        { key: "overall", label: "Overall rating" },
+        { key: "appropriateness", label: "Organization and support" },
+        { key: "expectations", label: "Expectations communication" },
+        { key: "session", label: "Meaningful and relevant activities" },
+        { key: "time", label: "Time allocation" },
+        { key: "materials", label: "Materials/resources adequacy" },
+        { key: "relevance", label: "Coordinator knowledge and guidance" },
+        { key: "explained", label: "Tasks/procedures explanation" },
+        { key: "learningEnvironment", label: "Welcoming environment" },
+        { key: "timeManagement", label: "Schedule management" },
+        { key: "keenness", label: "Attentiveness to needs/concerns" },
+        { key: "venue", label: "Venue suitability and safety" },
+      ];
+
+      const missing: string[] = [];
+      for (const f of requiredRatingFields) {
+        if (!isValidRating(criteria?.[f.key])) missing.push(f.label);
+      }
+
+      const requiredTextFields: Array<{ key: string; label: string }> = [
+        { key: "q13", label: "Q13" },
+        { key: "q14", label: "Q14" },
+        { key: "comment", label: "Comments/commendations/complaints" },
+        { key: "recommendations", label: "Recommendations" },
+      ];
+      for (const f of requiredTextFields) {
+        const v = (formData as any)?.[f.key];
+        if (!String(v ?? "").trim()) missing.push(f.label);
+      }
+
+      if (missing.length > 0) {
         showSnackbarMessage(
-          "This event requires an event PIN. Please enter the PIN provided at the event.",
+          `Please answer all questions before submitting. Missing: ${missing.join(", ")}.`,
           "warning"
         );
         setIsLoading(false);
         return;
       }
 
+      const ratingToNumber = (rating: string): number => {
+        switch (rating) {
+          case "Excellent":
+            return 5;
+          case "Very Satisfactory":
+            return 4;
+          case "Satisfactory":
+            return 3;
+          case "Fair":
+            return 2;
+          default:
+            return 1;
+        }
+      };
+
       // Extract form data and convert to BeneficiaryEvaluationData format
       const beneficiaryData: BeneficiaryEvaluationData = {
-        overallSatisfaction: formData.criteria?.overall === "Excellent" ? 5 : 
-                           formData.criteria?.overall === "Very Satisfactory" ? 4 :
-                           formData.criteria?.overall === "Satisfactory" ? 3 :
-                           formData.criteria?.overall === "Fair" ? 2 : 1,
-        serviceQuality: formData.criteria?.appropriateness === "Excellent" ? 5 : 
-                       formData.criteria?.appropriateness === "Very Satisfactory" ? 4 :
-                       formData.criteria?.appropriateness === "Satisfactory" ? 3 :
-                       formData.criteria?.appropriateness === "Fair" ? 2 : 1,
-        volunteerHelpfulness: formData.criteria?.expectations === "Excellent" ? 5 : 
-                             formData.criteria?.expectations === "Very Satisfactory" ? 4 :
-                             formData.criteria?.expectations === "Satisfactory" ? 3 :
-                             formData.criteria?.expectations === "Fair" ? 2 : 1,
-        impactOnCommunity: formData.criteria?.session === "Excellent" ? 5 : 
-                          formData.criteria?.session === "Very Satisfactory" ? 4 :
-                          formData.criteria?.session === "Satisfactory" ? 3 :
-                          formData.criteria?.session === "Fair" ? 2 : 1,
-        accessibility: formData.criteria?.time === "Excellent" ? 5 : 
-                      formData.criteria?.time === "Very Satisfactory" ? 4 :
-                      formData.criteria?.time === "Satisfactory" ? 3 :
-                      formData.criteria?.time === "Fair" ? 2 : 1,
-        culturalSensitivity: formData.criteria?.materials === "Excellent" ? 5 : 
-                           formData.criteria?.materials === "Very Satisfactory" ? 4 :
-                           formData.criteria?.materials === "Satisfactory" ? 3 :
-                           formData.criteria?.materials === "Fair" ? 2 : 1,
+        overallSatisfaction: ratingToNumber(criteria.overall),
+        serviceQuality: ratingToNumber(criteria.appropriateness),
+        volunteerHelpfulness: ratingToNumber(criteria.expectations),
+        impactOnCommunity: ratingToNumber(criteria.session),
+        accessibility: ratingToNumber(criteria.time),
+        culturalSensitivity: ratingToNumber(criteria.materials),
         demographics: {
           age: formData.age || "",
           gender: formData.gender || "",
           location: formData.location || ""
         },
         participationFrequency: formData.participationFrequency || "First time",
-        additionalComments: formData.comment || "",
-        q13: formData.q13 ?? "",
-        q14: formData.q14 ?? "",
-        recommendations: formData.recommendations ?? ""
+        additionalComments: String(formData.comment ?? ""),
+        q13: String(formData.q13 ?? ""),
+        q14: String(formData.q14 ?? ""),
+        recommendations: String(formData.recommendations ?? "")
       };
 
       // Submit to analytics service (include PIN when event requires it)

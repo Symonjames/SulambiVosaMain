@@ -4,6 +4,7 @@ import BaseEvaluationForm from "./BaseEvaluationForm";
 import VolunteerRawEvalForm from "./raw/VolunteerRawEvalForm";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import { evaluationAnalyticsService, VolunteerEvaluationData } from "../../services/evaluationAnalytics";
+import { SnackbarContext } from "../../contexts/SnackbarProvider";
 
 interface Props {
   open: boolean;
@@ -26,6 +27,7 @@ const VolunteerEvaluationForm: React.FC<Props> = ({
   eventData
 }: Props) => {
   const { formData } = useContext(FormDataContext);
+  const { showSnackbarMessage } = useContext(SnackbarContext);
   const [isLoading, setIsLoading] = useState(false);
   const startTimeRef = useRef<number>(Date.now());
 
@@ -39,6 +41,64 @@ const VolunteerEvaluationForm: React.FC<Props> = ({
     setIsLoading(true);
     
     try {
+      const ratingLabels = [
+        "Excellent",
+        "Very Satisfactory",
+        "Satisfactory",
+        "Fair",
+        "Poor",
+      ] as const;
+      const isValidRating = (v: unknown): v is (typeof ratingLabels)[number] =>
+        typeof v === "string" && (ratingLabels as readonly string[]).includes(v);
+
+      const criteria = (formData as any)?.criteria ?? {};
+      const requiredRatingFields: Array<{ key: string; label: string }> = [
+        { key: "overall", label: "Overall rating" },
+        { key: "appropriateness", label: "Organization and support" },
+        { key: "expectations", label: "Expectations communication" },
+        { key: "session", label: "Meaningful and relevant activities" },
+        { key: "time", label: "Time allocation" },
+        { key: "materials", label: "Materials/resources adequacy" },
+        { key: "relevance", label: "Coordinator knowledge and guidance" },
+        { key: "explained", label: "Tasks/procedures explanation" },
+        { key: "learningEnvironment", label: "Welcoming environment" },
+        { key: "timeManagement", label: "Schedule management" },
+        { key: "keenness", label: "Attentiveness to needs/concerns" },
+        { key: "venue", label: "Venue suitability and safety" },
+      ];
+      const missing: string[] = [];
+      for (const f of requiredRatingFields) {
+        if (!isValidRating(criteria?.[f.key])) missing.push(f.label);
+      }
+      const requiredTextFields: Array<{ key: string; label: string }> = [
+        { key: "q13", label: "Q13" },
+        { key: "q14", label: "Q14" },
+        { key: "comment", label: "Comments/commendations/complaints" },
+        { key: "recommendations", label: "Recommendations" },
+      ];
+      for (const f of requiredTextFields) {
+        const v = (formData as any)?.[f.key];
+        if (!String(v ?? "").trim()) missing.push(f.label);
+      }
+      if (missing.length > 0) {
+        showSnackbarMessage(
+          `Please answer all questions before submitting. Missing: ${missing.join(", ")}.`,
+          "warning"
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      const payloadCriteria: Record<string, string> = {
+        overall: criteria.overall,
+        appropriateness: criteria.appropriateness,
+        expectations: criteria.expectations,
+        session: criteria.session,
+        time: criteria.time,
+        materials: criteria.materials,
+        venue: criteria.venue,
+      };
+
       // Extract form data and convert to VolunteerEvaluationData format
       const volunteerData: VolunteerEvaluationData = {
         overallSatisfaction: formData.criteria?.overall === "Excellent" ? 5 : 
@@ -74,7 +134,14 @@ const VolunteerEvaluationForm: React.FC<Props> = ({
         eventId,
         eventType,
         volunteerData,
-        startTimeRef.current
+        startTimeRef.current,
+        {
+          criteria: payloadCriteria,
+          q13: String(formData.q13 ?? ""),
+          q14: String(formData.q14 ?? ""),
+          comment: String(formData.comment ?? ""),
+          recommendations: String(formData.recommendations ?? ""),
+        }
       );
 
       // Show success message

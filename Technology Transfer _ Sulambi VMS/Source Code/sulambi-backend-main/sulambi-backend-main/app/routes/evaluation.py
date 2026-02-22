@@ -36,13 +36,17 @@ def validateBeneficiaryPinRoute():
 def createBeneficiaryEvaluation():
   return evaluation.submitBeneficiaryEvaluation()
 
+@EvaluationBlueprint.post("/volunteer")
+def createVolunteerEvaluation():
+  return evaluation.submitVolunteerEvaluation()
+
 @EvaluationBlueprint.before_request
 def evaluationMiddleware():
   # Auth + RBAC handled by global_api_auth; only param validation here
   if (request.method != "OPTIONS"):
     if (request.method not in ["GET", "DELETE", "PATCH"]):
       # Skip param check for beneficiary endpoint (public submission)
-      if "/api/evaluation/beneficiary" in request.path:
+      if "/api/evaluation/beneficiary" in request.path or "/api/evaluation/volunteer" in request.path:
         return None
         
       missingParams = None

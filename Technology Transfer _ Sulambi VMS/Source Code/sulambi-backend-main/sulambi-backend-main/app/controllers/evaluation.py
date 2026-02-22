@@ -236,28 +236,11 @@ def evaluateByRequirement(requirementId):
         except:
           pass
     
-    # Determine respondent type
+    # Requirement-based evaluation is a VOLUNTEER flow (token from member participation).
+    # q13/q14 are free-text here, so do not try to parse them as numbers.
     respondent_type = "Volunteer"
-    if q14 and not q13:
-      respondent_type = "Beneficiary"
-    elif q13 and q14:
-      respondent_type = "Both"
-    
-    # Convert q13 and q14 to numbers
-    volunteer_rating = None
+    volunteer_rating = float(overall_satisfaction) if overall_satisfaction else None
     beneficiary_rating = None
-    
-    if q13:
-      try:
-        volunteer_rating = float(q13)
-      except:
-        pass
-    
-    if q14:
-      try:
-        beneficiary_rating = float(q14)
-      except:
-        pass
     
     # Get event info
     event_id = requirement.get("eventId")
@@ -300,16 +283,15 @@ def evaluateByRequirement(requirementId):
       submitted_at = int(datetime.now().timestamp() * 1000)
       
       if is_postgresql:
-        # PostgreSQL: Use quoted mixed-case column names to match what analytics.py uses
-        # The table has mixed-case columns (eventId, submittedAt as BIGINT, etc.) based on analytics.py queries
+        # PostgreSQL: table name is quoted, but columns were created unquoted → stored lowercase.
         insert_query = """
           INSERT INTO "satisfactionSurveys" (
-            "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
-            "overallSatisfaction", "volunteerRating", "beneficiaryRating",
-            "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
+            eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
+            overallsatisfaction, volunteerrating, beneficiaryrating,
+            organizationrating, communicationrating, venuerating, materialsrating, supportrating,
             q13, q14, comment, recommendations,
-            "wouldRecommend", "areasForImprovement", "positiveAspects",
-            "submittedAt", finalized
+            wouldrecommend, areasforimprovement, positiveaspects,
+            submittedat, finalized
           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         finalized_val = convert_boolean_value(True)
@@ -423,7 +405,10 @@ def validateBeneficiaryPin():
     event_table = "internalEvents" if event_type == "internal" else "externalEvents"
     quoted_table = quote_identifier(event_table)
     if is_postgresql:
-      query = f'SELECT "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
+      # PostgreSQL folds unquoted identifiers to lowercase. Our production schema uses
+      # unquoted column definitions (e.g. durationStart -> durationstart), so quoting
+      # "durationStart" breaks. Use unquoted columns for compatibility.
+      query = f"SELECT beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = %s"
     else:
       query = f"SELECT beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
     conn, cursor = cursorInstance()
@@ -520,6 +505,21 @@ def submitBeneficiaryEvaluation():
         criteria_data = json.loads(criteria_data) if criteria_data.startswith('{') else eval(criteria_data)
       except:
         criteria_data = {}
+
+    # Validate required survey fields (do not accept incomplete beneficiary surveys)
+    required_text = {
+      "q13": q13,
+      "q14": q14,
+      "comment": comment,
+      "recommendations": recommendations,
+    }
+    missing_text = [k for k, v in required_text.items() if not str(v or "").strip()]
+    if missing_text:
+      return {
+        "message": "Incomplete evaluation",
+        "success": False,
+        "error": f"Please answer all questions. Missing: {', '.join(missing_text)}."
+      }, 400
     
     # Map criteria ratings to 1-5 scale
     rating_map = {
@@ -529,6 +529,44 @@ def submitBeneficiaryEvaluation():
       "Fair": 2,
       "Poor": 1
     }
+
+    required_criteria = [
+      "overall",
+      "appropriateness",
+      "expectations",
+      "session",
+      "time",
+      "materials",
+    ]
+    if not isinstance(criteria_data, dict):
+      return {
+        "message": "Incomplete evaluation",
+        "success": False,
+        "error": "Please answer all rating questions."
+      }, 400
+
+    missing_criteria = []
+    invalid_criteria = []
+    for key in required_criteria:
+      val = (criteria_data.get(key) if isinstance(criteria_data, dict) else None)
+      val_str = str(val or "").strip()
+      if not val_str:
+        missing_criteria.append(key)
+        continue
+      if val_str not in rating_map:
+        invalid_criteria.append(key)
+
+    if missing_criteria or invalid_criteria:
+      parts = []
+      if missing_criteria:
+        parts.append(f"missing: {', '.join(missing_criteria)}")
+      if invalid_criteria:
+        parts.append(f"invalid: {', '.join(invalid_criteria)}")
+      return {
+        "message": "Incomplete evaluation",
+        "success": False,
+        "error": "Please answer all rating questions (" + "; ".join(parts) + ")."
+      }, 400
     
     if isinstance(criteria_data, dict):
       overall_satisfaction = float(rating_map.get(criteria_data.get('overall', ''), 0))
@@ -580,7 +618,8 @@ def submitBeneficiaryEvaluation():
       quoted_table = quote_identifier(event_table)
       
       if is_postgresql:
-        query = f'SELECT title, "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
+        # See validateBeneficiaryPin(): avoid quoted camelCase columns on PostgreSQL.
+        query = f"SELECT title, beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = %s"
       else:
         query = f"SELECT title, beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
 
@@ -754,3 +793,186 @@ def submitBeneficiaryEvaluation():
       "success": False,
       "error": str(e)
     }, 500
+
+
+def submitVolunteerEvaluation():
+  """
+  Public endpoint: submit volunteer satisfaction evaluation (QR-based).
+  Writes a row into satisfactionSurveys with respondentType="Volunteer".
+  """
+  try:
+    from ..database.connection import cursorInstance
+    import json
+    from datetime import datetime
+    import os
+
+    # Get data from request
+    event_id = request.json.get("eventId")
+    event_type = request.json.get("eventType", "external")
+    criteria_data = request.json.get("criteria", {})
+    comment = request.json.get("comment", "") or ""
+    recommendations = request.json.get("recommendations", "") or ""
+    q13 = request.json.get("q13", "") or ""
+    q14 = request.json.get("q14", "") or ""
+
+    # Validate event_id
+    try:
+      if isinstance(event_id, str):
+        event_id = int(event_id)
+      elif event_id is not None:
+        event_id = int(event_id)
+      else:
+        event_id = None
+      if event_id is None or event_id <= 0:
+        return {"message": "Invalid event ID", "success": False, "error": "eventId is required."}, 400
+    except (ValueError, TypeError):
+      return {"message": "Invalid event ID", "success": False, "error": "eventId must be a valid integer."}, 400
+
+    # Validate required survey fields
+    required_text = {
+      "q13": q13,
+      "q14": q14,
+      "comment": comment,
+      "recommendations": recommendations,
+    }
+    missing_text = [k for k, v in required_text.items() if not str(v or "").strip()]
+    if missing_text:
+      return {
+        "message": "Incomplete evaluation",
+        "success": False,
+        "error": f"Please answer all questions. Missing: {', '.join(missing_text)}."
+      }, 400
+
+    if isinstance(criteria_data, str):
+      try:
+        criteria_data = json.loads(criteria_data) if criteria_data.startswith('{') else eval(criteria_data)
+      except Exception:
+        criteria_data = {}
+
+    rating_map = {
+      "Excellent": 5,
+      "Very Satisfactory": 4,
+      "Satisfactory": 3,
+      "Fair": 2,
+      "Poor": 1
+    }
+    required_criteria = ["overall", "appropriateness", "expectations", "session", "time", "materials"]
+    if not isinstance(criteria_data, dict):
+      return {"message": "Incomplete evaluation", "success": False, "error": "Please answer all rating questions."}, 400
+    missing_criteria = [k for k in required_criteria if not str(criteria_data.get(k) or "").strip()]
+    invalid_criteria = [k for k in required_criteria if str(criteria_data.get(k) or "").strip() and str(criteria_data.get(k)).strip() not in rating_map]
+    if missing_criteria or invalid_criteria:
+      parts = []
+      if missing_criteria:
+        parts.append(f"missing: {', '.join(missing_criteria)}")
+      if invalid_criteria:
+        parts.append(f"invalid: {', '.join(invalid_criteria)}")
+      return {
+        "message": "Incomplete evaluation",
+        "success": False,
+        "error": "Please answer all rating questions (" + "; ".join(parts) + ")."
+      }, 400
+
+    overall_satisfaction = float(rating_map.get(criteria_data.get("overall", ""), 0))
+    organization_rating = float(rating_map.get(criteria_data.get("appropriateness", ""), 0))
+    communication_rating = float(rating_map.get(criteria_data.get("expectations", ""), 0))
+    materials_rating = float(rating_map.get(criteria_data.get("materials", ""), 0))
+    support_rating = float(rating_map.get(criteria_data.get("session", ""), 0))
+    venue_rating = float(rating_map.get(criteria_data.get("venue", ""), 0)) if str(criteria_data.get("venue") or "").strip() in rating_map else None
+
+    # Verify event exists and evaluation window (ongoing or ended within 7 days)
+    conn, cursor = cursorInstance()
+    try:
+      from ..database.connection import quote_identifier
+      DATABASE_URL = os.getenv("DATABASE_URL")
+      is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+      event_table = "internalEvents" if event_type == "internal" else "externalEvents"
+      quoted_table = quote_identifier(event_table)
+      if is_postgresql:
+        query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = %s"
+      else:
+        query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
+      cursor.execute(query, (event_id,))
+      row = cursor.fetchone()
+      if not row:
+        conn.close()
+        return {"message": "Event not found", "success": False, "error": "Invalid event ID or event type"}, 400
+      duration_start = row[1] if len(row) > 1 else None
+      duration_end = row[2] if len(row) > 2 else None
+      if not _event_is_eligible_for_evaluation(duration_start, duration_end):
+        conn.close()
+        return {
+          "message": "Event no longer open for evaluation",
+          "success": False,
+          "error": "This event can only be evaluated while it's ongoing or within 7 days after it ended."
+        }, 400
+    except Exception as e:
+      try:
+        conn.close()
+      except Exception:
+        pass
+      return {"message": "Error verifying event", "success": False, "error": str(e)}, 500
+
+    # Insert into satisfactionSurveys
+    submitted_at = int(datetime.now().timestamp() * 1000)
+    import uuid
+    requirement_id = str(uuid.uuid4())
+
+    from ..database.connection import DATABASE_URL, quote_identifier, convert_boolean_value
+    is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+    table_name = quote_identifier('satisfactionSurveys')
+
+    if is_postgresql:
+      insert_query = """
+        INSERT INTO "satisfactionSurveys" (
+          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
+          overallsatisfaction, volunteerrating, beneficiaryrating,
+          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+          q13, q14, comment, recommendations,
+          wouldrecommend, areasforimprovement, positiveaspects,
+          submittedat, finalized
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+      """
+    else:
+      insert_query = f"""
+        INSERT INTO {table_name} (
+          eventId, eventType, requirementId, respondentType, respondentEmail, respondentName,
+          overallSatisfaction, volunteerRating, beneficiaryRating,
+          organizationRating, communicationRating, venueRating, materialsRating, supportRating,
+          q13, q14, comment, recommendations,
+          wouldRecommend, areasForImprovement, positiveAspects,
+          submittedAt, finalized
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      """
+
+    finalized_val = convert_boolean_value(True) if is_postgresql else True
+    would_recommend_val = convert_boolean_value(overall_satisfaction >= 4) if is_postgresql else (overall_satisfaction >= 4)
+
+    try:
+      cursor.execute(insert_query, (
+        event_id, event_type, requirement_id, "Volunteer",
+        request.json.get("email", "") or "", request.json.get("name", "") or "",
+        overall_satisfaction, overall_satisfaction, None,
+        organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
+        q13, q14, comment, recommendations,
+        would_recommend_val,
+        None,
+        comment if overall_satisfaction >= 4 else None,
+        submitted_at, finalized_val
+      ))
+      conn.commit()
+      conn.close()
+      return {"message": "Volunteer evaluation submitted successfully", "success": True}, 200
+    except Exception as db_error:
+      try:
+        conn.rollback()
+      except Exception:
+        pass
+      try:
+        conn.close()
+      except Exception:
+        pass
+      return {"message": f"Error submitting volunteer evaluation: {str(db_error)}", "success": False, "error": str(db_error)}, 500
+
+  except Exception as e:
+    return {"message": f"Error submitting volunteer evaluation: {str(e)}", "success": False, "error": str(e)}, 500

@@ -83,6 +83,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 value: formData.criteria ? formData.criteria.overall ?? "" : "",
                 type: "radiolist",
                 message: "Overall, how would you rate your volunteer experience?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -110,6 +111,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "How would you rate the organization and support provided during the volunteer activity?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -137,6 +139,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "Were your volunteer expectations clearly communicated and met?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -162,6 +165,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "Were the volunteer activities meaningful and relevant to the community needs?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -187,6 +191,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "Was there sufficient time allocated for volunteer activities and interaction with beneficiaries?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -214,6 +219,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "Were the materials, resources, and tools provided adequate for volunteer activities?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -241,6 +247,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "Did the volunteer coordinators demonstrate good knowledge and provided relevant guidance?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -268,6 +275,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "Were the volunteer tasks and procedures clearly explained and demonstrated?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -295,6 +303,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "Was the volunteer environment welcoming and conducive for meaningful participation?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -322,6 +331,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "Was the volunteer schedule well-managed with appropriate breaks and adjustments when needed?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -349,6 +359,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "Did the volunteer coordinators show attentiveness to volunteer needs and concerns?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -374,6 +385,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
                 type: "radiolist",
                 message:
                   "Was the volunteer venue or location suitable and safe for volunteer activities?",
+                required: true,
                 radioListRowDirection: true,
                 selectionQuestion: [
                   { label: "Excellent", initialValue: false },
@@ -402,22 +414,26 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
               type: "textQuestion",
               message:
                 "Was this volunteer experience meaningful and impactful for you? Why or why not?",
+              required: true,
             },
             {
               id: "q14",
               type: "textQuestion",
               message:
                 "What skills did you develop or improve through this volunteer experience? What other volunteer opportunities would you suggest?",
+              required: true,
             },
             {
               id: "comment",
               type: "textQuestion",
               message: "Comments/Commendations/Complaints:",
+              required: true,
             },
             {
               id: "recommendations",
               type: "textQuestion",
               message: "Recommendations for improving future volunteer programs:",
+              required: true,
             },
           ]}
         />

@@ -3,8 +3,11 @@ import TextHeader from "../../components/Headers/TextHeader";
 import PageLayout from "../PageLayout";
 import { QRCodeSVG } from "qrcode.react";
 import FlexBox from "../../components/FlexBox";
+import { getPublicOrigin } from "../../utils/publicOrigin";
 
 const QrOfficerPage = () => {
+  const origin = getPublicOrigin();
+  const link = `${origin}/qr`;
   return (
     <PageLayout page="qr">
       <FlexBox justifyContent="center" alignItems="center" height="100%">
@@ -16,12 +19,12 @@ const QrOfficerPage = () => {
           marginTop="40px"
         >
           <Box textAlign="center" margin="30px 0px">
-            <QRCodeSVG value={`${window.location.origin}/qr`} />
+            <QRCodeSVG value={link} />
             <Typography
               variant="body2"
               sx={{ marginTop: 2, wordBreak: "break-all", color: "text.secondary" }}
             >
-              {`${window.location.origin}/qr`}
+              {link}
             </Typography>
           </Box>
           <TextHeader textAlign="center">Evaluation QR Code</TextHeader>
