@@ -364,6 +364,27 @@ def _event_ended_within_evaluation_window(duration_end_raw):
   seven_days_ms = 7 * 24 * 60 * 60 * 1000
   return end_ms <= now_ms and end_ms >= (now_ms - seven_days_ms)
 
+def _event_is_eligible_for_evaluation(duration_start_raw, duration_end_raw):
+  """True if event is ongoing (started but not ended) OR ended within the last 7 days."""
+  from datetime import datetime
+  now_ms = int(datetime.now().timestamp() * 1000)
+  
+  # Check if event is ongoing (started but not ended)
+  if duration_start_raw:
+    v_start = int(duration_start_raw or 0)
+    start_ms = v_start * 1000 if v_start > 0 and v_start < 1e12 else v_start
+    if start_ms > 0 and start_ms <= now_ms:
+      # Event has started, check if it's still ongoing
+      if duration_end_raw:
+        v_end = int(duration_end_raw or 0)
+        end_ms = v_end * 1000 if v_end > 0 and v_end < 1e12 else v_end
+        if end_ms > now_ms:
+          # Event is ongoing
+          return True
+  
+  # Check if event ended within 7 days
+  return _event_ended_within_evaluation_window(duration_end_raw)
+
 
 def validateBeneficiaryPin():
   """
@@ -402,27 +423,28 @@ def validateBeneficiaryPin():
     event_table = "internalEvents" if event_type == "internal" else "externalEvents"
     quoted_table = quote_identifier(event_table)
     if is_postgresql:
-      query = f'SELECT "beneficiaryEvaluationPin", "durationEnd" FROM {quoted_table} WHERE id = %s'
+      query = f'SELECT "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
     else:
-      query = f"SELECT beneficiaryEvaluationPin, durationEnd FROM {quoted_table} WHERE id = ?"
+      query = f"SELECT beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
     conn, cursor = cursorInstance()
     cursor.execute(query, (event_id,))
     event_row = cursor.fetchone()
     if not event_row:
       return {"message": "Event not found", "success": False, "error": "Wrong PIN."}, 400
     event_required_pin = (event_row[0] or "").strip() or None
-    duration_end = event_row[1] if len(event_row) > 1 else None
+    duration_start = event_row[1] if len(event_row) > 1 else None
+    duration_end = event_row[2] if len(event_row) > 2 else None
     if not event_required_pin:
       return {
         "message": "Event not configured",
         "success": False,
         "error": "This event does not have a PIN set. Contact the organizer."
       }, 400
-    if not _event_ended_within_evaluation_window(duration_end):
+    if not _event_is_eligible_for_evaluation(duration_start, duration_end):
       return {
         "message": "Event no longer open for evaluation",
         "success": False,
-        "error": "This event can only be evaluated within 7 days after it ended."
+        "error": "This event can only be evaluated while it's ongoing or within 7 days after it ended."
       }, 400
     if submitted_pin != event_required_pin:
       return {"message": "Invalid PIN", "success": False, "error": "Wrong PIN."}, 400
@@ -431,7 +453,13 @@ def validateBeneficiaryPin():
     print(f"Error validating beneficiary PIN: {e}")
     import traceback
     traceback.print_exc()
-    return {"message": "Error validating PIN", "success": False, "error": "Something went wrong. Please try again."}, 500
+    error_msg = str(e) if str(e) else "Something went wrong. Please try again."
+    # Provide more specific error message if possible
+    if "connection" in error_msg.lower() or "database" in error_msg.lower():
+      error_msg = "Database connection error. Please try again."
+    elif "not found" in error_msg.lower():
+      error_msg = "Event not found."
+    return {"message": "Error validating PIN", "success": False, "error": error_msg}, 500
 
 def submitBeneficiaryEvaluation():
   """
@@ -552,9 +580,9 @@ def submitBeneficiaryEvaluation():
       quoted_table = quote_identifier(event_table)
       
       if is_postgresql:
-        query = f'SELECT title, "beneficiaryEvaluationPin", "durationEnd" FROM {quoted_table} WHERE id = %s'
+        query = f'SELECT title, "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
       else:
-        query = f"SELECT title, beneficiaryEvaluationPin, durationEnd FROM {quoted_table} WHERE id = ?"
+        query = f"SELECT title, beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
 
       cursor.execute(query, (event_id,))
       event_row = cursor.fetchone()
@@ -562,12 +590,13 @@ def submitBeneficiaryEvaluation():
         event_title = event_row[0]
         raw_pin = event_row[1] if len(event_row) > 1 else None
         event_required_pin = (raw_pin or "").strip() or None
-        duration_end = event_row[2] if len(event_row) > 2 else None
-        if not _event_ended_within_evaluation_window(duration_end):
+        duration_start = event_row[2] if len(event_row) > 2 else None
+        duration_end = event_row[3] if len(event_row) > 3 else None
+        if not _event_is_eligible_for_evaluation(duration_start, duration_end):
           return {
             "message": "Event no longer open for evaluation",
             "success": False,
-            "error": "This event can only be evaluated within 7 days after it ended."
+            "error": "This event can only be evaluated while it's ongoing or within 7 days after it ended."
           }, 400
       else:
         return {
