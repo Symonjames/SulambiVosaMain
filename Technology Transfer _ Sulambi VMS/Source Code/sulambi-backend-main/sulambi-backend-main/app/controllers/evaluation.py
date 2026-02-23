@@ -406,10 +406,8 @@ def validateBeneficiaryPin():
     event_table = "internalEvents" if event_type == "internal" else "externalEvents"
     quoted_table = quote_identifier(event_table)
     if is_postgresql:
-      # PostgreSQL folds unquoted identifiers to lowercase. Our production schema uses
-      # unquoted column definitions (e.g. durationStart -> durationstart), so quoting
-      # "durationStart" breaks. Use unquoted columns for compatibility.
-      query = f"SELECT beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = %s"
+      # PostgreSQL stores unquoted identifiers as lowercase, so use lowercase column names
+      query = f'SELECT beneficiaryevaluationpin, durationstart, durationend FROM {quoted_table} WHERE id = %s'
     else:
       query = f"SELECT beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
     conn, cursor = cursorInstance()
@@ -620,8 +618,8 @@ def submitBeneficiaryEvaluation():
       quoted_table = quote_identifier(event_table)
       
       if is_postgresql:
-        # See validateBeneficiaryPin(): avoid quoted camelCase columns on PostgreSQL.
-        query = f"SELECT title, beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = %s"
+        # PostgreSQL stores unquoted identifiers as lowercase, so use lowercase column names
+        query = f'SELECT title, beneficiaryevaluationpin, durationstart, durationend FROM {quoted_table} WHERE id = %s'
       else:
         query = f"SELECT title, beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
 
