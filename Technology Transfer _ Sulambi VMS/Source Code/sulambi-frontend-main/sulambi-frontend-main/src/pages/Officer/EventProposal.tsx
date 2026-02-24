@@ -373,7 +373,7 @@ const EventProposal = () => {
             <PrimaryButton
               label="Update"
               startIcon={<EditIcon />}
-              onClick={() => {
+              onClick={async () => {
                 if (eventType) {
                   if (eventType[1] == "external") {
                     // Process formData the same way as submitCallback - stringify objects
@@ -418,8 +418,20 @@ const EventProposal = () => {
                   }
 
                   if (eventType[1] == "internal") {
+                    // Small delay to allow any pending debounced updates (like Gantt chart) to complete
+                    // This ensures workPlan and other debounced fields are saved before update
+                    // Debounce is 150ms, so 300ms delay gives enough buffer
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
+                    // Get the latest formData after delay (in case debounced updates completed)
+                    // Note: formData from context should be up-to-date after the delay
+                    const latestFormData = formData;
+                    
+                    // Debug logging
+                    console.log("[UPDATE_EVENT] formData.workPlan before processing:", typeof latestFormData.workPlan, latestFormData.workPlan ? (typeof latestFormData.workPlan === 'object' ? Object.keys(latestFormData.workPlan).length + ' keys' : latestFormData.workPlan.substring(0, 100)) : 'undefined');
+                    
                     // Process formData the same way as submitCallback - stringify objects
-                    const processedFormData = { ...formData };
+                    const processedFormData = { ...latestFormData };
                     if (processedFormData.eventProposalType && typeof processedFormData.eventProposalType === "object") {
                       processedFormData.eventProposalType = toJsonString(processedFormData.eventProposalType, "[]");
                     }
@@ -428,16 +440,21 @@ const EventProposal = () => {
                     if (processedFormData.workPlan) {
                       if (typeof processedFormData.workPlan === 'object') {
                         processedFormData.workPlan = JSON.stringify(processedFormData.workPlan);
+                        console.log("[UPDATE_EVENT] workPlan was object, stringified. Length:", processedFormData.workPlan.length);
                       } else if (typeof processedFormData.workPlan === 'string') {
                         // Already a string, use as-is
+                        console.log("[UPDATE_EVENT] workPlan was already string. Length:", processedFormData.workPlan.length);
                       } else {
                         // Fallback to empty object if invalid type
                         processedFormData.workPlan = "{}";
+                        console.log("[UPDATE_EVENT] workPlan had invalid type, set to {}");
                       }
                     } else {
                       // If workPlan is missing, set to empty object string
                       processedFormData.workPlan = "{}";
+                      console.log("[UPDATE_EVENT] workPlan was missing/undefined, set to {}");
                     }
+                    console.log("[UPDATE_EVENT] Final workPlan being sent:", processedFormData.workPlan.substring(0, 100));
                     if (processedFormData.financialRequirement && typeof processedFormData.financialRequirement === 'object') {
                       processedFormData.financialRequirement = JSON.stringify(processedFormData.financialRequirement);
                     }
