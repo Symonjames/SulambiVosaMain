@@ -1,4 +1,4 @@
-import { Box, Typography } from "@mui/material";
+import { Box, Typography, CircularProgress } from "@mui/material";
 import PopupModal from "../Modal/PopupModal";
 import CustomDivider from "../Divider/CustomDivider";
 import { useEffect, useState } from "react";
@@ -26,14 +26,36 @@ interface Props {
 const EventDetail: React.FC<Props> = (props) => {
   const { open, eventId, eventType, setOpen } = props;
   const [response, setResponse] = useState<ResponseData>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) return setResponse(undefined);
-    getEventDetails(eventId, eventType).then((response) => {
-      const responseData: ResponseData = response.data.data;
-      setResponse(responseData);
-    });
-  }, [open]);
+    if (!open) {
+      setResponse(undefined);
+      setError(null);
+      return;
+    }
+    
+    // Only fetch if we have valid eventId and eventType
+    if (!eventId || !eventType) {
+      setError("Invalid event ID or type");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    getEventDetails(eventId, eventType)
+      .then((response) => {
+        const responseData: ResponseData = response.data.data;
+        setResponse(responseData);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching event details:", err);
+        setError(err.response?.data?.message || "Failed to load event details");
+        setLoading(false);
+      });
+  }, [open, eventId, eventType]);
 
   return (
     <PopupModal
@@ -43,49 +65,62 @@ const EventDetail: React.FC<Props> = (props) => {
       maxWidth="60vh"
     >
       <Box marginTop="20px">
-        <Typography>
-          <b>Title: </b>
-          {response?.event?.title}
-        </Typography>
-        <Typography>
-          <b>Event Date : </b>{" "}
-          {dayjs(response?.event?.durationStart).format("MMMM D, YYYY h:mm A")}{" "}
-          - {dayjs(response?.event?.durationEnd).format("MMMM D, YYYY h:mm A")}
-        </Typography>
-        <Typography>
-          <b>Location : </b>
-          {eventType === "external"
-            ? (response?.event as ExternalEventProposalType)?.location
-            : (response?.event as InternalEventProposalType)?.venue}
-        </Typography>
-        <Typography>
-          <b>Beneficiaries : </b>{" "}
-          {(response?.event as ExternalEventProposalType)?.beneficiaries ??
-            (response?.event as InternalEventProposalType)?.participant ??
-            ""}
-        </Typography>
-        <Typography component="div">
-          <b>Description : </b>{" "}
-          {response?.event?.description != null && /<[^>]+>/.test(String(response.event.description)) ? (
-            <SafeHtmlRenderer
-              htmlContent={String(response.event.description)}
-              style={{ marginTop: 4, display: "block" }}
-            />
-          ) : (
-            response?.event?.description ?? ""
-          )}
-        </Typography>
-        <br />
-        <CustomDivider />
-        <br />
-        <Typography>
-          Total Number of Registered Participants for the Event:{" "}
-          {response?.registered ?? 0}
-        </Typography>
-        <Typography>
-          Total Number of Attended Participants for the Event:{" "}
-          {response?.attended ?? 0}
-        </Typography>
+        {loading ? (
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+            <CircularProgress />
+          </Box>
+        ) : error ? (
+          <Typography color="error">{error}</Typography>
+        ) : response?.event ? (
+          <>
+            <Typography>
+              <b>Title: </b>
+              {response.event.title || "N/A"}
+            </Typography>
+            <Typography>
+              <b>Event Date : </b>{" "}
+              {response.event.durationStart && response.event.durationEnd
+                ? `${dayjs(response.event.durationStart).format("MMMM D, YYYY h:mm A")} - ${dayjs(response.event.durationEnd).format("MMMM D, YYYY h:mm A")}`
+                : "N/A"}
+            </Typography>
+            <Typography>
+              <b>Location : </b>
+              {eventType === "external"
+                ? (response.event as ExternalEventProposalType)?.location || "N/A"
+                : (response.event as InternalEventProposalType)?.venue || "N/A"}
+            </Typography>
+            <Typography>
+              <b>Beneficiaries : </b>{" "}
+              {(response.event as ExternalEventProposalType)?.beneficiaries ??
+                (response.event as InternalEventProposalType)?.participant ??
+                "N/A"}
+            </Typography>
+            <Typography component="div">
+              <b>Description : </b>{" "}
+              {response.event.description != null && /<[^>]+>/.test(String(response.event.description)) ? (
+                <SafeHtmlRenderer
+                  htmlContent={String(response.event.description)}
+                  style={{ marginTop: 4, display: "block" }}
+                />
+              ) : (
+                response.event.description || "N/A"
+              )}
+            </Typography>
+            <br />
+            <CustomDivider />
+            <br />
+            <Typography>
+              Total Number of Registered Participants for the Event:{" "}
+              {response.registered ?? 0}
+            </Typography>
+            <Typography>
+              Total Number of Attended Participants for the Event:{" "}
+              {response.attended ?? 0}
+            </Typography>
+          </>
+        ) : (
+          <Typography>No event data available</Typography>
+        )}
       </Box>
     </PopupModal>
   );
