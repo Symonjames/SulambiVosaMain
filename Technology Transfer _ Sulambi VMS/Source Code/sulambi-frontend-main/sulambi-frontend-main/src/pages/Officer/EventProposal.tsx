@@ -421,8 +421,8 @@ const EventProposal = () => {
                   if (eventType[1] == "internal") {
                     // Small delay to allow any pending debounced updates (like Gantt chart) to complete
                     // This ensures workPlan and other debounced fields are saved before update
-                    // Debounce is 150ms, so 300ms delay gives enough buffer
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                    // Debounce is 50ms, so 200ms delay gives enough buffer for deployment
+                    await new Promise(resolve => setTimeout(resolve, 200));
                     
                     // Get the latest formData after delay (in case debounced updates completed)
                     // Also try reading from sessionStorage as fallback since FormDataProvider saves there

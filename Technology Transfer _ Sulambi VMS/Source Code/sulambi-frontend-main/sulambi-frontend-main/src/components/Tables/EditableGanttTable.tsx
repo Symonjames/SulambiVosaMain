@@ -17,6 +17,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import FlexBox from '../FlexBox';
 import { FormDataContext } from '../../contexts/FormDataProvider';
 import { looseJsonParse } from '../../utils/looseJson';
+import { saveToSessionObfuscated, getFromSessionObfuscated } from '../../utils/storage';
 
 interface EditableGanttTableProps {
   fieldKey: string;
@@ -271,7 +272,16 @@ const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableP
         immutableSetFormData({ 
           [fieldKey]: rowsToSave
         });
-      }, 150); // Reduced from 300ms to 150ms for faster saves
+        // Also save to sessionStorage immediately for faster access in deployment
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          try {
+            const currentFormData = getFromSessionObfuscated<Record<string, any>>('formData', {}) || {};
+            saveToSessionObfuscated('formData', { ...currentFormData, [fieldKey]: rowsToSave });
+          } catch (e) {
+            console.warn('[EditableGanttTable] Could not save to sessionStorage:', e);
+          }
+        }
+      }, 50); // Reduced to 50ms for faster updates in deployment
     }
     
     return () => {
