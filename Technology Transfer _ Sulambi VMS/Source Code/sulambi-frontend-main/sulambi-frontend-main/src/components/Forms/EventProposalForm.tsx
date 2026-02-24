@@ -170,8 +170,21 @@ const EventProposalForm: React.FC<Props> = ({
               eventProposalType: response.data.data?.eventProposalType
                 ? parseCheckboxList(response.data.data.eventProposalType)
                 : [],
-              // Keep workPlan as-is (string/object). EditableGanttTable will hydrate it lazily.
-              workPlan: response.data.data?.workPlan ?? {},
+              // Parse workPlan - handle both string and object formats
+              // EditableGanttTable expects an object, so parse if it's a string
+              workPlan: (() => {
+                const wp = response.data.data?.workPlan;
+                if (!wp) return {};
+                if (typeof wp === 'string') {
+                  try {
+                    const parsed = JSON.parse(wp);
+                    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+                  } catch {
+                    return {};
+                  }
+                }
+                return (wp && typeof wp === 'object' && !Array.isArray(wp)) ? wp : {};
+              })(),
               financialPlan,
               financialRequirement: response.data.data?.financialRequirement
                 ? parseObj<any>(response.data.data.financialRequirement, {})

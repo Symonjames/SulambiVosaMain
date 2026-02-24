@@ -419,13 +419,20 @@ const EventProposal = () => {
                   }
 
                   if (eventType[1] == "internal") {
-                    // Small delay to allow any pending debounced updates (like Gantt chart) to complete
-                    // This ensures workPlan and other debounced fields are saved before update
-                    // Debounce is 50ms, so 200ms delay gives enough buffer for deployment
-                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Flush any pending Gantt table updates synchronously before processing
+                    // This ensures workPlan is saved immediately, not waiting for debounce
+                    if (typeof window !== 'undefined') {
+                      const flushFn = (window as any)[`__flushGantt_workPlan`];
+                      if (flushFn && typeof flushFn === 'function') {
+                        console.log("[UPDATE_EVENT] Flushing workPlan updates synchronously");
+                        flushFn();
+                        // Small delay to let the flush complete
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                      }
+                    }
                     
-                    // Get the latest formData after delay (in case debounced updates completed)
-                    // Also try reading from sessionStorage as fallback since FormDataProvider saves there
+                    // Get the latest formData - try reading from sessionStorage first since FormDataProvider saves there
+                    // This ensures we get the most up-to-date workPlan even if React state is stale
                     let latestFormData = formData;
                     try {
                       const storedFormData = getFromSessionObfuscated<Record<string, any>>('formData', null);

@@ -260,7 +260,7 @@ const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableP
     
     // Only update if component is initialized and not hydrating
     if (isInitialized.current && !isHydrating) {
-      updateTimeoutRef.current = setTimeout(() => {
+      const updateFormData = () => {
         // Save rows data - column names are already in the row keys when renamed
         // When columns are renamed, the row keys are updated, so column names persist in the data
         const rowsToSave = rowsRef.current;
@@ -281,7 +281,14 @@ const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableP
             console.warn('[EditableGanttTable] Could not save to sessionStorage:', e);
           }
         }
-      }, 50); // Reduced to 50ms for faster updates in deployment
+      };
+      
+      // Store update function globally so it can be called synchronously before save
+      if (typeof window !== 'undefined') {
+        (window as any)[`__flushGantt_${fieldKey}`] = updateFormData;
+      }
+      
+      updateTimeoutRef.current = setTimeout(updateFormData, 50); // Reduced to 50ms for faster updates in deployment
     }
     
     return () => {
