@@ -434,6 +434,16 @@ const Dashboard = () => {
                 onYearFilter={(year) => {
                   console.log("Year filter:", year);
                 }}
+                onEventClick={(event) => {
+                  // Make search results interactive - open event details when clicked
+                  setEventId(event.id);
+                  if ((event as ExternalEventProposalType).location) {
+                    setEventType("external");
+                  } else if ((event as InternalEventProposalType).venue) {
+                    setEventType("internal");
+                  }
+                  setOpenEventDetail(true);
+                }}
                 placeholder="Search projects, locations, or descriptions..."
                 showFilters={false}
                 maxWidth="100%"
