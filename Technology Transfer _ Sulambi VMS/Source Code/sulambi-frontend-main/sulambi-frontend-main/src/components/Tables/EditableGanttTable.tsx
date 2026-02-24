@@ -262,8 +262,14 @@ const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableP
       updateTimeoutRef.current = setTimeout(() => {
         // Save rows data - column names are already in the row keys when renamed
         // When columns are renamed, the row keys are updated, so column names persist in the data
+        const rowsToSave = rowsRef.current;
+        const rowCount = Object.keys(rowsToSave).length;
+        console.log(`[EditableGanttTable] Updating formData.${fieldKey} with ${rowCount} rows`);
+        if (rowCount > 0) {
+          console.log(`[EditableGanttTable] Sample data:`, Object.keys(rowsToSave).slice(0, 2).map(k => ({ row: k, keys: Object.keys(rowsToSave[k]) })));
+        }
         immutableSetFormData({ 
-          [fieldKey]: rowsRef.current
+          [fieldKey]: rowsToSave
         });
       }, 150); // Reduced from 300ms to 150ms for faster saves
     }

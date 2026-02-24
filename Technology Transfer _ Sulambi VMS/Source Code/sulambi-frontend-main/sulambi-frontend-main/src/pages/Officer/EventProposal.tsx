@@ -44,6 +44,7 @@ import SignatoriesForm from "../../components/Forms/SignatoriesForm";
 import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
 import LoadingSpinner from "../../components/Loading/LoadingSpinner";
 import { toJsonString } from "../../utils/looseJson";
+import { getFromSessionObfuscated } from "../../utils/storage";
 
 const EventProposal = () => {
   const { formData, setFormData } = useContext(FormDataContext);
@@ -424,8 +425,25 @@ const EventProposal = () => {
                     await new Promise(resolve => setTimeout(resolve, 300));
                     
                     // Get the latest formData after delay (in case debounced updates completed)
-                    // Note: formData from context should be up-to-date after the delay
-                    const latestFormData = formData;
+                    // Also try reading from sessionStorage as fallback since FormDataProvider saves there
+                    let latestFormData = formData;
+                    try {
+                      const storedFormData = getFromSessionObfuscated<Record<string, any>>('formData', null);
+                      if (storedFormData && storedFormData.workPlan) {
+                        // If sessionStorage has workPlan data, check if it's more up-to-date
+                        const storedWorkPlan = storedFormData.workPlan;
+                        const currentWorkPlan = latestFormData.workPlan;
+                        
+                        // If stored workPlan is an object with data, or if current is empty/undefined, use stored
+                        if ((typeof storedWorkPlan === 'object' && Object.keys(storedWorkPlan).length > 0) ||
+                            (!currentWorkPlan || currentWorkPlan === "{}" || (typeof currentWorkPlan === 'object' && Object.keys(currentWorkPlan).length === 0))) {
+                          latestFormData = { ...latestFormData, workPlan: storedWorkPlan };
+                          console.log("[UPDATE_EVENT] Using workPlan from sessionStorage (more up-to-date)", Object.keys(storedWorkPlan).length, "rows");
+                        }
+                      }
+                    } catch (e) {
+                      console.warn("[UPDATE_EVENT] Could not read from sessionStorage:", e);
+                    }
                     
                     // Debug logging
                     console.log("[UPDATE_EVENT] formData.workPlan before processing:", typeof latestFormData.workPlan, latestFormData.workPlan ? (typeof latestFormData.workPlan === 'object' ? Object.keys(latestFormData.workPlan).length + ' keys' : latestFormData.workPlan.substring(0, 100)) : 'undefined');
