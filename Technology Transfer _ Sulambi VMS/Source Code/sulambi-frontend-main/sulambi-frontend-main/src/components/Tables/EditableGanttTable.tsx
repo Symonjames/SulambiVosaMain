@@ -199,7 +199,9 @@ const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableP
       rowsRef.current = dataObj;
       return dataObj;
     }
+    // Even if starting with empty data, mark as initialized so updates can happen
     rowsRef.current = {};
+    isInitialized.current = true;
     return {};
   });
 
@@ -212,9 +214,22 @@ const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableP
         updateTimeoutRef.current = null;
       }
       if (isInitialized.current && !isHydrating) {
+        // Use rows state directly, not rowsRef, to ensure we have the latest data
+        const rowsToSave = rows;
+        rowsRef.current = rowsToSave; // Keep ref in sync
+        console.log(`[EditableGanttTable] Flushing updates for ${fieldKey}: ${Object.keys(rowsToSave).length} rows`);
         immutableSetFormData({ 
-          [fieldKey]: rowsRef.current
+          [fieldKey]: rowsToSave
         });
+        // Also save to sessionStorage
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          try {
+            const currentFormData = getFromSessionObfuscated<Record<string, any>>('formData', {}) || {};
+            saveToSessionObfuscated('formData', { ...currentFormData, [fieldKey]: rowsToSave });
+          } catch (e) {
+            console.warn('[EditableGanttTable] Could not save to sessionStorage on flush:', e);
+          }
+        }
       }
     },
     getCurrentData: () => {
@@ -251,6 +266,14 @@ const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableP
     return () => clearTimeout(t);
   }, [shouldDeferHydration]);
 
+  // Ensure component is initialized after mount (even if starting with empty data)
+  useEffect(() => {
+    if (!isInitialized.current && !isHydrating) {
+      isInitialized.current = true;
+      console.log(`[EditableGanttTable] Component initialized for ${fieldKey}`);
+    }
+  }, [fieldKey, isHydrating]);
+
   // Update form data whenever rows or columns change (debounced to prevent focus loss)
   useEffect(() => {
     // Clear any pending updates
@@ -261,14 +284,18 @@ const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableP
     // Only update if component is initialized and not hydrating
     if (isInitialized.current && !isHydrating) {
       const updateFormData = () => {
-        // Save rows data - column names are already in the row keys when renamed
-        // When columns are renamed, the row keys are updated, so column names persist in the data
-        const rowsToSave = rowsRef.current;
+        // Save rows data - use rows state directly to ensure we have the latest data
+        // rowsRef might be stale, so use the current rows state
+        const rowsToSave = rows; // Use rows state directly, not rowsRef
         const rowCount = Object.keys(rowsToSave).length;
-        console.log(`[EditableGanttTable] Updating formData.${fieldKey} with ${rowCount} rows`);
+        console.log(`[EditableGanttTable] Updating formData.${fieldKey} with ${rowCount} rows, isInitialized: ${isInitialized.current}, isHydrating: ${isHydrating}`);
         if (rowCount > 0) {
           console.log(`[EditableGanttTable] Sample data:`, Object.keys(rowsToSave).slice(0, 2).map(k => ({ row: k, keys: Object.keys(rowsToSave[k]) })));
+        } else {
+          console.warn(`[EditableGanttTable] WARNING: rowsToSave is empty! rows state has ${Object.keys(rows).length} keys, rowsRef has ${Object.keys(rowsRef.current).length} keys`);
         }
+        // Update rowsRef to keep it in sync
+        rowsRef.current = rowsToSave;
         immutableSetFormData({ 
           [fieldKey]: rowsToSave
         });
@@ -277,6 +304,7 @@ const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableP
           try {
             const currentFormData = getFromSessionObfuscated<Record<string, any>>('formData', {}) || {};
             saveToSessionObfuscated('formData', { ...currentFormData, [fieldKey]: rowsToSave });
+            console.log(`[EditableGanttTable] Saved to sessionStorage: ${rowCount} rows`);
           } catch (e) {
             console.warn('[EditableGanttTable] Could not save to sessionStorage:', e);
           }
