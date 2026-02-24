@@ -313,25 +313,18 @@ def acceptRequirements(id):
   except Exception as e:
     print(f"[REQUIREMENTS_ACCEPT] Warning: Could not create evaluation record: {e}")
 
-  # Determine when to send evaluation email
-  try:
-    duration_end_ms = int(eventDetails.get("durationEnd", 0) or 0)
-  except (TypeError, ValueError):
-    duration_end_ms = 0
-
+  # Determine when to send evaluation email - use only evaluationSendTime
   try:
     eval_send_ms = int(eventDetails.get("evaluationSendTime", 0) or 0)
   except (TypeError, ValueError):
     eval_send_ms = 0
 
-  target_epoch_ms = max(duration_end_ms, eval_send_ms)
-
-  if target_epoch_ms <= 0:
-    print("[REQUIREMENTS_ACCEPT] Warning: No valid durationEnd/evaluationSendTime; sending evaluation email immediately")
+  if eval_send_ms <= 0:
+    print("[REQUIREMENTS_ACCEPT] Warning: No valid evaluationSendTime; sending evaluation email immediately")
     sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails)
   else:
     executeDelayedAction(
-      target_epoch_ms,
+      eval_send_ms,
       lambda: sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails),
       execAnyway=False
     )
