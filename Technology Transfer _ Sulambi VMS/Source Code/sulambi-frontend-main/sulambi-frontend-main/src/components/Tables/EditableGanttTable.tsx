@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
 import {
   Table,
   TableBody,
@@ -25,16 +25,22 @@ interface EditableGanttTableProps {
   viewOnly?: boolean;
 }
 
-const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
+export interface EditableGanttTableRef {
+  flushUpdates: () => void;
+  getCurrentData: () => { [rowIndex: string]: { [colKey: string]: string } };
+}
+
+const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableProps>(({
   fieldKey,
   initialData = {},
   initialColumns = ['Month 1', 'Month 2', 'Month 3', 'Month 4', 'Month 5', 'Month 6'],
   viewOnly = false,
-}) => {
+}, ref) => {
   const { immutableSetFormData } = useContext(FormDataContext);
   const isInitialized = useRef(false);
   const hydratedOnceRef = useRef(false);
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rowsRef = useRef<{ [rowIndex: string]: { [colKey: string]: string } }>({});
 
   const hydratedInitialData = useRef<{ [rowIndex: string]: { [colKey: string]: string } }>({});
   if (!hydratedOnceRef.current) {
@@ -184,12 +190,36 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
     if (dataObj && typeof dataObj === 'object' && Object.keys(dataObj).length > 0) {
       // For very large tables, defer setting rows until after first paint
       // so the modal doesn't freeze on open.
-      if (shouldDeferHydration) return {};
+      if (shouldDeferHydration) {
+        rowsRef.current = {};
+        return {};
+      }
       isInitialized.current = true;
+      rowsRef.current = dataObj;
       return dataObj;
     }
+    rowsRef.current = {};
     return {};
   });
+
+  // Expose methods via ref for parent components to flush updates before save
+  useImperativeHandle(ref, () => ({
+    flushUpdates: () => {
+      // Clear any pending timeout and immediately save current rows
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+      if (isInitialized.current && !isHydrating) {
+        immutableSetFormData({ 
+          [fieldKey]: rowsRef.current
+        });
+      }
+    },
+    getCurrentData: () => {
+      return rowsRef.current;
+    }
+  }), [fieldKey, immutableSetFormData, isHydrating]);
 
   const [rowCount, setRowCount] = useState(() => {
     const existingRows = Object.keys(hydratedInitialData.current || {});
@@ -212,6 +242,7 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
     }
     const t = setTimeout(() => {
       setRows(dataObj);
+      rowsRef.current = dataObj;
       setRowCount(Math.max(...keys.map((k) => parseInt(k) || 0)) + 1);
       isInitialized.current = true;
       setIsHydrating(false);
@@ -232,9 +263,9 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
         // Save rows data - column names are already in the row keys when renamed
         // When columns are renamed, the row keys are updated, so column names persist in the data
         immutableSetFormData({ 
-          [fieldKey]: rows
+          [fieldKey]: rowsRef.current
         });
-      }, 300);
+      }, 150); // Reduced from 300ms to 150ms for faster saves
     }
     
     return () => {
@@ -243,6 +274,22 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
       }
     };
   }, [rows, columns, fieldKey, immutableSetFormData, isHydrating]);
+
+  // Flush updates on unmount to ensure data is saved
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+      // Flush any pending updates before unmounting
+      if (isInitialized.current && !isHydrating && Object.keys(rowsRef.current).length > 0) {
+        immutableSetFormData({ 
+          [fieldKey]: rowsRef.current
+        });
+      }
+    };
+  }, [fieldKey, immutableSetFormData, isHydrating]);
 
   const handleCellChange = useCallback((rowIndex: string, colKey: string, value: string) => {
     setRows((prev) => {
@@ -254,6 +301,7 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
         ...newRows[rowIndex],
         [colKey]: value,
       };
+      rowsRef.current = newRows;
       return newRows;
     });
   }, []);
@@ -264,10 +312,14 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
     columns.forEach((col) => {
       newRow[col] = '';
     });
-    setRows((prev) => ({
-      ...prev,
-      [newRowIndex]: newRow,
-    }));
+    setRows((prev) => {
+      const updated = {
+        ...prev,
+        [newRowIndex]: newRow,
+      };
+      rowsRef.current = updated;
+      return updated;
+    });
     setRowCount((prev) => prev + 1);
   };
 
@@ -275,6 +327,7 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
     setRows((prev) => {
       const newRows = { ...prev };
       delete newRows[rowIndex];
+      rowsRef.current = newRows;
       return newRows;
     });
   };
@@ -292,6 +345,7 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
           [newColumnName]: '',
         };
       });
+      rowsRef.current = newRows;
       return newRows;
     });
   };
@@ -316,6 +370,7 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
           newRows[rowIndex] = rowData;
         }
       });
+      rowsRef.current = newRows;
       return newRows;
     });
   }, []);
@@ -357,6 +412,7 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
               delete newRows[rowIndex][oldName];
             }
           });
+          rowsRef.current = newRows;
           return newRows;
         });
       }
@@ -771,10 +827,10 @@ const EditableGanttTable: React.FC<EditableGanttTableProps> = ({
       )}
     </Box>
   );
-};
+});
 
 // Memoize the component with custom comparison to prevent unnecessary re-renders
-export default React.memo(EditableGanttTable, (prevProps, nextProps) => {
+const MemoizedEditableGanttTable = React.memo(EditableGanttTable, (prevProps, nextProps) => {
   // Only re-render if viewOnly or fieldKey changes, or if initialData actually changes
   if (prevProps.viewOnly !== nextProps.viewOnly) return false;
   if (prevProps.fieldKey !== nextProps.fieldKey) return false;
@@ -789,4 +845,10 @@ export default React.memo(EditableGanttTable, (prevProps, nextProps) => {
   // (This prevents focus loss when formData updates)
   return true; // Return true means "don't re-render" (props are equal)
 });
+
+// Add display name for better debugging
+MemoizedEditableGanttTable.displayName = 'EditableGanttTable';
+
+export default MemoizedEditableGanttTable;
+export type { EditableGanttTableRef };
 

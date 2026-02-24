@@ -652,13 +652,18 @@ def updateEvent(id, eventType: str):
         
         # Ensure workPlan is a string (JSON stringified)
         workPlan = request.json.get("workPlan")
+        print(f"[UPDATE_EVENT] workPlan from request: {type(workPlan)}, value: {str(workPlan)[:100] if workPlan else None}")
         if workPlan is None:
           workPlan = matchedEvent.get("workPlan", "{}")
+          print(f"[UPDATE_EVENT] workPlan was None, using existing: {str(workPlan)[:100]}")
         elif isinstance(workPlan, dict):
           workPlan = json.dumps(workPlan)
+          print(f"[UPDATE_EVENT] workPlan was dict, stringified to: {str(workPlan)[:100]}")
         elif not isinstance(workPlan, str):
           workPlan = json.dumps(workPlan) if workPlan else "{}"
+          print(f"[UPDATE_EVENT] workPlan was not string, converted to: {str(workPlan)[:100]}")
         # If it's already a string, use as-is
+        print(f"[UPDATE_EVENT] Final workPlan to save: {str(workPlan)[:100]}")
 
         # Ensure financialRequirement and evaluationMechanicsPlan are strings
         financialRequirement = request.json.get("financialRequirement")
@@ -762,6 +767,7 @@ def updateEvent(id, eventType: str):
           return ({"message": beneficiary_pin_result}, 400)
         beneficiaryEvaluationPin = beneficiary_pin_result
 
+        print(f"[UPDATE_EVENT] Updating event {id} with workPlan length: {len(str(workPlan))}")
         updatedEvent = InternalEventDb.update(id, (
           title,
           durationStart,
@@ -790,6 +796,10 @@ def updateEvent(id, eventType: str):
           eventProposalType,
           beneficiaryEvaluationPin
         ))
+        
+        # Verify workPlan was saved
+        saved_workPlan = updatedEvent.get("workPlan", "NOT_FOUND")
+        print(f"[UPDATE_EVENT] Saved workPlan length: {len(str(saved_workPlan))}, first 100 chars: {str(saved_workPlan)[:100]}")
         
         return {
           "data": updatedEvent,
