@@ -12,6 +12,7 @@ from ..database import connection as db_connection
 
 from dotenv import load_dotenv
 import os
+import time
 
 load_dotenv()
 
@@ -416,8 +417,13 @@ def acceptRequirements(id):
   except (TypeError, ValueError):
     eval_send_ms = 0
 
+  now_ms = int(time.time() * 1000)
+
   if eval_send_ms <= 0:
     print("[REQUIREMENTS_ACCEPT] Warning: No valid evaluationSendTime; sending evaluation email immediately")
+    sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails)
+  elif eval_send_ms <= now_ms:
+    print("[REQUIREMENTS_ACCEPT] evaluationSendTime already passed; sending evaluation email immediately")
     sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails)
   else:
     executeDelayedAction(

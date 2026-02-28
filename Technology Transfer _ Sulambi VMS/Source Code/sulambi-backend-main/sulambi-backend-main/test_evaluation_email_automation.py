@@ -89,6 +89,8 @@ def main():
                         help="Email value used with --set-email.")
     parser.add_argument("--to-email", dest="to_email_override", default=None,
                         help="Override recipient email when sending (does not update DB).")
+    parser.add_argument("--show-all", action="store_true",
+                        help="Print all requirements (not only accepted/due).")
     parser.add_argument("--limit", type=int, default=10,
                         help="Max number of due entries to print/send (default: 10).")
     args = parser.parse_args()
@@ -118,6 +120,31 @@ def main():
     accepted_reqs = [r for r in all_requirements if _to_bool(r.get("accepted"))]
     print(f"Total requirements: {len(all_requirements)}")
     print(f"Accepted requirements: {len(accepted_reqs)}")
+
+    if args.show_all:
+        print("\nAll requirements snapshot:")
+        for req in all_requirements[:max(1, args.limit)]:
+            req_id = req.get("id")
+            req_name = (req.get("fullname") or "").strip()
+            req_email = (req.get("email") or "").strip()
+            req_type = req.get("type") or "external"
+            req_event_id = req.get("eventId")
+            req_event = _event_for_requirement(req, internal_db, external_db) or {}
+            req_event_title = req_event.get("title") or "Event Not Found"
+            req_eval_send_ms = _safe_int(req_event.get("evaluationSendTime"), 0)
+            accepted_raw = req.get("accepted")
+            if _to_bool(accepted_raw):
+                accepted_label = "accepted"
+            elif accepted_raw in (0, "0", False, "false", "False"):
+                accepted_label = "rejected"
+            else:
+                accepted_label = "pending"
+            print(
+                f"- req={req_id} name={req_name or '(blank)'} email={req_email or '(blank)'} "
+                f"type={req_type} eventId={req_event_id} event='{req_event_title}' "
+                f"evaluationSendTime={_fmt_ms(req_eval_send_ms)} "
+                f"status={accepted_label}"
+            )
 
     now_ms = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
     due_rows = []
