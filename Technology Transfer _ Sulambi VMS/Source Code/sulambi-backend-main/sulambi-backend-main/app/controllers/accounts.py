@@ -4,16 +4,21 @@ from flask import request
 AccountDb = AccountModel()
 
 def createAccount(accountType):
+  username = (request.json.get("username") or "").strip()
+  password = (request.json.get("password") or "").strip()
+  if not username or not password:
+    return ({ "message": "Username and password are required" }, 400)
+
   matched = AccountDb.getOrSearch(["username"], [
-    request.json["username"]
+    username
   ])
 
   if (len(matched) > 0):
     return ({ "message": "Account already exists" }, 403)
 
   createdAccount = AccountDb.create(
-    request.json["username"],
-    request.json["password"],
+    username,
+    password,
     accountType
   )
 
@@ -52,9 +57,14 @@ def updateAccount(accountId):
   if (matchedAccount == None):
     return ({ "message": "Account id specified does not exist" }, 404)
 
+  username = (request.json.get("username") or "").strip()
+  password = (request.json.get("password") or "").strip()
+  if not username or not password:
+    return ({ "message": "Username and password are required" }, 400)
+
   AccountDb.updateSpecific(accountId, ["username", "password"], (
-    request.json["username"],
-    request.json["password"]
+    username,
+    password
   ))
 
   return {

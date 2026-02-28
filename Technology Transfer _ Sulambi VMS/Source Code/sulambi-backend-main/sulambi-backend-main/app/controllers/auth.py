@@ -57,8 +57,8 @@ def login():
       print("[AUTH_LOGIN] ❌ ERROR: No JSON data in request")
       return ({ "message": "No data provided" }, 400)
     
-    username = request.json.get('username')
-    password = request.json.get('password')
+    username = (request.json.get('username') or '').strip()
+    password = (request.json.get('password') or '').strip()
     
     print(f"[AUTH_LOGIN] Username: {username}")
     print(f"[AUTH_LOGIN] Password: {'*' * len(password) if password else 'None'}")
