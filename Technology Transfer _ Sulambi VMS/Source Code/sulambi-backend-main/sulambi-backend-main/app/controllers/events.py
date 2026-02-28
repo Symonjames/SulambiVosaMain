@@ -12,6 +12,7 @@ from ..modules.LSIAlgorithm import LSICosineSimilarityMatch
 
 from flask import request, g
 from datetime import datetime
+import random
 from ..database import connection
 
 ExternalEventDb = ExternalEventModel()
@@ -31,6 +32,13 @@ def _validate_beneficiary_pin(pin_val):
   if len(pin_val) != 5 or not pin_val.isdigit():
     return False, "Beneficiary evaluation PIN must be exactly 5 digits (numbers only)."
   return True, pin_val
+
+def _coerce_or_generate_beneficiary_pin(pin_val):
+  """Return a valid 5-digit PIN; auto-generate when missing/invalid (for backward-compatible edits)."""
+  ok, result = _validate_beneficiary_pin(pin_val)
+  if ok:
+    return result
+  return f"{random.randint(10000, 99999)}"
 
 def getAll():
   try:
@@ -762,10 +770,7 @@ def updateEvent(id, eventType: str):
           createdAt = datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
 
         beneficiary_pin_raw = (request.json.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
-        ok, beneficiary_pin_result = _validate_beneficiary_pin(beneficiary_pin_raw)
-        if not ok:
-          return ({"message": beneficiary_pin_result}, 400)
-        beneficiaryEvaluationPin = beneficiary_pin_result
+        beneficiaryEvaluationPin = _coerce_or_generate_beneficiary_pin(beneficiary_pin_raw)
 
         print(f"[UPDATE_EVENT] Updating event {id} with workPlan length: {len(str(workPlan))}")
         updatedEvent = InternalEventDb.update(id, (
@@ -822,10 +827,7 @@ def updateEvent(id, eventType: str):
 
     j = request.json if request.json is not None else {}
     ext_beneficiary_pin_raw = (j.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
-    ok, ext_beneficiary_pin_result = _validate_beneficiary_pin(ext_beneficiary_pin_raw)
-    if not ok:
-      return ({"message": ext_beneficiary_pin_result}, 400)
-    ext_beneficiary_pin = ext_beneficiary_pin_result
+    ext_beneficiary_pin = _coerce_or_generate_beneficiary_pin(ext_beneficiary_pin_raw)
 
     def _to_str(v, fallback):
       if v is None:
