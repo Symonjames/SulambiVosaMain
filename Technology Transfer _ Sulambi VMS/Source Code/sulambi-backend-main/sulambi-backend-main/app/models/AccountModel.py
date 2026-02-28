@@ -36,7 +36,10 @@ class AccountModel(Model):
       # SQLite: use integer 1
       active_value = 1
     
-    query = f"SELECT {','.join([self.primaryKey] + self.columns)} FROM {table_name} WHERE username=? AND password=? AND active=?"
+    columns_list = [self.primaryKey] + self.columns
+    normalized_columns = self._normalize_column_list(columns_list)
+    column_query = ",".join(normalized_columns)
+    query = f"SELECT {column_query} FROM {table_name} WHERE username=? AND password=? AND active=?"
     # Convert placeholders for PostgreSQL
     query = connection.convert_placeholders(query)
     print(f"[AUTH_MODEL] Executing query: SELECT ... FROM {table_name} WHERE username=? AND password=? AND active=?")

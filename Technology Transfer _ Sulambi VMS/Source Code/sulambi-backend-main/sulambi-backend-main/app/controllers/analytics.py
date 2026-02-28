@@ -138,9 +138,9 @@ def getVolunteerDropoutAnalytics(year=None):
         
         conn, cursor = cursorInstance()
         
-        from ..database.connection import quote_identifier
-        membership_table = quote_identifier('membership')
-        vph_table = quote_identifier('volunteerParticipationHistory')
+        from ..database.connection import table_name_for_query
+        membership_table = table_name_for_query('membership')
+        vph_table = table_name_for_query('volunteerParticipationHistory')
         
         # Check if volunteerParticipationHistory table exists
         # Use database-agnostic query - detect from connection type
@@ -440,10 +440,10 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         conn, cursor = cursorInstance()
         
         # Get all events with their dates to calculate semesters
-        from ..database.connection import quote_identifier, DATABASE_URL, is_postgresql_url
+        from ..database.connection import table_name_for_query, DATABASE_URL, is_postgresql_url
         is_pg = is_postgresql_url(DATABASE_URL)
-        internal_events_table = quote_identifier("internalEvents")
-        external_events_table = quote_identifier("externalEvents")
+        internal_events_table = table_name_for_query("internalEvents")
+        external_events_table = table_name_for_query("externalEvents")
         col_ds = '"durationStart"' if is_pg else 'durationStart'
         col_de = '"durationEnd"' if is_pg else 'durationEnd'
         cursor.execute(f"""
@@ -497,9 +497,9 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             # Count volunteers who JOINED (submitted requirements) for events in this semester.
             # Include accepted OR pending, exclude rejected.
             # Use a robust volunteer key: email -> srcode -> fullname
-            from ..database.connection import quote_identifier
-            requirements_table = quote_identifier('requirements')
-            evaluation_table = quote_identifier('evaluation')
+            from ..database.connection import table_name_for_query
+            requirements_table = table_name_for_query('requirements')
+            evaluation_table = table_name_for_query('evaluation')
             from ..database.connection import convert_placeholders, convert_boolean_condition
             joined_query = f"""
                 SELECT COUNT(DISTINCT COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)) as joined_count
@@ -605,11 +605,11 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             })
             
             # Track individual volunteer stats for at-risk calculation
-            from ..database.connection import quote_identifier, convert_boolean_condition, convert_placeholders
-            internal_events_table = quote_identifier('internalEvents')
-            external_events_table = quote_identifier('externalEvents')
-            requirements_table = quote_identifier('requirements')
-            evaluation_table = quote_identifier('evaluation')
+            from ..database.connection import table_name_for_query, convert_boolean_condition, convert_placeholders
+            internal_events_table = table_name_for_query('internalEvents')
+            external_events_table = table_name_for_query('externalEvents')
+            requirements_table = table_name_for_query('requirements')
+            evaluation_table = table_name_for_query('evaluation')
             volunteer_query = f"""
                 SELECT
                        COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname) as volunteerKey,
@@ -853,8 +853,8 @@ def getSatisfactionAnalytics(year=None):
             try:
                 from ..database.connection import cursorInstance
                 conn, cursor = cursorInstance()
-                from ..database.connection import quote_identifier
-                semester_satisfaction_table = quote_identifier('semester_satisfaction')
+                from ..database.connection import table_name_for_query
+                semester_satisfaction_table = table_name_for_query('semester_satisfaction')
                 from ..database.connection import convert_placeholders
                 from ..database.connection import DATABASE_URL, is_postgresql_url
                 is_postgresql = is_postgresql_url(DATABASE_URL)
@@ -917,11 +917,11 @@ def getSatisfactionAnalytics(year=None):
         conn, cursor = cursorInstance()
         
         # Get evaluations with event dates
-        from ..database.connection import quote_identifier
-        internal_events_table = quote_identifier('internalEvents')
-        external_events_table = quote_identifier('externalEvents')
-        evaluation_table = quote_identifier('evaluation')
-        requirements_table = quote_identifier('requirements')
+        from ..database.connection import table_name_for_query
+        internal_events_table = table_name_for_query('internalEvents')
+        external_events_table = table_name_for_query('externalEvents')
+        evaluation_table = table_name_for_query('evaluation')
+        requirements_table = table_name_for_query('requirements')
         # Import here to avoid circular imports
         from ..database.connection import DATABASE_URL, is_postgresql_url
         is_postgresql = is_postgresql_url(DATABASE_URL)
@@ -950,7 +950,7 @@ def getSatisfactionAnalytics(year=None):
         # (These don't have requirementIds linked to evaluation table - includes both Volunteers and Beneficiaries)
         survey_rows = []
         try:
-            satisfaction_surveys_table = quote_identifier('satisfactionSurveys')
+            satisfaction_surveys_table = table_name_for_query('satisfactionSurveys')
             finalized_survey_condition = "ss.finalized = true" if is_postgresql else "ss.finalized = 1"
             
             # Get event dates and submission dates for satisfactionSurveys
@@ -1274,10 +1274,10 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         conn, cursor = cursorInstance()
         
         # Get event title
-        from ..database.connection import quote_identifier, convert_placeholders, DATABASE_URL, is_postgresql_url
+        from ..database.connection import table_name_for_query, convert_placeholders, DATABASE_URL, is_postgresql_url
         is_pg = is_postgresql_url(DATABASE_URL)
         event_table = "internalEvents" if eventType == "internal" else "externalEvents"
-        quoted_table = quote_identifier(event_table)
+        quoted_table = table_name_for_query(event_table)
         if is_pg:
             query = f'SELECT title, "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
         else:
@@ -1297,10 +1297,10 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         event_title, event_start, event_end = event_row
         
         # Get satisfaction surveys for this specific event (primary source)
-        from ..database.connection import quote_identifier, DATABASE_URL, is_postgresql_url
-        satisfaction_surveys_table = quote_identifier('satisfactionSurveys')
-        evaluation_table = quote_identifier('evaluation')
-        requirements_table = quote_identifier('requirements')
+        from ..database.connection import table_name_for_query, DATABASE_URL, is_postgresql_url
+        satisfaction_surveys_table = table_name_for_query('satisfactionSurveys')
+        evaluation_table = table_name_for_query('evaluation')
+        requirements_table = table_name_for_query('requirements')
         from ..database.connection import convert_placeholders
         is_postgresql = is_postgresql_url(DATABASE_URL)
         
@@ -1543,9 +1543,9 @@ def clearAnalyticsData():
         # Start transaction
         conn.execute("BEGIN TRANSACTION")
         
-        from ..database.connection import quote_identifier
-        evaluation_table = quote_identifier('evaluation')
-        requirements_table = quote_identifier('requirements')
+        from ..database.connection import table_name_for_query
+        evaluation_table = table_name_for_query('evaluation')
+        requirements_table = table_name_for_query('requirements')
         
         # Delete all evaluations first (they reference requirements)
         cursor.execute(f"DELETE FROM {evaluation_table}")
@@ -1605,10 +1605,10 @@ def deleteDummyVolunteersData():
         # Step 1: Identify dummy user emails
         # Find all dummy members by email pattern
         # Only match obvious dummy/test patterns - be conservative to avoid deleting real users
-        from ..database.connection import quote_identifier
-        membership_table = quote_identifier('membership')
-        requirements_table = quote_identifier('requirements')
-        evaluation_table = quote_identifier('evaluation')
+        from ..database.connection import table_name_for_query
+        membership_table = table_name_for_query('membership')
+        requirements_table = table_name_for_query('requirements')
+        evaluation_table = table_name_for_query('evaluation')
         print("[DELETE DUMMY] Step 1: Identifying dummy members...")
         cursor.execute(f"""
             SELECT id, email FROM {membership_table} 

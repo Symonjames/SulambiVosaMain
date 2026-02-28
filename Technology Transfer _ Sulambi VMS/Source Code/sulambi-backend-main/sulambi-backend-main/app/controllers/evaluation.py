@@ -249,9 +249,9 @@ def evaluateByRequirement(requirementId):
     # Get event title
     event_title = ""
     try:
-      from ..database.connection import quote_identifier, convert_placeholders
+      from ..database.connection import table_name_for_query, convert_placeholders
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
-      quoted_table = quote_identifier(event_table)
+      quoted_table = table_name_for_query(event_table)
       query = f"SELECT title FROM {quoted_table} WHERE id = ?"
       query = convert_placeholders(query)
       cursor.execute(query, (event_id,))
@@ -262,12 +262,14 @@ def evaluateByRequirement(requirementId):
       pass
     
     # Check if already exists - handle both SQLite and PostgreSQL
-    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders, convert_boolean_value, is_postgresql_url
+    from ..database.connection import DATABASE_URL, table_name_for_query, convert_placeholders, convert_boolean_value, is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
     
+    table_name = table_name_for_query('satisfactionSurveys')
+
     if is_postgresql:
-      check_query = """
-        SELECT id FROM "satisfactionSurveys"
+      check_query = f"""
+        SELECT id FROM {table_name}
         WHERE "requirementId" = %s AND "respondentEmail" = %s
       """
     else:
@@ -283,8 +285,8 @@ def evaluateByRequirement(requirementId):
       submitted_at = int(datetime.now().timestamp() * 1000)
       
       if is_postgresql:
-        insert_query = """
-          INSERT INTO "satisfactionSurveys" (
+        insert_query = f"""
+          INSERT INTO {table_name} (
             "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
             "overallSatisfaction", "volunteerRating", "beneficiaryRating",
             "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
@@ -374,7 +376,7 @@ def validateBeneficiaryPin():
   Returns 200 with { "valid": true } if PIN matches and event ended within last 7 days, else 400.
   """
   try:
-    from ..database.connection import cursorInstance, quote_identifier
+    from ..database.connection import cursorInstance, table_name_for_query
     import os
     event_id = request.json.get("eventId")
     event_type = request.json.get("eventType", "external")
@@ -403,7 +405,7 @@ def validateBeneficiaryPin():
     from ..database.connection import is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
     event_table = "internalEvents" if event_type == "internal" else "externalEvents"
-    quoted_table = quote_identifier(event_table)
+    quoted_table = table_name_for_query(event_table)
     if is_postgresql:
       query = f'SELECT "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
     else:
@@ -606,14 +608,14 @@ def submitBeneficiaryEvaluation():
     event_title = ""
     event_required_pin = None
     try:
-      from ..database.connection import quote_identifier, convert_placeholders
+      from ..database.connection import table_name_for_query, convert_placeholders
       import os
       DATABASE_URL = os.getenv("DATABASE_URL")
       from ..database.connection import is_postgresql_url
       is_postgresql = is_postgresql_url(DATABASE_URL)
       
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
-      quoted_table = quote_identifier(event_table)
+      quoted_table = table_name_for_query(event_table)
       
       if is_postgresql:
         query = f'SELECT title, "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
@@ -685,16 +687,15 @@ def submitBeneficiaryEvaluation():
     requirement_id = str(uuid.uuid4())
     
     # Check if PostgreSQL and use appropriate syntax
-    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders, convert_boolean_value, is_postgresql_url
+    from ..database.connection import DATABASE_URL, table_name_for_query, convert_placeholders, convert_boolean_value, is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
     
     # Get table name with proper quoting
-    table_name = quote_identifier('satisfactionSurveys')
+    table_name = table_name_for_query('satisfactionSurveys')
     
     if is_postgresql:
-      # PostgreSQL: Use lowercase unquoted column names (actual column names from database)
-      insert_query = """
-        INSERT INTO "satisfactionSurveys" (
+      insert_query = f"""
+        INSERT INTO {table_name} (
           "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
           "overallSatisfaction", "volunteerRating", "beneficiaryRating",
           "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
@@ -880,12 +881,12 @@ def submitVolunteerEvaluation():
     # Verify event exists and evaluation window (ongoing or ended within 7 days)
     conn, cursor = cursorInstance()
     try:
-      from ..database.connection import quote_identifier
+      from ..database.connection import table_name_for_query
       DATABASE_URL = os.getenv("DATABASE_URL")
       from ..database.connection import is_postgresql_url
       is_postgresql = is_postgresql_url(DATABASE_URL)
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
-      quoted_table = quote_identifier(event_table)
+      quoted_table = table_name_for_query(event_table)
       if is_postgresql:
         query = f'SELECT title, "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
       else:
@@ -916,13 +917,13 @@ def submitVolunteerEvaluation():
     import uuid
     requirement_id = str(uuid.uuid4())
 
-    from ..database.connection import DATABASE_URL, quote_identifier, convert_boolean_value, is_postgresql_url
+    from ..database.connection import DATABASE_URL, table_name_for_query, convert_boolean_value, is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
-    table_name = quote_identifier('satisfactionSurveys')
+    table_name = table_name_for_query('satisfactionSurveys')
 
     if is_postgresql:
-      insert_query = """
-        INSERT INTO "satisfactionSurveys" (
+      insert_query = f"""
+        INSERT INTO {table_name} (
           "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
           "overallSatisfaction", "volunteerRating", "beneficiaryRating",
           "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",

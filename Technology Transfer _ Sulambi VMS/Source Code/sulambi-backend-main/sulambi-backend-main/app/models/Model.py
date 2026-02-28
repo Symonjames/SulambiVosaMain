@@ -37,7 +37,9 @@ class Model:
     return columns
   
   def _get_table_name(self):
-    """Get properly quoted table name based on database type"""
+    """Get table name for queries. PostgreSQL: unquoted names are stored lowercase, so use lowercase."""
+    if is_postgresql:
+      return self.table.lower()
     return self._quote_identifier(self.table)
 
   def parseResponse(self, response: tuple | None, overwriteColumns=[]):
