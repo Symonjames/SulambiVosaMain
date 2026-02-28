@@ -945,16 +945,16 @@ def getSatisfactionAnalytics(year=None):
         
         # Query 1: Get evaluations from evaluation table (volunteers with requirementIds)
         query = f"""
-            SELECT e.id, e."requirementid", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                   r."eventid", r.type,
+            SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
+                   r."eventId", r.type,
                    CASE 
                        WHEN r.type = 'internal' THEN ei."durationStart"
                        ELSE ee."durationStart"
                    END as eventDate
             FROM {evaluation_table} e
-            INNER JOIN {requirements_table} r ON e."requirementid" = r.id
-            LEFT JOIN {internal_events_table} ei ON r."eventid" = ei.id AND r.type = 'internal'
-            LEFT JOIN {external_events_table} ee ON r."eventid" = ee.id AND r.type = 'external'
+            INNER JOIN {requirements_table} r ON e."requirementId" = r.id
+            LEFT JOIN {internal_events_table} ei ON r."eventId" = ei.id AND r.type = 'internal'
+            LEFT JOIN {external_events_table} ee ON r."eventId" = ee.id AND r.type = 'external'
             WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
         """
         cursor.execute(query)
@@ -1335,11 +1335,11 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         
         # Also get evaluations as fallback (for backward compatibility)
         query2 = f"""
-            SELECT e.id, e."requirementid", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                   r."eventid", r.type
+            SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
+                   r."eventId", r.type
             FROM {evaluation_table} e
-            INNER JOIN {requirements_table} r ON e."requirementid" = r.id
-            WHERE r."eventid" = ? AND r.type = ? AND {finalized_condition2} AND e.criteria IS NOT NULL AND e.criteria != ''
+            INNER JOIN {requirements_table} r ON e."requirementId" = r.id
+            WHERE r."eventId" = ? AND r.type = ? AND {finalized_condition2} AND e.criteria IS NOT NULL AND e.criteria != ''
         """
         query2 = convert_placeholders(query2)
         cursor.execute(query2, (eventId, eventType))
