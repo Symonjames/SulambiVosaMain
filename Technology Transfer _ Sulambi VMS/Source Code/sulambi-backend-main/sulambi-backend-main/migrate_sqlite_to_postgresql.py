@@ -15,7 +15,7 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 from dotenv import load_dotenv
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 load_dotenv()
 
@@ -50,10 +50,21 @@ try:
     
     # Extract connection parameters
     db_name = result.path[1:] if result.path.startswith('/') else result.path
+    if '?' in db_name:
+        db_name = db_name.split('?')[0]
     db_user = result.username
     db_password = result.password
     db_host = result.hostname
     db_port = result.port or 5432
+    # SSL: use sslmode from URL; valid values: disable, allow, prefer, require, verify-ca, verify-full
+    # Map no-verify (invalid in psycopg2) to require (SSL on, no cert verification)
+    sslmode = "require"
+    if result.query:
+        qs = parse_qs(result.query)
+        if "sslmode" in qs:
+            sslmode = qs["sslmode"][0].strip().lower()
+            if sslmode == "no-verify":
+                sslmode = "require"
     
     print(f"Connecting to: {db_host}:{db_port}/{db_name}", flush=True)
     print(f"User: {db_user}", flush=True)
@@ -69,6 +80,7 @@ try:
                 password=db_password,
                 host=db_host,
                 port=db_port,
+                sslmode=sslmode,
                 connect_timeout=10,
                 options='-c statement_timeout=300000'  # 5 minute timeout for queries
             )
@@ -334,8 +346,9 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
         print(f"  Starting data insertion...", flush=True)
         
         # Insert data - use savepoints for each row to handle errors gracefully
+        # Quote column names for PostgreSQL so camelCase (e.g. eventIds, topIssues) matches table definition
         placeholders = ', '.join(['%s'] * len(column_names))
-        column_names_str = ', '.join(column_names)
+        column_names_str = ', '.join(f'"{c}"' for c in column_names)
         
         inserted = 0
         total_rows = len(rows)

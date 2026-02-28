@@ -24,11 +24,10 @@ class Model:
     return identifier
   
   def _normalize_column_name(self, column_name):
-    """Normalize column name for PostgreSQL (lowercase if not quoted during creation)"""
-    # Since columns were created without quotes, they're stored in lowercase in PostgreSQL
-    # Convert to lowercase for PostgreSQL queries to match stored column names
+    """Normalize column name for PostgreSQL: use quoted identifier to match schema (camelCase columns)."""
+    # Schema uses quoted camelCase (e.g. "volunteerEmail", "durationStart") so SELECT/INSERT must quote too
     if is_postgresql:
-      return column_name.lower()
+      return self._quote_identifier(column_name)
     return column_name
   
   def _normalize_column_list(self, columns):

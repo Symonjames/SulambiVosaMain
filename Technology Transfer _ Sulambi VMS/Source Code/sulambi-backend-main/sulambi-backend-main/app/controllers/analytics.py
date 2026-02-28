@@ -440,18 +440,21 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         conn, cursor = cursorInstance()
         
         # Get all events with their dates to calculate semesters
-        from ..database.connection import quote_identifier
+        from ..database.connection import quote_identifier, DATABASE_URL, is_postgresql_url
+        is_pg = is_postgresql_url(DATABASE_URL)
         internal_events_table = quote_identifier("internalEvents")
         external_events_table = quote_identifier("externalEvents")
+        col_ds = '"durationStart"' if is_pg else 'durationStart'
+        col_de = '"durationEnd"' if is_pg else 'durationEnd'
         cursor.execute(f"""
-            SELECT id, title, durationStart, durationEnd, 'internal' as type
+            SELECT id, title, {col_ds}, {col_de}, 'internal' as type
             FROM {internal_events_table}
             WHERE status IN ('accepted', 'completed')
             UNION ALL
-            SELECT id, title, durationStart, durationEnd, 'external' as type
+            SELECT id, title, {col_ds}, {col_de}, 'external' as type
             FROM {external_events_table}
             WHERE status IN ('accepted', 'completed')
-            ORDER BY durationStart
+            ORDER BY {col_ds}
         """)
         all_events = cursor.fetchall()
         
@@ -506,16 +509,16 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             joined_params = []
             
             if event_ids_internal and event_ids_external:
-                joined_query += " AND ((r.type = 'internal' AND r.eventId IN ({}) OR (r.type = 'external' AND r.eventId IN ({}))))".format(
+                joined_query += " AND ((r.type = 'internal' AND r.\"eventId\" IN ({}) OR (r.type = 'external' AND r.\"eventId\" IN ({}))))".format(
                     ','.join(['?' for _ in event_ids_internal]),
                     ','.join(['?' for _ in event_ids_external])
                 )
                 joined_params = event_ids_internal + event_ids_external
             elif event_ids_internal:
-                joined_query += " AND r.type = 'internal' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_internal]))
+                joined_query += " AND r.type = 'internal' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_internal]))
                 joined_params = event_ids_internal
             elif event_ids_external:
-                joined_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
+                joined_query += " AND r.type = 'external' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_external]))
                 joined_params = event_ids_external
             else:
                 continue
@@ -530,7 +533,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             attended_query = f"""
                 SELECT COUNT(DISTINCT COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)) as attended_count
                 FROM {requirements_table} r
-                INNER JOIN {evaluation_table} e ON r.id = e.requirementId
+                INNER JOIN {evaluation_table} e ON r.id = e.\"requirementId\"
                 WHERE r.accepted = 1 
                 AND e.finalized = 1 
                 AND e.criteria IS NOT NULL 
@@ -539,16 +542,16 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             attended_params = []
             
             if event_ids_internal and event_ids_external:
-                attended_query += " AND ((r.type = 'internal' AND r.eventId IN ({}) OR (r.type = 'external' AND r.eventId IN ({}))))".format(
+                attended_query += " AND ((r.type = 'internal' AND r.\"eventId\" IN ({}) OR (r.type = 'external' AND r.\"eventId\" IN ({}))))".format(
                     ','.join(['?' for _ in event_ids_internal]),
                     ','.join(['?' for _ in event_ids_external])
                 )
                 attended_params = event_ids_internal + event_ids_external
             elif event_ids_internal:
-                attended_query += " AND r.type = 'internal' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_internal]))
+                attended_query += " AND r.type = 'internal' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_internal]))
                 attended_params = event_ids_internal
             elif event_ids_external:
-                attended_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
+                attended_query += " AND r.type = 'external' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_external]))
                 attended_params = event_ids_external
             
             attended_query = convert_boolean_condition(attended_query)
@@ -566,7 +569,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 total_attendances_query = f"""
                     SELECT COUNT(*) as total_attendances
                     FROM {requirements_table} r
-                    INNER JOIN {evaluation_table} e ON r.id = e.requirementId
+                    INNER JOIN {evaluation_table} e ON r.id = e.\"requirementId\"
                     WHERE r.accepted = 1 
                     AND e.finalized = 1 
                     AND e.criteria IS NOT NULL 
@@ -575,16 +578,16 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 total_attendances_params = []
                 
                 if event_ids_internal and event_ids_external:
-                    total_attendances_query += " AND ((r.type = 'internal' AND r.eventId IN ({}) OR (r.type = 'external' AND r.eventId IN ({}))))".format(
+                    total_attendances_query += " AND ((r.type = 'internal' AND r.\"eventId\" IN ({}) OR (r.type = 'external' AND r.\"eventId\" IN ({}))))".format(
                         ','.join(['?' for _ in event_ids_internal]),
                         ','.join(['?' for _ in event_ids_external])
                     )
                     total_attendances_params = event_ids_internal + event_ids_external
                 elif event_ids_internal:
-                    total_attendances_query += " AND r.type = 'internal' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_internal]))
+                    total_attendances_query += " AND r.type = 'internal' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_internal]))
                     total_attendances_params = event_ids_internal
                 elif event_ids_external:
-                    total_attendances_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
+                    total_attendances_query += " AND r.type = 'external' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_external]))
                     total_attendances_params = event_ids_external
                 
                 total_attendances_query = convert_boolean_condition(total_attendances_query)
@@ -619,25 +622,25 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                            ELSE ee.durationEnd
                        END) as last_event_date
                 FROM {requirements_table} r
-                LEFT JOIN {evaluation_table} e ON r.id = e.requirementId
-                LEFT JOIN {internal_events_table} ei ON r.eventId = ei.id AND r.type = 'internal'
-                LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
+                LEFT JOIN {evaluation_table} e ON r.id = e.\"requirementId\"
+                LEFT JOIN {internal_events_table} ei ON r.\"eventId\" = ei.id AND r.type = 'internal'
+                LEFT JOIN {external_events_table} ee ON r.\"eventId\" = ee.id AND r.type = 'external'
                 WHERE (r.accepted = 1 OR r.accepted IS NULL)
             """
             volunteer_query = convert_boolean_condition(volunteer_query)
             volunteer_params = []
             
             if event_ids_internal and event_ids_external:
-                volunteer_query += " AND ((r.type = 'internal' AND r.eventId IN ({}) OR (r.type = 'external' AND r.eventId IN ({}))))".format(
+                volunteer_query += " AND ((r.type = 'internal' AND r.\"eventId\" IN ({}) OR (r.type = 'external' AND r.\"eventId\" IN ({}))))".format(
                     ','.join(['?' for _ in event_ids_internal]),
                     ','.join(['?' for _ in event_ids_external])
                 )
                 volunteer_params = event_ids_internal + event_ids_external
             elif event_ids_internal:
-                volunteer_query += " AND r.type = 'internal' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_internal]))
+                volunteer_query += " AND r.type = 'internal' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_internal]))
                 volunteer_params = event_ids_internal
             elif event_ids_external:
-                volunteer_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
+                volunteer_query += " AND r.type = 'external' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_external]))
                 volunteer_params = event_ids_external
             
             volunteer_query += " GROUP BY volunteerKey"
@@ -931,8 +934,8 @@ def getSatisfactionAnalytics(year=None):
             SELECT e.id, e."requirementid", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
                    r."eventid", r.type,
                    CASE 
-                       WHEN r.type = 'internal' THEN ei."durationstart"
-                       ELSE ee."durationstart"
+                       WHEN r.type = 'internal' THEN ei."durationStart"
+                       ELSE ee."durationStart"
                    END as eventDate
             FROM {evaluation_table} e
             INNER JOIN {requirements_table} r ON e."requirementid" = r.id
@@ -952,20 +955,18 @@ def getSatisfactionAnalytics(year=None):
             
             # Get event dates and submission dates for satisfactionSurveys
             # Include both Volunteers and Beneficiaries, and use submittedAt for year filtering
-            # Use lowercase column names (actual column names in PostgreSQL - unquoted identifiers are lowercased)
             if is_postgresql:
-                # PostgreSQL: All unquoted identifiers are lowercased
                 survey_query = f"""
-                    SELECT ss.id, ss.requirementid, ss.respondenttype, ss.overallsatisfaction, 
-                           ss.volunteerrating, ss.beneficiaryrating, ss.q13, ss.q14, ss.comment, ss.recommendations,
-                           ss.eventid, ss.eventtype, ss.submittedat,
+                    SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction",
+                           ss."volunteerRating", ss."beneficiaryRating", ss.q13, ss.q14, ss.comment, ss.recommendations,
+                           ss."eventId", ss."eventType", ss."submittedAt",
                            CASE 
-                               WHEN ss.eventtype = 'internal' THEN ei.durationstart
-                               ELSE ee.durationstart
+                               WHEN ss."eventType" = 'internal' THEN ei."durationStart"
+                               ELSE ee."durationStart"
                            END as eventdate
                     FROM {satisfaction_surveys_table} ss
-                    LEFT JOIN {internal_events_table} ei ON ss.eventid = ei.id AND ss.eventtype = 'internal'
-                    LEFT JOIN {external_events_table} ee ON ss.eventid = ee.id AND ss.eventtype = 'external'
+                    LEFT JOIN {internal_events_table} ei ON ss."eventId" = ei.id AND ss."eventType" = 'internal'
+                    LEFT JOIN {external_events_table} ee ON ss."eventId" = ee.id AND ss."eventType" = 'external'
                     WHERE {finalized_survey_condition}
                 """
             else:
@@ -1273,11 +1274,15 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         conn, cursor = cursorInstance()
         
         # Get event title
-        from ..database.connection import quote_identifier, convert_placeholders
+        from ..database.connection import quote_identifier, convert_placeholders, DATABASE_URL, is_postgresql_url
+        is_pg = is_postgresql_url(DATABASE_URL)
         event_table = "internalEvents" if eventType == "internal" else "externalEvents"
         quoted_table = quote_identifier(event_table)
-        query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
-        query = convert_placeholders(query)
+        if is_pg:
+            query = f'SELECT title, "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
+        else:
+            query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
+        query = convert_placeholders(query) if not is_pg else query
         cursor.execute(query, (eventId,))
         event_row = cursor.fetchone()
         

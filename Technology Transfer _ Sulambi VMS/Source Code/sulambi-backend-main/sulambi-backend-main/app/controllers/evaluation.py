@@ -267,8 +267,8 @@ def evaluateByRequirement(requirementId):
     
     if is_postgresql:
       check_query = """
-        SELECT id FROM "satisfactionSurveys" 
-        WHERE requirementid = %s AND respondentemail = %s
+        SELECT id FROM "satisfactionSurveys"
+        WHERE "requirementId" = %s AND "respondentEmail" = %s
       """
     else:
       check_query = """
@@ -283,15 +283,14 @@ def evaluateByRequirement(requirementId):
       submitted_at = int(datetime.now().timestamp() * 1000)
       
       if is_postgresql:
-        # PostgreSQL: table name is quoted, but columns were created unquoted → stored lowercase.
         insert_query = """
           INSERT INTO "satisfactionSurveys" (
-            eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-            overallsatisfaction, volunteerrating, beneficiaryrating,
-            organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+            "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+            "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+            "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
             q13, q14, comment, recommendations,
-            wouldrecommend, areasforimprovement, positiveaspects,
-            submittedat, finalized
+            "wouldRecommend", "areasForImprovement", "positiveAspects",
+            "submittedAt", finalized
           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         finalized_val = convert_boolean_value(True)
@@ -406,8 +405,7 @@ def validateBeneficiaryPin():
     event_table = "internalEvents" if event_type == "internal" else "externalEvents"
     quoted_table = quote_identifier(event_table)
     if is_postgresql:
-      # PostgreSQL stores unquoted identifiers as lowercase, so use lowercase column names
-      query = f'SELECT beneficiaryevaluationpin, durationstart, durationend FROM {quoted_table} WHERE id = %s'
+      query = f'SELECT "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
     else:
       query = f"SELECT beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
     conn, cursor = cursorInstance()
@@ -618,8 +616,7 @@ def submitBeneficiaryEvaluation():
       quoted_table = quote_identifier(event_table)
       
       if is_postgresql:
-        # PostgreSQL stores unquoted identifiers as lowercase, so use lowercase column names
-        query = f'SELECT title, beneficiaryevaluationpin, durationstart, durationend FROM {quoted_table} WHERE id = %s'
+        query = f'SELECT title, "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
       else:
         query = f"SELECT title, beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
 
@@ -698,12 +695,12 @@ def submitBeneficiaryEvaluation():
       # PostgreSQL: Use lowercase unquoted column names (actual column names from database)
       insert_query = """
         INSERT INTO "satisfactionSurveys" (
-          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-          overallsatisfaction, volunteerrating, beneficiaryrating,
-          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
           q13, q14, comment, recommendations,
-          wouldrecommend, areasforimprovement, positiveaspects,
-          submittedat, finalized
+          "wouldRecommend", "areasForImprovement", "positiveAspects",
+          "submittedAt", finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:
@@ -890,7 +887,7 @@ def submitVolunteerEvaluation():
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
       quoted_table = quote_identifier(event_table)
       if is_postgresql:
-        query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = %s"
+        query = f'SELECT title, "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
       else:
         query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
       cursor.execute(query, (event_id,))
@@ -926,12 +923,12 @@ def submitVolunteerEvaluation():
     if is_postgresql:
       insert_query = """
         INSERT INTO "satisfactionSurveys" (
-          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-          overallsatisfaction, volunteerrating, beneficiaryrating,
-          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
           q13, q14, comment, recommendations,
-          wouldrecommend, areasforimprovement, positiveaspects,
-          submittedat, finalized
+          "wouldRecommend", "areasForImprovement", "positiveAspects",
+          "submittedAt", finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:
