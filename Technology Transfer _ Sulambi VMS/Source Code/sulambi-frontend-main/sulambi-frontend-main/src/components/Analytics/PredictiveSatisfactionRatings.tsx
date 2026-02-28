@@ -11,7 +11,7 @@ import { CACHE_TIMES } from '../../utils/apiCache';
 
 const PredictiveSatisfactionRatings: React.FC = () => {
   const { accountDetails } = useContext(AccountDetailsContext);
-  const [selectedYear, setSelectedYear] = useState('');
+  const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
   const selectedYearRef = useRef(selectedYear);
   const [satisfactionData, setSatisfactionData] = useState<any[]>([]);
   
@@ -155,7 +155,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         throw error;
       }
     },
-    cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds (more dynamic data)
+    cacheTime: CACHE_TIMES.MEDIUM,
     useMemoryCache: true,
     enabled: true,
   });
@@ -169,10 +169,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         years.push(String(year));
       }
       setAvailableYears(years);
-      // Default to current year in dropdown
-      if (!selectedYear) {
-        setSelectedYear(String(currentYear));
-      }
     }
   }, []);
 
@@ -186,12 +182,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     // Listen for custom event when rating is submitted
     window.addEventListener('satisfaction-rating-submitted', handleRatingSubmitted);
     
-    // Also listen for storage events (when localStorage changes from another tab)
-    window.addEventListener('storage', handleRatingSubmitted);
-
     return () => {
       window.removeEventListener('satisfaction-rating-submitted', handleRatingSubmitted);
-      window.removeEventListener('storage', handleRatingSubmitted);
     };
   }, [refetchSatisfaction]);
 
@@ -411,8 +403,9 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   // Update loading state based on cached fetch
   useEffect(() => {
-    setLoading(satisfactionLoading || eventsLoadingFromCache);
-  }, [satisfactionLoading, eventsLoadingFromCache]);
+    const hasAnyData = satisfactionData.length > 0 || availableEvents.length > 0;
+    setLoading((satisfactionLoading || eventsLoadingFromCache) && !hasAnyData);
+  }, [satisfactionLoading, eventsLoadingFromCache, satisfactionData.length, availableEvents.length]);
 
   // Update error state
   useEffect(() => {
