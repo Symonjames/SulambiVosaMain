@@ -13,6 +13,7 @@ import BSUTemplateSigning from "./BSUTemplateSigning";
 import ColSizeGen from "./ColSizeGen";
 
 import dayjs from "dayjs";
+import { looseJsonParse } from "../../../utils/looseJson";
 
 interface Props {
   data: InternalEventProposalType;
@@ -156,15 +157,118 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
       setFinancialRequirement({});
     }
 
-    // Use activities from API if available and has data, otherwise try to convert from workPlan
-    if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
+    // Prefer workPlan as source of truth. activities can be stale/backfilled data.
+    if (data.workPlan) {
+      // Convert workPlan format to activities format
+      try {
+        const parsedWorkPlan = looseJsonParse<any>(data.workPlan, {});
+        const convertedActivities: Array<{ activity_name: string; months: number[] }> = [];
+        
+        // Extract column headers from row keys in the data
+        let allMonthHeaders: string[] = [];
+        const headerSet = new Set<string>();
+        const firstRowKey = Object.keys(parsedWorkPlan || {})[0];
+        
+        if (firstRowKey && parsedWorkPlan[firstRowKey]) {
+          // Preserve order from first row
+          Object.keys(parsedWorkPlan[firstRowKey]).forEach((colKey) => {
+            if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
+              headerSet.add(colKey);
+              allMonthHeaders.push(colKey);
+            }
+          });
+          // Add columns that appear only in other rows
+          Object.keys(parsedWorkPlan).forEach((key) => {
+            const row = parsedWorkPlan[key];
+            if (row) {
+              Object.keys(row).forEach((colKey) => {
+                if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
+                  headerSet.add(colKey);
+                  allMonthHeaders.push(colKey);
+                }
+              });
+            }
+          });
+        } else {
+          Object.keys(parsedWorkPlan || {}).forEach((key) => {
+            const row = parsedWorkPlan[key];
+            if (row) {
+              Object.keys(row).forEach((colKey) => {
+                if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
+                  headerSet.add(colKey);
+                  allMonthHeaders.push(colKey);
+                }
+              });
+            }
+          });
+        }
+        
+        const allAreDefaultFormat = allMonthHeaders.every(h => 
+          /^Month \d+$/.test(h) || /^act_\d+$/.test(h)
+        );
+        if (allAreDefaultFormat) {
+          allMonthHeaders.sort((a, b) => {
+            const numA = parseInt(a.replace(/Month |act_/g, '')) || 0;
+            const numB = parseInt(b.replace(/Month |act_/g, '')) || 0;
+            if (numA > 0 && numB > 0) {
+              return numA - numB;
+            }
+            return 0;
+          });
+        }
+        
+        setMonthHeaders(allMonthHeaders);
+        
+        Object.keys(parsedWorkPlan || {}).forEach((key) => {
+          const row = parsedWorkPlan[key];
+          if (!row) return;
+
+          const activityName = row.Activities || row.activities;
+          if (!activityName || activityName.trim() === '') return;
+
+          const months: number[] = [];
+          allMonthHeaders.forEach((monthHeader, index) => {
+            const monthValue = row[monthHeader];
+            const normalized = typeof monthValue === 'string' ? monthValue.trim() : monthValue;
+            if (normalized === '' || normalized === null || normalized === undefined) return;
+            // Guard against corrupted rows where month cells mirror the activity name.
+            if (typeof normalized === 'string' && normalized.toLowerCase() === String(activityName).trim().toLowerCase()) return;
+            months.push(index);
+          });
+
+          if (months.length > 0) {
+            convertedActivities.push({
+              activity_name: activityName,
+              months
+            });
+          }
+        });
+        
+        if (convertedActivities.length > 0) {
+          setActivities(convertedActivities);
+        } else if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
+          // Fallback to API activities only when workPlan has no usable rows.
+          setActivities(data.activities);
+        } else {
+          setActivities([]);
+        }
+      } catch (e) {
+        console.error('Error parsing workPlan:', e);
+        if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
+          setActivities(data.activities);
+        } else {
+          setActivities([]);
+          setMonthHeaders([]);
+        }
+      }
+    } else if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
       // If activities exist and have data, use them and extract monthHeaders from them
       setActivities(data.activities);
       // Extract unique month headers from activities (if months are indices, we need to know the headers)
       // Since activities from API don't have month headers, we need to check workPlan for headers
       if (data.workPlan) {
         try {
-          const parsedWorkPlan = typeof data.workPlan === 'string' ? JSON.parse(data.workPlan) : data.workPlan;
+          const parsedWorkPlan = looseJsonParse<any>(data.workPlan, {});
           if (parsedWorkPlan && typeof parsedWorkPlan === 'object' && Object.keys(parsedWorkPlan).length > 0) {
             // Extract month headers from workPlan to display column headers
             const headerSet = new Set<string>();
@@ -215,118 +319,6 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
         } catch (e) {
           console.error('Error extracting month headers from workPlan:', e);
         }
-      }
-    } else if (data.workPlan) {
-      // Fallback: Convert old workPlan format to activities format
-      try {
-        const parsedWorkPlan = typeof data.workPlan === 'string' ? JSON.parse(data.workPlan) : data.workPlan;
-        const convertedActivities: Array<{ activity_name: string; months: number[] }> = [];
-        
-        // Extract column headers from the row keys in the data
-        // Column names are stored as keys in the row data when renamed
-        let allMonthHeaders: string[] = [];
-        
-        // Extract all month column headers from the data (all columns except Activities)
-        // IMPORTANT: Maintain the order they appear in the FIRST row to preserve user's column order
-        const headerSet = new Set<string>();
-        const firstRowKey = Object.keys(parsedWorkPlan)[0];
-        
-        if (firstRowKey && parsedWorkPlan[firstRowKey]) {
-          // Extract column order from the first row to preserve user's custom order
-          Object.keys(parsedWorkPlan[firstRowKey]).forEach((colKey) => {
-            // Skip the Activities column, collect all other columns as month headers
-            // IMPORTANT: Use the EXACT column key as it appears in the data
-            // If user changed "Month 1" to "Nov 14 2025", the key will be "Nov 14 2025"
-            if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
-              headerSet.add(colKey);
-              allMonthHeaders.push(colKey);
-            }
-          });
-          
-          // Also check other rows to catch any columns that might not be in the first row
-          Object.keys(parsedWorkPlan).forEach((key) => {
-            const row = parsedWorkPlan[key];
-            if (row) {
-              Object.keys(row).forEach((colKey) => {
-                if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
-                  headerSet.add(colKey);
-                  // Add to end to maintain order
-                  allMonthHeaders.push(colKey);
-                }
-              });
-            }
-          });
-        } else {
-          // Fallback: extract from all rows if first row doesn't exist
-          Object.keys(parsedWorkPlan).forEach((key) => {
-            const row = parsedWorkPlan[key];
-            if (row) {
-              Object.keys(row).forEach((colKey) => {
-                if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
-                  headerSet.add(colKey);
-                  allMonthHeaders.push(colKey);
-                }
-              });
-            }
-          });
-        }
-        
-        // DON'T sort - preserve the exact order from the data
-        // The user's column order should be maintained as they set it
-        // Only sort if ALL headers are in "Month X" or "act_X" format (default format)
-        const allAreDefaultFormat = allMonthHeaders.every(h => 
-          /^Month \d+$/.test(h) || /^act_\d+$/.test(h)
-        );
-        
-        if (allAreDefaultFormat) {
-          // Only sort if all are default format
-          allMonthHeaders.sort((a, b) => {
-            const numA = parseInt(a.replace(/Month |act_/g, '')) || 0;
-            const numB = parseInt(b.replace(/Month |act_/g, '')) || 0;
-            if (numA > 0 && numB > 0) {
-              return numA - numB;
-            }
-            return 0;
-          });
-        }
-        
-        setMonthHeaders(allMonthHeaders);
-        
-        Object.keys(parsedWorkPlan).forEach((key) => {
-          const row = parsedWorkPlan[key];
-          if (row) {
-            // Handle both "Activities" and "activities" keys
-            const activityName = row.Activities || row.activities;
-            if (activityName && activityName.trim() !== '') {
-              const months: number[] = [];
-              
-              // Check each month header
-              allMonthHeaders.forEach((monthHeader, index) => {
-                const monthValue = row[monthHeader];
-                
-                // Check if month is assigned (has a value, even if it's the activity name)
-                if (monthValue && monthValue !== '' && monthValue !== null) {
-                  // If it has a value (even if it's the activity name), it's checked
-                  months.push(index);
-                }
-              });
-              
-              // Only add activities that have at least one month assigned
-              if (months.length > 0) {
-                convertedActivities.push({
-                  activity_name: activityName,
-                  months: months
-                });
-              }
-            }
-          }
-        });
-        
-        if (convertedActivities.length > 0) {
-          setActivities(convertedActivities);
-        }
-      } catch (e) {
-        console.error('Error parsing workPlan:', e);
       }
     } else {
       // If neither activities nor workPlan exist, reset to empty state
