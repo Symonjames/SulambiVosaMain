@@ -154,7 +154,7 @@ def getVolunteerDropoutAnalytics(year=None):
                 cursor.execute("""
                     SELECT table_name FROM information_schema.tables 
                     WHERE table_schema = 'public' 
-                    AND table_name = 'volunteerParticipationHistory'
+                    AND lower(table_name) = 'volunteerparticipationhistory'
                 """)
             else:
                 # SQLite: use sqlite_master
@@ -171,7 +171,7 @@ def getVolunteerDropoutAnalytics(year=None):
                     cursor.execute("""
                         SELECT table_name FROM information_schema.tables 
                         WHERE table_schema = 'public' 
-                        AND table_name = 'volunteerParticipationHistory'
+                        AND lower(table_name) = 'volunteerparticipationhistory'
                     """)
                     table_exists = cursor.fetchone()
                 except Exception as e2:
@@ -224,16 +224,22 @@ def getVolunteerDropoutAnalytics(year=None):
         # Get semester data from participation history table
         try:
             from ..database.connection import convert_placeholders
+            vph_volunteer_email_col = '"volunteerEmail"' if is_postgresql else 'volunteerEmail'
+            vph_events_joined_col = '"eventsJoined"' if is_postgresql else 'eventsJoined'
+            vph_events_attended_col = '"eventsAttended"' if is_postgresql else 'eventsAttended'
+            vph_events_dropped_col = '"eventsDropped"' if is_postgresql else 'eventsDropped'
+            vph_attendance_rate_col = '"attendanceRate"' if is_postgresql else 'attendanceRate'
+            vph_semester_year_col = '"semesterYear"' if is_postgresql else 'semesterYear'
             if year:
                 query = f"""
                     SELECT semester, 
-                           COUNT(DISTINCT volunteerEmail) as total_volunteers,
-                           SUM(eventsJoined) as total_joined,
-                           SUM(eventsAttended) as total_attended,
-                           SUM(eventsDropped) as total_dropped,
-                           AVG(attendanceRate) as avg_attendance_rate
+                           COUNT(DISTINCT {vph_volunteer_email_col}) as total_volunteers,
+                           SUM({vph_events_joined_col}) as total_joined,
+                           SUM({vph_events_attended_col}) as total_attended,
+                           SUM({vph_events_dropped_col}) as total_dropped,
+                           AVG({vph_attendance_rate_col}) as avg_attendance_rate
                     FROM {vph_table}
-                    WHERE semesterYear = ?
+                    WHERE {vph_semester_year_col} = ?
                     GROUP BY semester
                     ORDER BY semester
                 """
@@ -242,11 +248,11 @@ def getVolunteerDropoutAnalytics(year=None):
             else:
                 cursor.execute(f"""
                     SELECT semester, 
-                           COUNT(DISTINCT volunteerEmail) as total_volunteers,
-                           SUM(eventsJoined) as total_joined,
-                           SUM(eventsAttended) as total_attended,
-                           SUM(eventsDropped) as total_dropped,
-                           AVG(attendanceRate) as avg_attendance_rate
+                           COUNT(DISTINCT {vph_volunteer_email_col}) as total_volunteers,
+                           SUM({vph_events_joined_col}) as total_joined,
+                           SUM({vph_events_attended_col}) as total_attended,
+                           SUM({vph_events_dropped_col}) as total_dropped,
+                           AVG({vph_attendance_rate_col}) as avg_attendance_rate
                     FROM {vph_table}
                     GROUP BY semester
                     ORDER BY semester
@@ -281,17 +287,24 @@ def getVolunteerDropoutAnalytics(year=None):
         # This ensures we're reading from the membership table as the source of truth
         try:
             from ..database.connection import convert_boolean_condition
+            vph_last_event_date_col = 'vph."lastEventDate"' if is_postgresql else 'vph.lastEventDate'
+            vph_events_joined_col = 'vph."eventsJoined"' if is_postgresql else 'vph.eventsJoined'
+            vph_events_attended_col = 'vph."eventsAttended"' if is_postgresql else 'vph.eventsAttended'
+            vph_attendance_rate_col = 'vph."attendanceRate"' if is_postgresql else 'vph.attendanceRate'
+            vph_semester_col = 'vph.semester'
+            vph_volunteer_email_col = 'vph."volunteerEmail"' if is_postgresql else 'vph.volunteerEmail'
+
             query = f"""
                 SELECT 
                     m.email,
                     m.fullname,
-                    COALESCE(MAX(vph.lastEventDate), 0) as most_recent_date,
-                    COALESCE(SUM(vph.eventsJoined), 0) as total_joined,
-                    COALESCE(SUM(vph.eventsAttended), 0) as total_attended,
-                    COALESCE(AVG(vph.attendanceRate), 0) as avg_attendance_rate,
-                    COALESCE(COUNT(DISTINCT vph.semester), 0) as semesters_active
+                    COALESCE(MAX({vph_last_event_date_col}), 0) as most_recent_date,
+                    COALESCE(SUM({vph_events_joined_col}), 0) as total_joined,
+                    COALESCE(SUM({vph_events_attended_col}), 0) as total_attended,
+                    COALESCE(AVG({vph_attendance_rate_col}), 0) as avg_attendance_rate,
+                    COALESCE(COUNT(DISTINCT {vph_semester_col}), 0) as semesters_active
                 FROM {membership_table} m
-                LEFT JOIN {vph_table} vph ON m.email = vph.volunteerEmail
+                LEFT JOIN {vph_table} vph ON m.email = {vph_volunteer_email_col}
                 WHERE m.accepted = 1 AND m.active = 1
                 GROUP BY m.email, m.fullname
             """
@@ -331,8 +344,9 @@ def getVolunteerDropoutAnalytics(year=None):
             
             # Calculate days since last event
             inactivity_days = 0
-            if most_recent_date and most_recent_date > 0:
-                inactivity_days = int((current_time_ms - most_recent_date) / ms_per_day)
+            most_recent_dt = _timestamp_to_datetime(most_recent_date)
+            if most_recent_dt is not None:
+                inactivity_days = int((datetime.now().timestamp() - most_recent_dt.timestamp()) / (60 * 60 * 24))
             elif total_joined == 0 and total_attended == 0:
                 # If member has never participated, use a high inactivity days value
                 # This ensures members with no participation are flagged as high risk
@@ -380,8 +394,8 @@ def getVolunteerDropoutAnalytics(year=None):
             # Only include volunteers with risk score >= 50
             if risk_score >= 50:
                 last_event_str = None
-                if most_recent_date and most_recent_date > 0:
-                    last_event_str = datetime.fromtimestamp(most_recent_date / 1000).strftime('%Y-%m-%d')
+                if most_recent_dt is not None:
+                    last_event_str = most_recent_dt.strftime('%Y-%m-%d')
                 
                 at_risk_volunteers.append({
                     "name": name,
