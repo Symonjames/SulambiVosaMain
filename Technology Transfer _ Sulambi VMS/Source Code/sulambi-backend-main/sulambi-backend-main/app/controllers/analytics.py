@@ -862,69 +862,81 @@ def getSatisfactionAnalytics(year=None):
             except Exception:
                 return float(default)
 
-        # 0) Prefer pre-aggregated semester_satisfaction only when no year filter (so 2026/new years use live data)
-        if not year:
-            try:
-                from ..database.connection import cursorInstance
-                conn, cursor = cursorInstance()
-                from ..database.connection import table_name_for_query
-                semester_satisfaction_table = table_name_for_query('semester_satisfaction')
-                from ..database.connection import convert_placeholders
-                from ..database.connection import DATABASE_URL, is_postgresql_url
-                is_postgresql = is_postgresql_url(DATABASE_URL)
-                if is_postgresql:
-                    topIssues_col = '"topIssues"'
-                else:
-                    topIssues_col = 'topIssues'
+        # 0) Prefer pre-aggregated semester_satisfaction first (both all-years and year-specific requests).
+        # If no rows are found, fall back to live/raw table computation below.
+        try:
+            from ..database.connection import cursorInstance
+            conn, cursor = cursorInstance()
+            from ..database.connection import table_name_for_query
+            semester_satisfaction_table = table_name_for_query('semester_satisfaction')
+            from ..database.connection import convert_placeholders
+            from ..database.connection import DATABASE_URL, is_postgresql_url
+            is_postgresql = is_postgresql_url(DATABASE_URL)
+            if is_postgresql:
+                topIssues_col = '"topIssues"'
+            else:
+                topIssues_col = 'topIssues'
+
+            if year:
+                query = f"""
+                    SELECT year, semester, overall, volunteers, beneficiaries, {topIssues_col}
+                    FROM {semester_satisfaction_table}
+                    WHERE year = ?
+                    ORDER BY year ASC, semester ASC
+                """
+                query = convert_placeholders(query)
+                cursor.execute(query, (int(year),))
+            else:
                 query = f"""
                     SELECT year, semester, overall, volunteers, beneficiaries, {topIssues_col}
                     FROM {semester_satisfaction_table}
                     ORDER BY year ASC, semester ASC
                 """
                 cursor.execute(query)
-                rows = cursor.fetchall()
-                conn.close()
-                if rows and len(rows) > 0:
-                    satisfactionData = []
-                    issues_counter = {}
-                    for y, sem, ov, vol, ben, topIssues in rows:
-                        satisfactionData.append({
-                            "semester": f"{y}-{sem}",
-                            "score": round(float(ov or 0), 1),
-                            "volunteers": round(float(vol or 0), 1),
-                            "beneficiaries": round(float(ben or 0), 1),
-                        })
-                        try:
-                            if isinstance(topIssues, str):
-                                parsed = eval(topIssues) if topIssues.strip().startswith("[") else []
-                            else:
-                                parsed = topIssues or []
-                            for it in parsed:
-                                issues_counter[it.get("issue", "Issue")] = issues_counter.get(it.get("issue", "Issue"), 0) + int(it.get("frequency", 1))
-                        except Exception:
-                            pass
-                    overall_avg = sum([item["score"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-                    volunteer_avg = sum([item["volunteers"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-                    beneficiary_avg = sum([item["beneficiaries"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-                    top_issues = [{"issue": k, "frequency": v, "category": "volunteers"} for k, v in sorted(issues_counter.items(), key=lambda x: x[1], reverse=True)[:5]]
-                    return {
-                        "success": True,
-                        "data": {
-                            "satisfactionData": satisfactionData,
-                            "topIssues": top_issues,
-                            "averageScore": round(overall_avg, 1),
-                            "volunteerScore": round(volunteer_avg, 1),
-                            "beneficiaryScore": round(beneficiary_avg, 1),
-                            "totalEvaluations": 0,
-                            "processedEvaluations": 0,
-                            "volunteerCount": 0,
-                            "beneficiaryCount": 0,
-                            "totalCount": 0
-                        },
-                        "message": "Satisfaction analytics retrieved from pre-aggregated store"
-                    }
-            except Exception as _:
-                pass
+
+            rows = cursor.fetchall()
+            conn.close()
+            if rows and len(rows) > 0:
+                satisfactionData = []
+                issues_counter = {}
+                for y, sem, ov, vol, ben, topIssues in rows:
+                    satisfactionData.append({
+                        "semester": f"{y}-{sem}",
+                        "score": round(float(ov or 0), 1),
+                        "volunteers": round(float(vol or 0), 1),
+                        "beneficiaries": round(float(ben or 0), 1),
+                    })
+                    try:
+                        if isinstance(topIssues, str):
+                            parsed = eval(topIssues) if topIssues.strip().startswith("[") else []
+                        else:
+                            parsed = topIssues or []
+                        for it in parsed:
+                            issues_counter[it.get("issue", "Issue")] = issues_counter.get(it.get("issue", "Issue"), 0) + int(it.get("frequency", 1))
+                    except Exception:
+                        pass
+                overall_avg = sum([item["score"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
+                volunteer_avg = sum([item["volunteers"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
+                beneficiary_avg = sum([item["beneficiaries"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
+                top_issues = [{"issue": k, "frequency": v, "category": "volunteers"} for k, v in sorted(issues_counter.items(), key=lambda x: x[1], reverse=True)[:5]]
+                return {
+                    "success": True,
+                    "data": {
+                        "satisfactionData": satisfactionData,
+                        "topIssues": top_issues,
+                        "averageScore": round(overall_avg, 1),
+                        "volunteerScore": round(volunteer_avg, 1),
+                        "beneficiaryScore": round(beneficiary_avg, 1),
+                        "totalEvaluations": 0,
+                        "processedEvaluations": 0,
+                        "volunteerCount": 0,
+                        "beneficiaryCount": 0,
+                        "totalCount": 0
+                    },
+                    "message": "Satisfaction analytics retrieved from pre-aggregated store"
+                }
+        except Exception as _:
+            pass
 
         # Get all evaluations with their requirement and event info
         from ..database.connection import cursorInstance
