@@ -1,6 +1,6 @@
 import { CheckBoxText, RomanListValues } from "./ExternalEventForm";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { InternalEventProposalType } from "../../../interface/types";
 
@@ -125,6 +125,46 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
   );
   const [activities, setActivities] = useState<Array<{ activity_name: string; months: number[] }>>([]);
   const [monthHeaders, setMonthHeaders] = useState<string[]>([]);
+
+  const renderedWorkPlan = useMemo(() => {
+    const parsedWorkPlan = looseJsonParse<any>(data.workPlan, {});
+    if (!parsedWorkPlan || typeof parsedWorkPlan !== "object" || Array.isArray(parsedWorkPlan)) {
+      return { headers: [] as string[], rows: [] as Array<{ activity: string; cells: Record<string, string> }> };
+    }
+
+    const rowKeys = Object.keys(parsedWorkPlan).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+    const headers: string[] = [];
+    const headerSet = new Set<string>();
+
+    rowKeys.forEach((k) => {
+      const row = parsedWorkPlan[k];
+      if (!row || typeof row !== "object") return;
+      Object.keys(row).forEach((colKey) => {
+        if (colKey === "Activities" || colKey === "activities") return;
+        if (!headerSet.has(colKey)) {
+          headerSet.add(colKey);
+          headers.push(colKey);
+        }
+      });
+    });
+
+    const rows = rowKeys
+      .map((k) => {
+        const row = parsedWorkPlan[k];
+        if (!row || typeof row !== "object") return null;
+        const activity = String(row.Activities ?? row.activities ?? "").trim();
+        if (!activity) return null;
+        const cells: Record<string, string> = {};
+        headers.forEach((h) => {
+          const val = row[h];
+          cells[h] = val === null || val === undefined ? "" : String(val);
+        });
+        return { activity, cells };
+      })
+      .filter(Boolean) as Array<{ activity: string; cells: Record<string, string> }>;
+
+    return { headers, rows };
+  }, [data.workPlan]);
 
   useEffect(() => {
     // Parse evaluationMechanicsPlan - handle both string and object formats
@@ -551,16 +591,16 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                   ]}
                 />
               <div style={{ width: "90%", margin: "0 auto" }}>
-                {activities.length > 0 && monthHeaders.length > 0 ? (
+                {((renderedWorkPlan.rows.length > 0 && renderedWorkPlan.headers.length > 0) || (activities.length > 0 && monthHeaders.length > 0)) ? (
                   <div className="workplan-table-wrapper" style={{ overflow: "hidden", width: "100%" }}>
                     <table className="bsuFormChild workplan-table internal-event-table-with-top-border" style={{ overflow: "hidden", width: "100%", borderTop: "1px solid black" }}>
-                      <ColSizeGen colSize={monthHeaders.length + 1} percentage={`${100 / (monthHeaders.length + 1)}%`} />
+                      <ColSizeGen colSize={(renderedWorkPlan.headers.length || monthHeaders.length) + 1} percentage={`${100 / ((renderedWorkPlan.headers.length || monthHeaders.length) + 1)}%`} />
                       <tbody>
                         <tr>
                           <td colSpan={1} style={{ textAlign: "center", fontWeight: "normal", borderTop: "1px solid black", padding: "4px 6px", fontSize: "11px" }} className="fontSet">
                             Activities
                           </td>
-                          {monthHeaders.map((header, headerIndex) => {
+                          {(renderedWorkPlan.headers.length > 0 ? renderedWorkPlan.headers : monthHeaders).map((header, headerIndex) => {
                             // Display EXACTLY what the officer entered - no processing, no stripping
                             // If they put "Nov 14 2025", show "Nov 14 2025"
                             // If they put "Month 1", show "Month 1"
@@ -578,7 +618,18 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                             );
                           })}
                         </tr>
-                        {activities.map((activity, rowIndex) => (
+                        {(renderedWorkPlan.rows.length > 0
+                          ? renderedWorkPlan.rows.map((row) => ({
+                              activity_name: row.activity,
+                              cells: row.cells,
+                              months: [] as number[],
+                            }))
+                          : activities.map((activity) => ({
+                              activity_name: activity.activity_name,
+                              cells: {} as Record<string, string>,
+                              months: activity.months,
+                            }))
+                        ).map((activity, rowIndex) => (
                           <tr key={rowIndex}>
                             <td
                               colSpan={1}
@@ -587,14 +638,16 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                             >
                               {activity.activity_name}
                             </td>
-                            {monthHeaders.map((_, headerIndex) => (
+                            {(renderedWorkPlan.headers.length > 0 ? renderedWorkPlan.headers : monthHeaders).map((header, headerIndex) => (
                               <td
                                 key={headerIndex}
                                 colSpan={1}
                                 style={{ textAlign: "center", padding: "4px 6px", fontSize: "11px" }}
                                 className="fontSet"
                               >
-                                {activity.months.includes(headerIndex) ? "X" : ""}
+                                {renderedWorkPlan.rows.length > 0
+                                  ? (activity.cells[header] || "")
+                                  : (activity.months.includes(headerIndex) ? "X" : "")}
                               </td>
                             ))}
                           </tr>
