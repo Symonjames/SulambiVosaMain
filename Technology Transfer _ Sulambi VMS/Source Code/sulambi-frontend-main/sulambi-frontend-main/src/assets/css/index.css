@@ -209,6 +209,17 @@ table.bsuForm ~ table.bsuFormChild {
   margin-bottom: 0 !important;
 }
 
+/* Tighter spacing for GAD Proposal templates only */
+.bsu-form-wrapper.gad-proposal-form > table.bsuForm,
+.bsu-form-wrapper.gad-proposal-form > table.bsuForm:first-child {
+  margin-top: 2px !important;
+}
+
+.bsu-form-wrapper.gad-proposal-form > table.bsuForm + table.bsuFormChild,
+.bsu-form-wrapper.gad-proposal-form > table.bsuForm ~ table.bsuFormChild {
+  margin-bottom: 4px !important;
+}
+
 /* Force connection - override all margins for direct siblings */
 table.bsuForm {
   border-bottom: none !important;
