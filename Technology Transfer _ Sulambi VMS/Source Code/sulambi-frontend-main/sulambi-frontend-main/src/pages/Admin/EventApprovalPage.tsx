@@ -46,6 +46,7 @@ const EventApproval = () => {
   const [searchParams] = useSearchParams();
 
   const [searchVal, setSearchVal] = useState("");
+  const [debouncedSearchVal, setDebouncedSearchVal] = useState("");
   const [refreshTable, setRefreshTable] = useState(0);
   const [actionName, setActionName] = useState<"Reject" | "Approve">("Reject");
   const [targetId, setTargetId] = useState<number>();
@@ -87,6 +88,18 @@ const EventApproval = () => {
   const [showEvaluationList, setShowEvaluationList] = useState(false);
   const [showEventAnalysis, setShowEventAnalysis] = useState(false);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchVal(searchVal), 250);
+    return () => clearTimeout(timer);
+  }, [searchVal]);
+
+  const normalizeText = (value: unknown) =>
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
   // Use cached fetch - data persists when navigating away and coming back!
   const { data: eventsResponse, loading } = useCachedFetch({
     cacheKey: 'event_approval_events',
@@ -104,9 +117,17 @@ const EventApproval = () => {
       eventsResponse.events || 
       [...(eventsResponse.external || []), ...(eventsResponse.internal || [])];
 
+    const terms = normalizeText(debouncedSearchVal).split(" ").filter(Boolean);
     const filteredData = eventData
       .filter((event: any) => {
-        return event.title.toLowerCase().includes(searchVal);
+        if (!terms.length) return true;
+        const haystack = normalizeText([
+          event.title,
+          event.createdBy?.username,
+          event.eventTypeIndicator,
+          event.status,
+        ].join(" "));
+        return terms.every((term) => haystack.includes(term));
       })
       .filter((event: any) => {
         if (searchFilter.type === "") return true;
@@ -221,7 +242,7 @@ const EventApproval = () => {
       });
 
     setTableData(filteredData);
-  }, [eventsResponse, refreshTable, searchFilter, hideReportedEvents, searchVal]);
+  }, [eventsResponse, refreshTable, searchFilter, hideReportedEvents, debouncedSearchVal]);
 
   const CustomComponents = [
     <CustomDropdown
@@ -447,7 +468,7 @@ const EventApproval = () => {
             componentOnLeft={CustomLeftComponents}
             componentBeforeSearch={CustomComponents}
             data={tableData}
-            onSearch={(key) => setSearchVal(key.toLowerCase())}
+            onSearch={(key) => setSearchVal(key)}
             searchPlaceholder="Search by event title only"
           />
         )}

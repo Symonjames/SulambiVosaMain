@@ -29,6 +29,7 @@ const ReportPage = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
   const [reportData, setReportData] = useState<any[]>([]);
   const [searchReport, setSearchReport] = useState("");
+  const [debouncedSearchReport, setDebouncedSearchReport] = useState("");
   const [textPos, setTextPos] = useState<"left" | "justify">("left");
 
   const [openUpdateSignatories, setOpenUpdateSignatories] = useState(false);
@@ -58,6 +59,18 @@ const ReportPage = () => {
     cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
     useMemoryCache: true, // Fast memory cache for navigation
   });
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchReport(searchReport), 250);
+    return () => clearTimeout(timer);
+  }, [searchReport]);
+
+  const normalizeText = (value: unknown) =>
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
   const viewExternalReportAction = (rowData: ExternalReportType) => {
     // Clear any existing form data to ensure clean state
@@ -151,16 +164,18 @@ const ReportPage = () => {
     const externalReport: ExternalReportType[] = reportsResponse.external || [];
     const internalReport: InternalReportType[] = reportsResponse.internal || [];
 
-    console.log("External reports:", externalReport);
-    console.log("Internal reports:", internalReport);
+    const terms = normalizeText(debouncedSearchReport).split(" ").filter(Boolean);
+    const matchesSearch = (title: string) => {
+      if (!terms.length) return true;
+      const hay = normalizeText(title);
+      return terms.every((t) => hay.includes(t));
+    };
 
     const newReportData = [
         ...externalReport
           .filter((report) => {
-            if (searchReport === "") return true;
-            return (report.eventId?.title as string)
-              .toLowerCase()
-              .includes(searchReport.toLowerCase());
+            const title = String(report.eventId?.title || "");
+            return matchesSearch(title);
           })
           .map((report) => {
             return [
@@ -188,10 +203,8 @@ const ReportPage = () => {
           }),
         ...internalReport
           .filter((report) => {
-            if (searchReport === "") return true;
-            return (report.eventId?.title as string)
-              .toLowerCase()
-              .includes(searchReport.toLowerCase());
+            const title = String(report.eventId?.title || "");
+            return matchesSearch(title);
           })
           .map((report) => {
             return [
@@ -219,14 +232,13 @@ const ReportPage = () => {
           }),
       ];
       
-    console.log("New report data:", newReportData);
     setReportData(newReportData);
   };
 
   // Process reports when cached data changes or search changes
   useEffect(() => {
     refreshReportList();
-  }, [reportsResponse, searchReport]);
+  }, [reportsResponse, debouncedSearchReport]);
 
   return (
     <>

@@ -136,6 +136,13 @@ const RequirementEvalPage = () => {
     rejected: <Chip bgcolor="#c10303" label="rejected" color="white" />,
   }), []);
 
+  const normalizeText = (value: unknown) =>
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
   const tableData = useMemo(() => {
     if (!allRequirementsData.length) return [];
 
@@ -159,9 +166,9 @@ const RequirementEvalPage = () => {
 
     const afterSearch = normalizedData.filter((req) => {
       if (!debouncedSearchVal || !debouncedSearchVal.trim()) return true;
-      const terms = debouncedSearchVal.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      const terms = normalizeText(debouncedSearchVal).split(" ").filter(Boolean);
       if (!terms.length) return true;
-      const text = [
+      const text = normalizeText([
         req.eventId?.title ?? "Unknown Event",
         req.fullname ?? "",
         req.srcode ?? "",
@@ -172,7 +179,7 @@ const RequirementEvalPage = () => {
         req.address ?? "",
         req.contactNum ?? "",
         req.type ?? "",
-      ].join(" ").toLowerCase();
+      ].join(" "));
       return terms.every((t) => text.includes(t));
     });
 

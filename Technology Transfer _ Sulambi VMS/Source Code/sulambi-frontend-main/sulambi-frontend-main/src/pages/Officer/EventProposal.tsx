@@ -53,9 +53,11 @@ const EventProposal = () => {
 
   const [showFormPreview, setShowFormPreview] = useState(false);
   const [searchVal, setSearchVal] = useState("");
+  const [debouncedSearchVal, setDebouncedSearchVal] = useState("");
   const [openUpdateSignatories, setOpenUpdateSignatories] = useState(false);
   const [signatoryId, setSignatoryId] = useState<number | null>(null);
 
+  const [allEventsData, setAllEventsData] = useState<any[]>([]);
   const [tableData, setTableData] = useState<any>([]);
   const [refreshTable, setRefreshTable] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -85,6 +87,18 @@ const EventProposal = () => {
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ id: number; type: "external" | "internal" } | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchVal(searchVal), 250);
+    return () => clearTimeout(timer);
+  }, [searchVal]);
+
+  const normalizeText = (value: unknown) =>
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
   const chipMap = {
     editing: <Chip bgcolor="blue" label="editing" color="white" />,
@@ -151,30 +165,41 @@ const EventProposal = () => {
           | ExternalEventProposalType
           | InternalEventProposalType
         )[] = events.data.events;
+        setAllEventsData(sortedEventData);
+        setLoading(false);
+      } catch (err: any) {
+        console.log(err);
+        setAllEventsData([]);
+        setLoading(false);
+      }
+    })();
+  }, [refreshTable]);
 
-        // const externalEventData: ExternalEventProposalType[] =
-        //   events.data.external;
-        // const internalEventData: InternalEventProposalType[] =
-        //   events.data.internal;
-
-        setTableData(
-          sortedEventData
-            .filter((event) => {
-              if (searchVal === "") return true;
-              return (
-                event.title.toLowerCase().includes(searchVal) ||
-                event.status.toLowerCase().includes(searchVal)
-              );
-            })
-            .filter((event) => {
-              if (searchStatus === "") return true;
-              return event.status === searchStatus;
-            })
-            .filter((event: any) => {
-              if (searchFilter.type === "") return true;
-              return event.eventTypeIndicator === searchFilter.type;
-            })
-            .map((eventdata: any) => [
+  useEffect(() => {
+    const terms = normalizeText(debouncedSearchVal).split(" ").filter(Boolean);
+    setTableData(
+      allEventsData
+        .filter((event: any) => {
+          if (!terms.length) return true;
+          const haystack = normalizeText(
+            [
+              event.title,
+              event.status,
+              event.eventTypeIndicator,
+              event.createdBy?.username,
+            ].join(" ")
+          );
+          return terms.every((term) => haystack.includes(term));
+        })
+        .filter((event: any) => {
+          if (searchStatus === "") return true;
+          return event.status === searchStatus;
+        })
+        .filter((event: any) => {
+          if (searchFilter.type === "") return true;
+          return event.eventTypeIndicator === searchFilter.type;
+        })
+        .map((eventdata: any) => [
               eventdata.title,
               eventdata.eventTypeIndicator,
               chipMap[
@@ -291,14 +316,8 @@ const EventProposal = () => {
                 />
               ),
             ])
-        );
-        setLoading(false);
-      } catch (err: any) {
-        console.log(err);
-        setLoading(false);
-      }
-    })();
-  }, [refreshTable, searchFilter, searchVal, searchStatus]);
+    );
+  }, [allEventsData, debouncedSearchVal, searchFilter.type, searchStatus]);
 
   const ModRightComponents = [
     <CustomDropdown
@@ -656,7 +675,7 @@ const EventProposal = () => {
             searchPlaceholder="Search name of event"
             searchOnSubmitOnly
             onSearch={(key) => {
-              setSearchVal(key.toLowerCase().trim());
+              setSearchVal(key);
             }}
           />
         )}
