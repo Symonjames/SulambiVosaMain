@@ -29,6 +29,21 @@ const EventDetail: React.FC<Props> = (props) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const toDisplayText = (value: unknown): string => {
+    if (value == null) return "N/A";
+    const raw = String(value);
+    if (!raw.trim()) return "N/A";
+
+    // Convert rich-text HTML content (e.g. "<p>...</p>") to plain display text.
+    const stripped = raw
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return stripped || "N/A";
+  };
+
   useEffect(() => {
     if (!open) {
       setResponse(undefined);
@@ -91,9 +106,10 @@ const EventDetail: React.FC<Props> = (props) => {
             </Typography>
             <Typography>
               <b>Beneficiaries : </b>{" "}
-              {(response.event as ExternalEventProposalType)?.beneficiaries ??
-                (response.event as InternalEventProposalType)?.participant ??
-                "N/A"}
+              {toDisplayText(
+                (response.event as ExternalEventProposalType)?.beneficiaries ??
+                  (response.event as InternalEventProposalType)?.participant
+              )}
             </Typography>
             <Typography component="div">
               <b>Description : </b>{" "}
