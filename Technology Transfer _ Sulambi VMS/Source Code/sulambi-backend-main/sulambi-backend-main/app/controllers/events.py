@@ -14,6 +14,7 @@ from flask import request, g
 from datetime import datetime
 import random
 from ..database import connection
+from ..database.connection import table_name_for_query, convert_placeholders
 
 ExternalEventDb = ExternalEventModel()
 InternalEventDb = InternalEventModel()
@@ -85,27 +86,58 @@ def getAll():
       if event.get("id"):
         all_internal_event_ids.append(event["id"])
     
-    # Batch fetch accounts
+    # Batch fetch accounts/signatories with a single query per table (with safe fallback)
     accounts_map = {}
-    if all_created_by_ids:
+    signatories_map = {}
+    try:
+      conn, cursor = connection.cursorInstance()
+
+      if all_created_by_ids:
+        account_ids = list(all_created_by_ids)
+        placeholders = ",".join(["?" for _ in account_ids])
+        accounts_table = table_name_for_query("accounts")
+        account_query = convert_placeholders(
+          f"SELECT * FROM {accounts_table} WHERE id IN ({placeholders})"
+        )
+        cursor.execute(account_query, tuple(account_ids))
+        rows = cursor.fetchall() or []
+        col_names = [d[0] for d in cursor.description] if cursor.description else []
+        for row in rows:
+          row_dict = {col_names[i]: row[i] for i in range(len(col_names))}
+          if row_dict.get("id") is not None:
+            accounts_map[row_dict["id"]] = row_dict
+
+      if all_signatory_ids:
+        signatory_ids = list(all_signatory_ids)
+        placeholders = ",".join(["?" for _ in signatory_ids])
+        signatories_table = table_name_for_query("eventSignatories")
+        signatory_query = convert_placeholders(
+          f"SELECT * FROM {signatories_table} WHERE id IN ({placeholders})"
+        )
+        cursor.execute(signatory_query, tuple(signatory_ids))
+        rows = cursor.fetchall() or []
+        col_names = [d[0] for d in cursor.description] if cursor.description else []
+        for row in rows:
+          row_dict = {col_names[i]: row[i] for i in range(len(col_names))}
+          if row_dict.get("id") is not None:
+            signatories_map[row_dict["id"]] = row_dict
+      conn.close()
+    except Exception as e:
+      print(f"Bulk account/signatory fetch failed, using fallback: {e}")
       for account_id in all_created_by_ids:
         try:
           account = AccountDb.get(account_id)
           if account:
             accounts_map[account_id] = account
-        except Exception as e:
-          print(f"Error fetching account {account_id}: {e}")
-    
-    # Batch fetch signatories
-    signatories_map = {}
-    if all_signatory_ids:
+        except Exception:
+          pass
       for signatory_id in all_signatory_ids:
         try:
           signatory = SignatoriesDb.get(signatory_id)
           if signatory:
             signatories_map[signatory_id] = signatory
-        except Exception as e:
-          print(f"Error fetching signatory {signatory_id}: {e}")
+        except Exception:
+          pass
     
     # Batch check for reports (one query per report type instead of per event)
     try:
@@ -295,16 +327,34 @@ def _duration_end_ms(value):
     return v * 1000
   return v
 
+def _duration_start_ms(value):
+  """Normalize durationStart to milliseconds (DB may store seconds or ms)."""
+  v = int(value or 0)
+  if v <= 0:
+    return 0
+  if v < 1e12:
+    return v * 1000
+  return v
+
+def _is_event_open_for_beneficiary_evaluation(duration_start, duration_end, now_ms):
+  """Eligible when ongoing OR ended within last 7 days."""
+  start_ms = _duration_start_ms(duration_start)
+  end_ms = _duration_end_ms(duration_end)
+  if start_ms <= 0 or end_ms <= 0:
+    return False
+  ongoing = start_ms <= now_ms < end_ms
+  ended_within_week = end_ms <= now_ms and end_ms >= (now_ms - (7 * 24 * 60 * 60 * 1000))
+  return ongoing or ended_within_week
+
 
 def getBeneficiaryEligibleEvents():
   """
   Public route. Returns events eligible for beneficiary evaluation:
-  public, accepted (or similar), ended within the last 7 days only.
+  public, accepted (or similar), and within evaluation window
+  (ongoing OR ended within the last 7 days).
   Each event includes requiresBeneficiaryPin (true if event has a PIN set).
   """
   time_now_ms = int(datetime.now().timestamp() * 1000)
-  seven_days_ms = 7 * 24 * 60 * 60 * 1000
-  cutoff_ms = time_now_ms - seven_days_ms
 
   allExternalEvents = ExternalEventDb.getAll()
   allInternalEvents = InternalEventDb.getAll()
@@ -313,10 +363,8 @@ def getBeneficiaryEligibleEvents():
   for event in allExternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
     to_public = event.get("toPublic") in (True, 1, "true", "1")
-    duration_end = _duration_end_ms(event.get("durationEnd"))
-    ended = duration_end <= time_now_ms
-    within_week = duration_end >= cutoff_ms
-    if status_lower not in ["editing", "rejected"] and to_public and ended and within_week:
+    in_window = _is_event_open_for_beneficiary_evaluation(event.get("durationStart"), event.get("durationEnd"), time_now_ms)
+    if status_lower not in ["editing", "rejected"] and to_public and in_window:
       pin_val = (event.get("beneficiaryEvaluationPin") or "").strip()
       if not pin_val:
         continue  # every event must have a PIN for beneficiary evaluation; skip if missing
@@ -330,10 +378,8 @@ def getBeneficiaryEligibleEvents():
   for event in allInternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
     to_public = event.get("toPublic") in (True, 1, "true", "1")
-    duration_end = _duration_end_ms(event.get("durationEnd"))
-    ended = duration_end <= time_now_ms
-    within_week = duration_end >= cutoff_ms
-    if status_lower not in ["editing", "rejected"] and to_public and ended and within_week:
+    in_window = _is_event_open_for_beneficiary_evaluation(event.get("durationStart"), event.get("durationEnd"), time_now_ms)
+    if status_lower not in ["editing", "rejected"] and to_public and in_window:
       pin_val = (event.get("beneficiaryEvaluationPin") or "").strip()
       if not pin_val:
         continue  # every event must have a PIN for beneficiary evaluation; skip if missing
@@ -603,7 +649,13 @@ def editExternalEventStatus(id, status: str):
   if (externalEvent["createdBy"] != accountSessionInfo["id"] and status == "submitted"):
     return ({ "message": "You have no permission to submit this event" }, 403)
 
-  ExternalEventDb.updateSpecific(id, ["status"], (status,))
+  update_fields = ["status"]
+  update_values = [status]
+  # Newly approved events should be visible on homepage/public feeds.
+  if str(status).lower().strip() == "accepted":
+    update_fields.append("toPublic")
+    update_values.append(True)
+  ExternalEventDb.updateSpecific(id, update_fields, tuple(update_values))
   updatedData = ExternalEventDb.get(id)
   return {
     "data": updatedData,
@@ -620,7 +672,13 @@ def editInternalEventStatus(id, status: str):
   if (internalEvent["createdBy"] != accountSessionInfo["id"] and status == "submitted"):
     return ({ "message": "You have no permission to submit this event" }, 403)
 
-  InternalEventDb.updateSpecific(id, ["status"], (status,))
+  update_fields = ["status"]
+  update_values = [status]
+  # Newly approved events should be visible on homepage/public feeds.
+  if str(status).lower().strip() == "accepted":
+    update_fields.append("toPublic")
+    update_values.append(True)
+  InternalEventDb.updateSpecific(id, update_fields, tuple(update_values))
   updatedData = InternalEventDb.get(id)
   return {
     "data": updatedData,

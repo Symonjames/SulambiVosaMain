@@ -10,7 +10,7 @@ import DangerousIcon from "@mui/icons-material/Dangerous";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { getDashboardAnalytics, getDashboardSummary } from "../api/dashboard";
 // REMOVED: clearAnalyticsData import - was deleting data on every page load
@@ -27,7 +27,6 @@ import SelectionCard from "../components/Cards/SelectionCard";
 import { getAllEvents } from "../api/events";
 import EventDetail from "../components/Popups/EventDetail";
 import ActiveMembersDashboard from "../components/Popups/ActiveMembersDashboard";
-import { getPublicReports } from "../api/reports";
 import { useNavigate } from "react-router-dom";
 import PredictiveSatisfactionRatings from "../components/Analytics/PredictiveSatisfactionRatings";
 import DropoutRiskAssessment from "../components/Analytics/DropoutRiskAssessment";
@@ -194,14 +193,6 @@ const Dashboard = () => {
     { sex: string; total: number }[]
   >([]);
 
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log('[DASHBOARD STATE] ageGroupData:', ageGroupData);
-    console.log('[DASHBOARD STATE] sexGroupData:', sexGroupData);
-    console.log('[DASHBOARD STATE] ageGroupData length:', ageGroupData.length);
-    console.log('[DASHBOARD STATE] sexGroupData length:', sexGroupData.length);
-  }, [ageGroupData, sexGroupData]);
-
   const [events, setEvents] = useState<
     (ExternalEventProposalType | InternalEventProposalType)[]
   >([]);
@@ -232,15 +223,15 @@ const Dashboard = () => {
   const { data: summaryResponse } = useCachedFetch({
     cacheKey: 'dashboard_summary',
     fetchFn: () => getDashboardSummary(),
-    cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds (more dynamic)
+    cacheTime: CACHE_TIMES.MEDIUM, // 5 minutes keeps navigation fast while staying fresh
     useMemoryCache: true,
   });
 
   // Use cached fetch for dashboard analytics - data persists when navigating away and coming back!
-  const { data: analyticsResponse, loading: analyticsLoading, error: analyticsError } = useCachedFetch({
+  const { data: analyticsResponse, error: analyticsError } = useCachedFetch({
     cacheKey: 'dashboard_analytics',
     fetchFn: () => getDashboardAnalytics(),
-    cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds
+    cacheTime: CACHE_TIMES.MEDIUM, // 5 minutes keeps navigation fast while staying fresh
     useMemoryCache: true,
   });
 
@@ -256,7 +247,6 @@ const Dashboard = () => {
   useEffect(() => {
     if (summaryResponse?.data) {
       const data = summaryResponse.data || {};
-      console.log('[DASHBOARD] Summary data received:', data);
       setDashboardData({
         implementedEvent: data.implementedEvent || 0,
         pendingEvents: data.pendingEvents || 0,
@@ -273,29 +263,20 @@ const Dashboard = () => {
 
   // Process analytics data
   useEffect(() => {
-    // Debug: Log analytics response
-    console.log('[DASHBOARD] Analytics response:', analyticsResponse);
-    console.log('[DASHBOARD] Analytics loading:', analyticsLoading);
-    console.log('[DASHBOARD] Analytics error:', analyticsError);
-    
     if (analyticsError) {
-      console.error('[DASHBOARD] Error loading analytics:', analyticsError);
       setAgeGroupData([]);
       setSexGroupData([]);
       return;
     }
 
     if (!analyticsResponse) {
-      console.log('[DASHBOARD] No analytics response yet (still loading)');
       return;
     }
 
     // Handle both response.data.data and response.data structures
     const analyticsData = analyticsResponse?.data?.data || analyticsResponse?.data || {};
-    console.log('[DASHBOARD] Analytics data:', analyticsData);
     
     if (!analyticsData || (Object.keys(analyticsData).length === 0 && !analyticsData.sexGroup && !analyticsData.ageGroup)) {
-      console.warn('[DASHBOARD] Empty analytics data - setting empty arrays');
       setAgeGroupData([]);
       setSexGroupData([]);
       return;
@@ -303,10 +284,6 @@ const Dashboard = () => {
 
     const sexGroup = analyticsData.sexGroup || {};
     const ageGroup = analyticsData.ageGroup || {};
-    
-    console.log('[DASHBOARD] Raw sexGroup:', sexGroup);
-    console.log('[DASHBOARD] Raw ageGroup:', ageGroup);
-
     // Validate and sanitize sex group data
     const validatedSexData = Object.keys(sexGroup)
       .filter(sex => sex && sex.trim() !== '')
@@ -341,7 +318,7 @@ const Dashboard = () => {
       .map(({ ageNum, ...rest }) => rest);
 
     setAgeGroupData(validatedAgeData);
-  }, [analyticsResponse]);
+  }, [analyticsResponse, analyticsError]);
 
   // Process events data
   useEffect(() => {
@@ -355,14 +332,6 @@ const Dashboard = () => {
       );
     }
   }, [eventsResponse]);
-
-  // Minimal connectivity check (public endpoint, no auth required)
-  useEffect(() => {
-    console.log('🔍 Testing backend connectivity...');
-    getPublicReports()
-      .then(() => console.log('🔍 Reports endpoint reachable'))
-      .catch((error) => console.error('❌ Reports endpoint error:', error));
-  }, []);
 
   // Unique years from events (by start date) for the year filter
   const eventYears = useMemo(() => {
@@ -389,6 +358,30 @@ const Dashboard = () => {
       return new Date(ms).getFullYear() === yearNum;
     });
   }, [events, eventYearFilter]);
+
+  const handleProjectSearchResults = useCallback(
+    (_results: (ExternalEventProposalType | InternalEventProposalType)[]) => {
+      // Searchbar currently drives its own UI; keep callback stable for performance.
+    },
+    []
+  );
+
+  const handleProjectYearFilter = useCallback((_year: string) => {
+    // Dashboard year filtering is controlled by the dropdown above.
+  }, []);
+
+  const handleProjectEventClick = useCallback(
+    (event: ExternalEventProposalType | InternalEventProposalType) => {
+      setEventId(event.id);
+      if ((event as ExternalEventProposalType).location) {
+        setEventType("external");
+      } else if ((event as InternalEventProposalType).venue) {
+        setEventType("internal");
+      }
+      setOpenEventDetail(true);
+    },
+    []
+  );
 
   return (
     <>
@@ -428,22 +421,9 @@ const Dashboard = () => {
             />
             <Box sx={{ width: "320px", maxWidth: "320px" }}>
               <ProjectSearchBar
-                onSearchResults={(results) => {
-                  console.log("Search results:", results);
-                }}
-                onYearFilter={(year) => {
-                  console.log("Year filter:", year);
-                }}
-                onEventClick={(event) => {
-                  // Make search results interactive - open event details when clicked
-                  setEventId(event.id);
-                  if ((event as ExternalEventProposalType).location) {
-                    setEventType("external");
-                  } else if ((event as InternalEventProposalType).venue) {
-                    setEventType("internal");
-                  }
-                  setOpenEventDetail(true);
-                }}
+                onSearchResults={handleProjectSearchResults}
+                onYearFilter={handleProjectYearFilter}
+                onEventClick={handleProjectEventClick}
                 placeholder="Search projects, locations, or descriptions..."
                 showFilters={false}
                 maxWidth="100%"

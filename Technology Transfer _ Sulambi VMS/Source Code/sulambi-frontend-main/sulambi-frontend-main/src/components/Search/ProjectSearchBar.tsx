@@ -60,6 +60,16 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const onSearchResultsRef = useRef(onSearchResults);
+  const onYearFilterRef = useRef(onYearFilter);
+
+  useEffect(() => {
+    onSearchResultsRef.current = onSearchResults;
+  }, [onSearchResults]);
+
+  useEffect(() => {
+    onYearFilterRef.current = onYearFilter;
+  }, [onYearFilter]);
 
   // Debounced search to prevent excessive re-renders
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -81,15 +91,15 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
         const all = [...externalEvents, ...internalEvents];
         setAllEvents(all);
         setFilteredEvents(all);
-        onSearchResults(all);
+        onSearchResultsRef.current(all);
       })
       .catch((error) => {
         console.error('Error fetching events:', error);
         setAllEvents([]);
         setFilteredEvents([]);
-        onSearchResults([]);
+        onSearchResultsRef.current([]);
       });
-  }, [onSearchResults]);
+  }, []);
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -152,8 +162,8 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
 
     setFilteredEvents(filtered);
     // Only emit results automatically if user typed something or changed filters
-    onSearchResults(filtered);
-  }, [debouncedSearchTerm, selectedYear, selectedStatus, selectedType, allEvents, onSearchResults]);
+    onSearchResultsRef.current(filtered);
+  }, [debouncedSearchTerm, selectedYear, selectedStatus, selectedType, allEvents]);
 
   // Suggestions: return up to 5 matching event objects for predictive UI - Memoized to prevent unnecessary recalculations
   const suggestionEvents = React.useMemo(() => {
@@ -175,7 +185,7 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
     setSelectedIndex(-1);
     addToRecentSearches(title);
     setFilteredEvents([evt]);
-    onSearchResults([evt]);
+    onSearchResultsRef.current([evt]);
     // Call onEventClick if provided to make results interactive
     if (onEventClick) {
       onEventClick(evt);
@@ -196,7 +206,7 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
     setShowSuggestions(false);
     setSuggestionsVisible(false);
     setFilteredEvents(allEvents);
-    onSearchResults(allEvents);
+    onSearchResultsRef.current(allEvents);
   };
 
   // Click outside to close suggestion dropdown
@@ -224,7 +234,7 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
         setSuggestionsVisible(false);
         setSelectedIndex(-1);
         addToRecentSearches(searchTerm);
-        onSearchResults(filteredEvents);
+        onSearchResultsRef.current(filteredEvents);
       }
     } else if (e.key === 'Escape') {
       setShowSuggestions(false);
@@ -450,7 +460,7 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
                               (evt.title || '').toLowerCase().includes(s.toLowerCase())
                             );
                             setFilteredEvents(matches);
-                            onSearchResults(matches);
+                            onSearchResultsRef.current(matches);
                           }}
                           secondaryAction={
                             <IconButton
@@ -490,7 +500,7 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
           >
             <FormControl size="small" sx={{ minWidth: 120, '& .MuiOutlinedInput-root': { height: 44 }, '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0 } }}>
               <InputLabel>Year</InputLabel>
-              <Select value={selectedYear} label="Year" onChange={(e) => { setSelectedYear(e.target.value); onYearFilter(e.target.value); }}>
+              <Select value={selectedYear} label="Year" onChange={(e) => { setSelectedYear(e.target.value); onYearFilterRef.current(e.target.value); }}>
                 <MenuItem value="all">All Years</MenuItem>
                 {availableYears.map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
               </Select>

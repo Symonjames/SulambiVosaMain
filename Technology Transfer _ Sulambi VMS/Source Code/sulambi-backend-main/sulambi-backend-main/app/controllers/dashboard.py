@@ -6,6 +6,13 @@ from ..models.AccountModel import AccountModel
 from ..models.RequirementsModel import RequirementsModel
 from ..models.EvaluationModel import EvaluationModel
 from ..database.connection import convert_boolean_value
+from ..database.connection import (
+  cursorInstance,
+  table_name_for_query,
+  convert_placeholders,
+  convert_boolean_condition,
+  IS_POSTGRESQL,
+)
 
 from datetime import datetime
 
@@ -22,133 +29,214 @@ Data needed:
 '''
 
 def getSummary():
-  externalEvents = ExternalEventModel().getAll()
-  internalEvents = InternalEventModel().getAll()
-  allMembers = MembershipModel().getAll()
-  allAccounts = AccountModel().getAll()
+  try:
+    conn, cursor = cursorInstance()
+    current_time = int(datetime.now().timestamp()) * 1000
 
-  # event information
-  totalApprovedEvents = 0
-  pendingEvents = 0
-  rejectedEvents = 0
-  implementedEvent = 0
+    external_table = table_name_for_query("externalEvents")
+    internal_table = table_name_for_query("internalEvents")
+    membership_table = table_name_for_query("membership")
+    accounts_table = table_name_for_query("accounts")
+    duration_end_col = '"durationEnd"' if IS_POSTGRESQL else "durationEnd"
 
-  # members information
-  totalMembers = 0
-  totalPendingMembers = 0
-  totalActiveMembers = 0
+    # Aggregate events from both tables in one pass.
+    events_query = f"""
+      SELECT
+        SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) AS approved,
+        SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN status NOT IN ('accepted', 'submitted', 'editing') THEN 1 ELSE 0 END) AS rejected,
+        SUM(CASE WHEN status = 'accepted' AND {duration_end_col} < ? THEN 1 ELSE 0 END) AS implemented
+      FROM (
+        SELECT status, {duration_end_col} FROM {external_table}
+        UNION ALL
+        SELECT status, {duration_end_col} FROM {internal_table}
+      ) ev
+      WHERE status != 'editing'
+    """
+    events_query = convert_placeholders(events_query)
+    cursor.execute(events_query, (current_time,))
+    approved, pending, rejected, implemented = cursor.fetchone() or (0, 0, 0, 0)
 
-  # already summarized
-  totalAccounts = len(allAccounts)
+    membership_query = f"""
+      SELECT
+        COUNT(*) AS total_all_members,
+        SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) AS total_members,
+        SUM(CASE WHEN accepted = 1 AND active = 1 THEN 1 ELSE 0 END) AS total_active_members,
+        SUM(CASE WHEN accepted IS NULL OR accepted = '' THEN 1 ELSE 0 END) AS total_pending_members
+      FROM {membership_table}
+    """
+    membership_query = convert_boolean_condition(membership_query)
+    cursor.execute(membership_query)
+    (
+      total_all_members,
+      total_members,
+      total_active_members,
+      total_pending_members,
+    ) = cursor.fetchone() or (0, 0, 0, 0)
 
-  # convert current time to milliseconds format
-  currentTime = int(datetime.now().timestamp()) * 1000
+    cursor.execute(f"SELECT COUNT(*) FROM {accounts_table}")
+    total_accounts = (cursor.fetchone() or [0])[0]
+    conn.close()
+  except Exception:
+    # Fallback to model-based path for compatibility across unexpected schemas.
+    externalEvents = ExternalEventModel().getAll()
+    internalEvents = InternalEventModel().getAll()
+    allMembers = MembershipModel().getAll()
+    allAccounts = AccountModel().getAll()
 
-  # external event data extraction
-  for external in externalEvents:
-    if (external["status"] == "editing"):
-      continue
+    totalApprovedEvents = 0
+    pendingEvents = 0
+    rejectedEvents = 0
+    implementedEvent = 0
+    totalMembers = 0
+    totalPendingMembers = 0
+    totalActiveMembers = 0
+    totalAccounts = len(allAccounts)
+    currentTime = int(datetime.now().timestamp()) * 1000
 
-    if (external["status"] == "accepted"):
-      totalApprovedEvents += 1
-    elif (external["status"] == "submitted"):
-      pendingEvents += 1
-    else:
-      rejectedEvents += 1
+    for external in externalEvents:
+      if (external["status"] == "editing"):
+        continue
+      if (external["status"] == "accepted"):
+        totalApprovedEvents += 1
+      elif (external["status"] == "submitted"):
+        pendingEvents += 1
+      else:
+        rejectedEvents += 1
+      if (external["status"] == "accepted" and (external["durationEnd"] - currentTime) < 0):
+        implementedEvent += 1
 
-    if (external["status"] == "accepted" and (external["durationEnd"] - currentTime) < 0):
-      implementedEvent += 1
+    for internal in internalEvents:
+      if (internal["status"] == "editing"):
+        continue
+      if (internal["status"] == "accepted"):
+        totalApprovedEvents += 1
+      elif (internal["status"] == "submitted"):
+        pendingEvents += 1
+      else:
+        rejectedEvents += 1
+      if (internal["status"] == "accepted" and (internal["durationEnd"] - currentTime) < 0):
+        implementedEvent += 1
 
-  # internal event data extraction
-  for internal in internalEvents:
-    if (internal["status"] == "editing"):
-      continue
+    totalAllMembers = len(allMembers)
+    for member in allMembers:
+      accepted = member.get("accepted")
+      active = member.get("active")
+      if accepted == 1 or accepted == True:
+        totalMembers += 1
+        if active == 1 or active == True:
+          totalActiveMembers += 1
+      elif accepted is None or accepted == "":
+        totalPendingMembers += 1
 
-    if (internal["status"] == "accepted"):
-      totalApprovedEvents += 1
-    elif (internal["status"] == "submitted"):
-      pendingEvents += 1
-    else:
-      rejectedEvents += 1
-
-    if (internal["status"] == "accepted" and (internal["durationEnd"] - currentTime) < 0):
-      implementedEvent += 1
-
-  # membership data extraction
-  totalAllMembers = len(allMembers)  # Total members uploaded (all statuses)
-  
-  for member in allMembers:
-    accepted = member.get("accepted")
-    active = member.get("active")
-    
-    # Handle both boolean and integer values for accepted
-    if accepted == 1 or accepted == True:
-      totalMembers += 1
-      # Handle both boolean and integer values for active
-      if active == 1 or active == True:
-        totalActiveMembers += 1
-    elif accepted is None or accepted == "":
-      totalPendingMembers += 1
+    return {
+      "data": {
+        "totalApprovedEvents": totalApprovedEvents,
+        "pendingEvents": pendingEvents,
+        "rejectedEvents": rejectedEvents,
+        "implementedEvent": implementedEvent,
+        "totalMembers": totalMembers,
+        "totalPendingMembers": totalPendingMembers,
+        "totalActiveMembers": totalActiveMembers,
+        "totalAllMembers": totalAllMembers,
+        "totalAccounts": totalAccounts
+      },
+      "message": "Successfully retrieved system summary"
+    }
 
   return {
     "data": {
-      "totalApprovedEvents": totalApprovedEvents,
-      "pendingEvents": pendingEvents,
-      "rejectedEvents": rejectedEvents,
-      "implementedEvent": implementedEvent,
-      "totalMembers": totalMembers,
-      "totalPendingMembers": totalPendingMembers,
-      "totalActiveMembers": totalActiveMembers,
-      "totalAllMembers": totalAllMembers,  # Total members uploaded (all statuses)
-      "totalAccounts": totalAccounts
+      "totalApprovedEvents": int(approved or 0),
+      "pendingEvents": int(pending or 0),
+      "rejectedEvents": int(rejected or 0),
+      "implementedEvent": int(implemented or 0),
+      "totalMembers": int(total_members or 0),
+      "totalPendingMembers": int(total_pending_members or 0),
+      "totalActiveMembers": int(total_active_members or 0),
+      "totalAllMembers": int(total_all_members or 0),
+      "totalAccounts": int(total_accounts or 0)
     },
     "message": "Successfully retrieved system summary"
   }
 
 def getAnalytics():
-  # Get data from membership table (real members only)
-  # Show ALL accepted and active members with age/sex data
-  allMemberships = MembershipModel().getAll()
   ageGroup = {}
   sexGroup = {}
+  try:
+    conn, cursor = cursorInstance()
+    membership_table = table_name_for_query("membership")
+    sex_expr = "LOWER(TRIM(sex))"
 
-  # Count all accepted and active members with age/sex data
-  for membership in allMemberships:
-    # Only count accepted and active members
-    accepted = membership.get("accepted")
-    active = membership.get("active")
-    if accepted is None or accepted == False or accepted == 0:
-      continue
-    if accepted != 1 and accepted != True:
-      continue
-    if active is None or active == False or active == 0:
-      continue
-    if active != 1 and active != True:
-      continue
-
-    # Get and normalize age from membership (real member data only)
-    age_value = membership.get("age")
-    if age_value is not None and age_value != "":
+    age_query = f"""
+      SELECT age, COUNT(*)
+      FROM {membership_table}
+      WHERE accepted = 1
+        AND active = 1
+        AND age IS NOT NULL
+        AND CAST(age AS TEXT) != ''
+      GROUP BY age
+    """
+    age_query = convert_boolean_condition(age_query)
+    cursor.execute(age_query)
+    for age_value, cnt in cursor.fetchall() or []:
       try:
-        age_int = int(age_value) if isinstance(age_value, str) else age_value
-        # Skip age 0 (invalid data)
+        age_int = int(age_value)
         if age_int > 0:
-          age_key = str(age_int)
-          if age_key not in ageGroup:
-            ageGroup[age_key] = 0
-          ageGroup[age_key] += 1
-      except (ValueError, TypeError):
-        pass
+          ageGroup[str(age_int)] = int(cnt or 0)
+      except (TypeError, ValueError):
+        continue
 
-    # Get and normalize sex from membership (real member data only)
-    sex_value = membership.get("sex")
-    if sex_value is not None and sex_value != "":
-      sex_normalized = sex_value.strip().title()
-      # Only count valid sex values (Male, Female)
-      if sex_normalized in ["Male", "Female"]:
-        if sex_normalized not in sexGroup:
-          sexGroup[sex_normalized] = 0
-        sexGroup[sex_normalized] += 1
+    sex_query = f"""
+      SELECT {sex_expr} AS sex_norm, COUNT(*)
+      FROM {membership_table}
+      WHERE accepted = 1
+        AND active = 1
+        AND sex IS NOT NULL
+        AND TRIM(sex) != ''
+      GROUP BY {sex_expr}
+    """
+    sex_query = convert_boolean_condition(sex_query)
+    cursor.execute(sex_query)
+    for sex_norm, cnt in cursor.fetchall() or []:
+      if sex_norm == "male":
+        sexGroup["Male"] = int(cnt or 0)
+      elif sex_norm == "female":
+        sexGroup["Female"] = int(cnt or 0)
+    conn.close()
+  except Exception:
+    # Fallback to previous model-based iteration
+    allMemberships = MembershipModel().getAll()
+    for membership in allMemberships:
+      accepted = membership.get("accepted")
+      active = membership.get("active")
+      if accepted is None or accepted == False or accepted == 0:
+        continue
+      if accepted != 1 and accepted != True:
+        continue
+      if active is None or active == False or active == 0:
+        continue
+      if active != 1 and active != True:
+        continue
+
+      age_value = membership.get("age")
+      if age_value is not None and age_value != "":
+        try:
+          age_int = int(age_value) if isinstance(age_value, str) else age_value
+          if age_int > 0:
+            age_key = str(age_int)
+            if age_key not in ageGroup:
+              ageGroup[age_key] = 0
+            ageGroup[age_key] += 1
+        except (ValueError, TypeError):
+          pass
+
+      sex_value = membership.get("sex")
+      if sex_value is not None and sex_value != "":
+        sex_normalized = sex_value.strip().title()
+        if sex_normalized in ["Male", "Female"]:
+          if sex_normalized not in sexGroup:
+            sexGroup[sex_normalized] = 0
+          sexGroup[sex_normalized] += 1
 
   return {
     "message": "Successfully retrieved analytics",
@@ -173,31 +261,38 @@ def getEventInformation(eventId: int, eventType: str):
           "message": "Internal event not found"
         }, 404)
 
-    # Use database-appropriate boolean value for "accepted"
-    accepted_val = convert_boolean_value(1)
-    allrequirements = RequirementsModel().getAndSearch(
-      ["eventId", "type", "accepted"],
-      [eventId, eventType, accepted_val]
-    )
-    answered = 0
+    conn, cursor = cursorInstance()
+    requirements_table = table_name_for_query("requirements")
+    evaluation_table = table_name_for_query("evaluation")
+    event_id_col = '"eventId"' if IS_POSTGRESQL else "eventId"
+    requirement_id_col = '"requirementId"' if IS_POSTGRESQL else "requirementId"
 
-    for requirement in allrequirements:
-      try:
-        evaluation = EvaluationModel().getAndSearch(["requirementId"], [requirement["id"]])
-        if (len(evaluation) > 0):
-          evaluation = evaluation[0]
-          # Check if evaluation is a dictionary and has the required keys
-          if isinstance(evaluation, dict) and evaluation.get("finalized") and evaluation.get("recommendations", "") != "":
-            answered += 1
-      except Exception as e:
-        # Log error but continue processing other requirements
-        print(f"Error processing evaluation for requirement {requirement.get('id', 'unknown')}: {e}")
-        continue
+    aggregate_query = f"""
+      SELECT
+        COUNT(*) AS registered,
+        COUNT(DISTINCT CASE
+          WHEN e.finalized = 1
+           AND COALESCE(TRIM(e.recommendations), '') != ''
+          THEN r.id
+          ELSE NULL
+        END) AS attended
+      FROM {requirements_table} r
+      LEFT JOIN {evaluation_table} e ON e.{requirement_id_col} = r.id
+      WHERE r.{event_id_col} = ?
+        AND r.type = ?
+        AND r.accepted = 1
+    """
+    aggregate_query = convert_boolean_condition(aggregate_query)
+    aggregate_query = convert_placeholders(aggregate_query)
+    cursor.execute(aggregate_query, (eventId, eventType))
+    row = cursor.fetchone() or (0, 0)
+    registered, answered = int(row[0] or 0), int(row[1] or 0)
+    conn.close()
 
     return {
       "data": {
         "event": event,
-        "registered": len(allrequirements),
+        "registered": registered,
         "attended": answered
       },
       "message": "Successfully retrieved event details"
@@ -213,66 +308,115 @@ def getEventInformation(eventId: int, eventType: str):
 def getActiveMemberData():
   responseSummary = {}
   detailedMembers = []
-
-  # Use database-appropriate boolean values for active/accepted
-  active_val = convert_boolean_value(1)
-  accepted_val = convert_boolean_value(1)
-  activeMembers = MembershipModel().getAndSearch(["active", "accepted"], [active_val, accepted_val])
   current_time_ms = int(datetime.now().timestamp()) * 1000
   ms_per_day = 1000 * 60 * 60 * 24
 
-  for activeMember in activeMembers:
-    userEmailIndicator = activeMember["email"]
-    userFullname = activeMember["fullname"]
-    
-    # Only get accepted requirements (real volunteer registrations)
-    matchedRequirements = RequirementsModel().getAndSearch(["email", "accepted"], [userEmailIndicator, accepted_val])
-    
-    # Skip members who haven't actually volunteered (no accepted requirements)
-    if len(matchedRequirements) == 0:
-      continue
+  try:
+    conn, cursor = cursorInstance()
+    membership_table = table_name_for_query("membership")
+    requirements_table = table_name_for_query("requirements")
+    evaluation_table = table_name_for_query("evaluation")
+    external_events_table = table_name_for_query("externalEvents")
+    internal_events_table = table_name_for_query("internalEvents")
+    requirement_id_col = '"requirementId"' if IS_POSTGRESQL else "requirementId"
+    event_id_col = '"eventId"' if IS_POSTGRESQL else "eventId"
+    duration_end_col = '"durationEnd"' if IS_POSTGRESQL else "durationEnd"
 
-    participation_count = 0
-    last_event_ms = 0
+    query = f"""
+      SELECT
+        m.fullname,
+        COUNT(DISTINCT CASE
+          WHEN e.finalized = 1
+           AND COALESCE(TRIM(e.recommendations), '') != ''
+          THEN r.id
+          ELSE NULL
+        END) AS participation_count,
+        MAX(CASE
+          WHEN r.type = 'external' THEN ee.{duration_end_col}
+          WHEN r.type = 'internal' THEN ie.{duration_end_col}
+          ELSE NULL
+        END) AS last_event_ms
+      FROM {membership_table} m
+      INNER JOIN {requirements_table} r
+        ON LOWER(TRIM(COALESCE(m.email, ''))) = LOWER(TRIM(COALESCE(r.email, '')))
+       AND r.accepted = 1
+      LEFT JOIN {evaluation_table} e
+        ON e.{requirement_id_col} = r.id
+      LEFT JOIN {external_events_table} ee
+        ON r.type = 'external' AND ee.id = r.{event_id_col}
+      LEFT JOIN {internal_events_table} ie
+        ON r.type = 'internal' AND ie.id = r.{event_id_col}
+      WHERE m.active = 1
+        AND m.accepted = 1
+      GROUP BY m.fullname
+      HAVING COUNT(DISTINCT r.id) > 0
+    """
+    query = convert_boolean_condition(query)
+    cursor.execute(query)
+    rows = cursor.fetchall() or []
+    conn.close()
 
-    # count attended evaluations and compute last participation date
-    for requirement in matchedRequirements:
-      matchedEvaluation = EvaluationModel().getAndSearch(["requirementId", "finalized"], [requirement["id"], 1])
-      if (len(matchedEvaluation) == 0):
+    for fullname, participation_count, last_event_ms in rows:
+      count = int(participation_count or 0)
+      responseSummary[fullname] = count
+
+      inactivity_days = None
+      last_event_iso = None
+      if last_event_ms and int(last_event_ms) > 0:
+        inactivity_days = int((current_time_ms - int(last_event_ms)) / ms_per_day)
+        last_event_iso = datetime.fromtimestamp(int(last_event_ms) / 1000).strftime("%Y-%m-%d")
+
+      detailedMembers.append({
+        "name": fullname,
+        "participationCount": count,
+        "lastEvent": last_event_iso,
+        "inactivityDays": inactivity_days if inactivity_days is not None else None
+      })
+  except Exception:
+    # Fallback to the old path if any DB compatibility issue appears.
+    active_val = convert_boolean_value(1)
+    accepted_val = convert_boolean_value(1)
+    activeMembers = MembershipModel().getAndSearch(["active", "accepted"], [active_val, accepted_val])
+
+    for activeMember in activeMembers:
+      userEmailIndicator = activeMember["email"]
+      userFullname = activeMember["fullname"]
+      matchedRequirements = RequirementsModel().getAndSearch(["email", "accepted"], [userEmailIndicator, accepted_val])
+      if len(matchedRequirements) == 0:
         continue
 
-      matchedEvaluation = matchedEvaluation[0]
-      # treat finalized with non-empty recommendations as attended
-      if (matchedEvaluation["recommendations"] != ""):
-        participation_count += 1
+      participation_count = 0
+      last_event_ms = 0
+      for requirement in matchedRequirements:
+        matchedEvaluation = EvaluationModel().getAndSearch(["requirementId", "finalized"], [requirement["id"], 1])
+        if (len(matchedEvaluation) == 0):
+          continue
+        matchedEvaluation = matchedEvaluation[0]
+        if (matchedEvaluation["recommendations"] != ""):
+          participation_count += 1
+          try:
+            if (requirement["type"] == "external"):
+              event = ExternalEventModel().get(requirement["eventId"])
+            else:
+              event = InternalEventModel().get(requirement["eventId"])
+            if event and event.get("durationEnd"):
+              last_event_ms = max(last_event_ms, int(event["durationEnd"]))
+          except Exception:
+            pass
 
-        # fetch event end time for inactivity calculation
-        try:
-          if (requirement["type"] == "external"):
-            event = ExternalEventModel().get(requirement["eventId"])
-          else:
-            event = InternalEventModel().get(requirement["eventId"])
+      responseSummary[userFullname] = participation_count
+      inactivity_days = None
+      last_event_iso = None
+      if last_event_ms and last_event_ms > 0:
+        inactivity_days = int((current_time_ms - last_event_ms) / ms_per_day)
+        last_event_iso = datetime.fromtimestamp(last_event_ms / 1000).strftime("%Y-%m-%d")
 
-          if event and event.get("durationEnd"):
-            last_event_ms = max(last_event_ms, int(event["durationEnd"]))
-        except Exception:
-          pass
-
-    responseSummary[userFullname] = participation_count
-
-    inactivity_days = None
-    last_event_iso = None
-    if last_event_ms and last_event_ms > 0:
-      inactivity_days = int((current_time_ms - last_event_ms) / ms_per_day)
-      # convert ms to ISO date string (YYYY-MM-DD)
-      last_event_iso = datetime.fromtimestamp(last_event_ms / 1000).strftime("%Y-%m-%d")
-
-    detailedMembers.append({
-      "name": userFullname,
-      "participationCount": participation_count,
-      "lastEvent": last_event_iso,
-      "inactivityDays": inactivity_days if inactivity_days is not None else None
-    })
+      detailedMembers.append({
+        "name": userFullname,
+        "participationCount": participation_count,
+        "lastEvent": last_event_iso,
+        "inactivityDays": inactivity_days if inactivity_days is not None else None
+      })
 
   return {
     "data": {
