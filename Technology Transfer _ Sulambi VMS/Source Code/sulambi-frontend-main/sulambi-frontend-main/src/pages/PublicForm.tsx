@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import PrimaryButton from "../components/Buttons/PrimaryButton";
 import FlexBox from "../components/FlexBox";
 import FormGeneratorTemplate from "../components/Forms/FormGeneratorTemplate";
@@ -31,6 +31,7 @@ const PublicForm = () => {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const lastResetKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     (async function () {
@@ -57,6 +58,10 @@ const PublicForm = () => {
   // so rating and comment fields behave the same regardless of entry point.
   useEffect(() => {
     if (id) {
+      const resetKey = `${location.pathname}:${id}`;
+      // Prevent repeated wipes caused by provider function identity changes across renders.
+      if (lastResetKeyRef.current === resetKey) return;
+      lastResetKeyRef.current = resetKey;
       setFormData({});
       if (location.pathname) setPageFormData(location.pathname, {});
     }
