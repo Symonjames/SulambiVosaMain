@@ -28,8 +28,27 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
   const [scale, setScale] = useState(1.5);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadName, setDownloadName] = useState("document.pdf");
 
   // Worker is configured in utils/pdfjsWorker.ts (same-origin /pdf.worker.min.mjs)
+
+  const getFileNameFromUrl = (input: string) => {
+    try {
+      const parsed = new URL(input, window.location.origin);
+      const last = decodeURIComponent(parsed.pathname.split("/").pop() || "document");
+      return last || "document";
+    } catch {
+      return "document";
+    }
+  };
+
+  const ensureExtension = (name: string, mimeType: string) => {
+    if (/\.[a-z0-9]{2,8}$/i.test(name)) return name;
+    const mime = (mimeType || "").split(";")[0].trim().toLowerCase();
+    if (mime === "application/pdf") return `${name}.pdf`;
+    if (mime.startsWith("image/")) return `${name}.${mime.split("/")[1] || "img"}`;
+    return `${name}.bin`;
+  };
 
   useEffect(() => {
     if (!open || !url) return;
@@ -39,6 +58,7 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
       setError(null);
       setPageNumber(1);
       setPdfUrl(null);
+      setDownloadName("document.pdf");
 
       try {
         // Check if URL is a Cloudinary URL (public, no auth needed)
@@ -80,6 +100,9 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
 
         const blob = await response.blob();
         const objectUrl = URL.createObjectURL(blob);
+        const contentType = (blob.type || response.headers.get("content-type") || "application/pdf").toString();
+        const baseName = getFileNameFromUrl(url);
+        setDownloadName(ensureExtension(baseName, contentType));
         setPdfUrl(objectUrl);
       } catch (err: any) {
         console.error("Error loading PDF:", err);
@@ -156,7 +179,7 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
     if (pdfUrl) {
       const link = document.createElement("a");
       link.href = pdfUrl;
-      link.download = url.split("/").pop() || "document.pdf";
+      link.download = downloadName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -170,7 +193,14 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
       return;
     }
     if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = downloadName;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 
@@ -289,7 +319,16 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
 
         {error && (
           <Box sx={{ maxWidth: "560px", width: "100%" }}>
-            <Alert severity="warning" sx={{ mb: 2 }}>
+            <Alert
+              severity="warning"
+              sx={{
+                mb: 2,
+                "& .MuiAlert-message": {
+                  width: "100%",
+                  textAlign: "center",
+                },
+              }}
+            >
               Preview is unavailable for this file. Download if you want to see the contents.
             </Alert>
             <Box sx={{ display: "flex", justifyContent: "center" }}>
