@@ -392,14 +392,14 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
             <Typography variant="subtitle2" sx={{ opacity: 0.9 }} gutterBottom>
               You are about to evaluate
             </Typography>
-            <CustomDropdown
-              label="Select Event"
-              width="100%"
-              disabled={isLoadingEvents || availableEvents.length === 0}
-              initialValue={selectedEventId ?? ""}
-              menu={allEventsMenu}
-              onChange={(event) => setSelectedEventId(event.target.value)}
-            />
+            <Typography variant="body1" fontWeight="bold">
+              {selectedEvent.title}
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              {`${dayjs(selectedEvent.durationStart).format("MMM D, YYYY h:mm A")} - ${dayjs(
+                selectedEvent.durationEnd
+              ).format("MMM D, YYYY h:mm A")}`}
+            </Typography>
           </Box>
           <Box>
             <Typography variant="subtitle1" fontWeight="bold" gutterBottom>

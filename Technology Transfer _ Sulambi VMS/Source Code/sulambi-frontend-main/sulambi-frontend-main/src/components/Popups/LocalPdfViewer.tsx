@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 // Import worker config for side effects (sets up worker before use)
 import "../../utils/pdfjsWorker";
-import { Box, IconButton, Typography, CircularProgress, Alert } from "@mui/material";
+import { Box, IconButton, Typography, CircularProgress, Alert, Button } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
@@ -163,6 +163,17 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
     }
   };
 
+  const handleDownloadFallback = () => {
+    // Prefer downloaded blob when available; otherwise open original source in a new tab.
+    if (pdfUrl) {
+      handleDownload();
+      return;
+    }
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -277,49 +288,21 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
         )}
 
         {error && (
-          <Alert 
-            severity="error" 
-            sx={{ maxWidth: "500px" }}
-            action={
-              <IconButton
-                color="inherit"
-                size="small"
-                onClick={() => {
-                  // Fallback: open PDF in new tab
-                  if (url) {
-                    window.open(url, "_blank");
-                  }
-                }}
-                title="Open in new tab"
+          <Box sx={{ maxWidth: "560px", width: "100%" }}>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Preview is unavailable for this file. Download if you want to see the contents.
+            </Alert>
+            <Box sx={{ display: "flex", justifyContent: "center" }}>
+              <Button
+                variant="contained"
+                color="warning"
+                startIcon={<DownloadIcon />}
+                onClick={handleDownloadFallback}
               >
-                <DownloadIcon />
-              </IconButton>
-            }
-          >
-            {error}
-            <br />
-            <Typography variant="caption" sx={{ marginTop: 1, display: "block" }}>
-              {url.includes("res.cloudinary.com") ? (
-                <>
-                  This is a Cloudinary file. If it's not loading, it may have been deleted or moved.
-                  <br />
-                  Click the download icon to try opening in a new tab.
-                </>
-              ) : url.includes("/uploads/") || url.includes("uploads/") ? (
-                <>
-                  This appears to be an old local file path that no longer exists on the server.
-                  <br />
-                  All new uploads are saved to Cloudinary. Please contact support if you need this file.
-                </>
-              ) : (
-                <>
-                  If this is a protected file, make sure you're logged in.
-                  <br />
-                  Click the download icon to try opening in a new tab.
-                </>
-              )}
-            </Typography>
-          </Alert>
+                Download File
+              </Button>
+            </Box>
+          </Box>
         )}
 
         {pdfUrl && !loading && !error && (
