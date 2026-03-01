@@ -10,6 +10,7 @@ import { FormDataContext } from "../contexts/FormDataProvider";
 import { checkReqIdValidity, createEvaluation } from "../api/evaluation";
 import { IconButton, Typography } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CircularProgress from "@mui/material/CircularProgress";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
 import { useMediaQuery } from "react-responsive";
 
@@ -21,6 +22,7 @@ const PublicForm = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
   const [disableButton, setDisableButton] = useState(false);
   const [isIdValid, setIsIdValid] = useState<boolean | undefined>(undefined);
+  const [isCheckingId, setIsCheckingId] = useState(false);
   const [canSubmit, setCanSubmit] = useState(true);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState([]);
@@ -33,6 +35,7 @@ const PublicForm = () => {
   useEffect(() => {
     (async function () {
       if (id) {
+        setIsCheckingId(true);
         try {
           const response = await checkReqIdValidity(id);
           setIsIdValid(true);
@@ -43,6 +46,8 @@ const PublicForm = () => {
           if (err.response?.data?.message) {
             showSnackbarMessage(err.response.data.message, "error");
           }
+        } finally {
+          setIsCheckingId(false);
         }
       }
     })();
@@ -107,7 +112,12 @@ const PublicForm = () => {
         background: "linear-gradient(180deg, #c07f00 0%, #ffdf75 100%)",
       }}
     >
-      {isIdValid === true ? (
+      {isCheckingId ? (
+        <FlexBox flexDirection="column" alignItems="center" rowGap="12px">
+          <CircularProgress sx={{ color: "white" }} />
+          <Typography color="white">Loading evaluation form...</Typography>
+        </FlexBox>
+      ) : isIdValid === true ? (
         <>
           <PopupModal
             open
@@ -355,7 +365,7 @@ const PublicForm = () => {
             </FlexBox>
           </PopupModal>
         </>
-      ) : (
+      ) : isIdValid === false ? (
         <>
           <IconButton
             sx={{ position: "fixed", top: "20px", left: "20px" }}
@@ -368,7 +378,7 @@ const PublicForm = () => {
             The evaluation ID provided is not valid
           </TextHeader>
         </>
-      )}
+      ) : null}
     </FlexBox>
   );
 };

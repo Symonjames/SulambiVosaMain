@@ -25,6 +25,9 @@ const CustomRadiolist: React.FC<CustomRadioProps> = ({
     >
       <RadioGroup
         value={value}
+        onChange={(event: any) => {
+          if (!viewOnly) onChange && onChange(event.target.value);
+        }}
         sx={{
           display: "flex",
           ...(rowDirection
@@ -49,9 +52,6 @@ const CustomRadiolist: React.FC<CustomRadioProps> = ({
                     disabled={viewOnly}
                   />
                 }
-                onChange={(event: any) => {
-                  if (!viewOnly) onChange && onChange(event.target.value);
-                }}
               />
             );
           })
