@@ -123,6 +123,27 @@ const PublicForm = () => {
           <Typography color="white">Loading evaluation form...</Typography>
         </FlexBox>
       ) : isIdValid === true ? (
+        alreadySubmitted ? (
+          <PopupModal
+            open
+            hideCloseButton
+            disableBGShadow
+            width={isMobile ? "90vw" : "420px"}
+            header="Evaluation already submitted"
+            subHeader="This token has already been used."
+          >
+            <FlexBox flexDirection="column" alignItems="center" rowGap="12px" marginTop="8px">
+              <Typography textAlign="center">
+                You have already evaluated using this token. Thank you for your feedback!
+              </Typography>
+              <PrimaryButton
+                label="Back to Home"
+                size="small"
+                onClick={() => navigate("/")}
+              />
+            </FlexBox>
+          </PopupModal>
+        ) : (
         <>
           <PopupModal
             open
@@ -351,25 +372,20 @@ const PublicForm = () => {
               </FlexBox>
             </form>
             <FlexBox justifyContent="flex-end" marginTop="20px">
-              {alreadySubmitted ? (
-                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                  This evaluation has already been submitted. Thank you for your feedback!
-                </Typography>
-              ) : (
-                <PrimaryButton
-                  label="Submit"
-                  size="small"
-                  icon={<SendIcon />}
-                  disabled={disableButton || !canSubmit}
-                  onClick={() => {
-                    setDisableButton(true);
-                    submitCallback();
-                  }}
-                />
-              )}
+              <PrimaryButton
+                label="Submit"
+                size="small"
+                icon={<SendIcon />}
+                disabled={disableButton || !canSubmit}
+                onClick={() => {
+                  setDisableButton(true);
+                  submitCallback();
+                }}
+              />
             </FlexBox>
           </PopupModal>
         </>
+        )
       ) : isIdValid === false ? (
         <>
           <IconButton
