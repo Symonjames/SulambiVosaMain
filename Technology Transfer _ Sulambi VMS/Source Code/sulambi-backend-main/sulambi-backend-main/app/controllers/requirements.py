@@ -405,9 +405,12 @@ def acceptRequirements(id):
       "data": updatedData
     }
 
-  # create an evaluation template for user to answer (best-effort; do not fail accept)
+  # Create one evaluation template row per requirement (best-effort; do not fail accept).
+  # Skip creation if any row already exists to prevent duplicate-token behavior.
   try:
-    EvaluationDb.create(id, "", "", "", "", "", False)
+    existing_eval_rows = EvaluationDb.getAndSearch(["requirementId"], [id]) or []
+    if len(existing_eval_rows) == 0:
+      EvaluationDb.create(id, "", "", "", "", "", False)
   except Exception as e:
     print(f"[REQUIREMENTS_ACCEPT] Warning: Could not create evaluation record: {e}")
 

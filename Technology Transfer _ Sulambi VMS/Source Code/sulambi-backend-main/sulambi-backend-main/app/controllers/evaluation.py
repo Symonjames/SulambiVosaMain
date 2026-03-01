@@ -14,6 +14,13 @@ RequirementDb = RequirementsModel()
 MembershipDb = MembershipModel()
 AccountDb = AccountModel()
 
+def _is_finalized_value(value) -> bool:
+  if value is True or value == 1:
+    return True
+  if isinstance(value, str):
+    return value.strip().lower() in ("1", "true", "yes")
+  return False
+
 def getAllEvaluation():
   return {
     "message": "Successfully retrieved all evaluation",
@@ -108,9 +115,13 @@ def evaluatable(requirementId):
   if len(matchedEvaluation) == 0:
     return False
   
-  # Only allow submission if not finalized yet
-  evaluation = matchedEvaluation[0]
-  return evaluation["finalized"] == 0 or evaluation["finalized"] == False
+  # Single-use token rule:
+  # - If ANY evaluation row for this requirement is already finalized, token is no longer evaluatable.
+  # - Otherwise, allow submit if there is at least one non-finalized template row.
+  has_finalized = any(_is_finalized_value(ev.get("finalized")) for ev in matchedEvaluation)
+  if has_finalized:
+    return False
+  return True
 
 def isEvaluatable(requirementId):
   matchedRequirement = RequirementDb.get(requirementId)
@@ -125,8 +136,7 @@ def isEvaluatable(requirementId):
   if len(matchedEvaluation) == 0:
     return ({"message": "No evaluation form available for this requirement"}, 404)
   
-  evaluation = matchedEvaluation[0]
-  isAlreadySubmitted = evaluation["finalized"] == 1 or evaluation["finalized"] == True
+  isAlreadySubmitted = any(_is_finalized_value(ev.get("finalized")) for ev in matchedEvaluation)
   
   if (evaluatable(requirementId)):
     return {
@@ -156,7 +166,15 @@ def evaluateByRequirement(requirementId):
   if (len(evaluationTemplates) == 0):
     return ({ "message": "No evaluation template found for this requirement" }, 404)
   
-  evaluationTemplate = evaluationTemplates[0]
+  # Pick a non-finalized template deterministically (if duplicates exist).
+  # evaluatable() already guarantees there is no finalized row at this point.
+  evaluationTemplate = None
+  for ev in evaluationTemplates:
+    if not _is_finalized_value(ev.get("finalized")):
+      evaluationTemplate = ev
+      break
+  if evaluationTemplate is None:
+    return ({ "message": "The provided requirement ID cannot be evaluated" }, 403)
 
   # Get requirement details
   requirement = RequirementDb.get(requirementId)
