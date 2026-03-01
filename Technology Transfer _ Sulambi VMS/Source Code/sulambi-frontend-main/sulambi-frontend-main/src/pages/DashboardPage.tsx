@@ -40,6 +40,36 @@ const iconSx = {
   width: "45px",
 };
 
+const toEventMs = (value: unknown): number | null => {
+  if (value == null) return null;
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value >= 1e12 ? value : value * 1000;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const asNum = Number(trimmed);
+    if (Number.isFinite(asNum) && trimmed !== "") {
+      return asNum >= 1e12 ? asNum : asNum * 1000;
+    }
+
+    const parsed = Date.parse(trimmed);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  return null;
+};
+
+const getEventYear = (value: unknown): number | null => {
+  const ms = toEventMs(value);
+  if (ms == null) return null;
+  const year = new Date(ms).getFullYear();
+  return Number.isNaN(year) ? null : year;
+};
+
 // Analytics Box Component
 const AnalyticsBox : React.FC<{
   title: string;
@@ -193,9 +223,6 @@ const Dashboard = () => {
     { sex: string; total: number }[]
   >([]);
 
-  const [events, setEvents] = useState<
-    (ExternalEventProposalType | InternalEventProposalType)[]
-  >([]);
   const [eventYearFilter, setEventYearFilter] = useState<string>("");
 
   // Photos grid now fetches its own data
@@ -320,28 +347,28 @@ const Dashboard = () => {
     setAgeGroupData(validatedAgeData);
   }, [analyticsResponse, analyticsError]);
 
-  // Process events data
-  useEffect(() => {
-    if (eventsResponse) {
-      const externalEvent: ExternalEventProposalType[] = eventsResponse.external || [];
-      const internalEvent: InternalEventProposalType[] = eventsResponse.internal || [];
-      setEvents(
-        [...externalEvent, ...internalEvent].filter(
-          (event) => event && event.status === "accepted"
-        )
-      );
-    }
-  }, [eventsResponse]);
+  const allEvents = useMemo(
+    () =>
+      eventsResponse
+        ? [
+            ...((eventsResponse.external || []) as ExternalEventProposalType[]),
+            ...((eventsResponse.internal || []) as InternalEventProposalType[]),
+          ]
+        : [],
+    [eventsResponse]
+  );
+
+  const events = useMemo(
+    () => allEvents.filter((event) => event && event.status === "accepted"),
+    [allEvents]
+  );
 
   // Unique years from events (by start date) for the year filter
   const eventYears = useMemo(() => {
     const years = new Set<number>();
     events.forEach((evt) => {
-      const start = evt.durationStart;
-      if (start == null) return;
-      const ms = start > 1e12 ? start : start * 1000;
-      const y = new Date(ms).getFullYear();
-      if (!isNaN(y)) years.add(y);
+      const y = getEventYear(evt.durationStart);
+      if (y !== null) years.add(y);
     });
     return Array.from(years).sort((a, b) => b - a);
   }, [events]);
@@ -351,13 +378,46 @@ const Dashboard = () => {
     if (!eventYearFilter || eventYearFilter === "all") return events;
     const yearNum = parseInt(eventYearFilter, 10);
     if (isNaN(yearNum)) return events;
-    return events.filter((evt) => {
-      const start = evt.durationStart;
-      if (start == null) return false;
-      const ms = start > 1e12 ? start : start * 1000;
-      return new Date(ms).getFullYear() === yearNum;
-    });
+    return events.filter((evt) => getEventYear(evt.durationStart) === yearNum);
   }, [events, eventYearFilter]);
+
+  // Apply year filter to event-stat cards without changing membership/account totals.
+  const displayedDashboardData = useMemo(() => {
+    if (!eventYearFilter || eventYearFilter === "all") return dashboardData;
+    const yearNum = parseInt(eventYearFilter, 10);
+    if (isNaN(yearNum)) return dashboardData;
+
+    const nowMs = Date.now();
+    let approved = 0;
+    let pending = 0;
+    let rejected = 0;
+    let implemented = 0;
+
+    allEvents.forEach((event) => {
+      if (!event || event.status === "editing") return;
+      if (getEventYear(event.durationStart) !== yearNum) return;
+
+      if (event.status === "accepted") {
+        approved += 1;
+        const endMs = toEventMs(event.durationEnd);
+        if (endMs !== null && endMs < nowMs) {
+          implemented += 1;
+        }
+      } else if (event.status === "submitted") {
+        pending += 1;
+      } else {
+        rejected += 1;
+      }
+    });
+
+    return {
+      ...dashboardData,
+      totalApprovedEvents: approved,
+      pendingEvents: pending,
+      rejectedEvents: rejected,
+      implementedEvent: implemented,
+    };
+  }, [dashboardData, eventYearFilter, allEvents]);
 
   const handleProjectSearchResults = useCallback(
     (_results: (ExternalEventProposalType | InternalEventProposalType)[]) => {
@@ -440,7 +500,7 @@ const Dashboard = () => {
           justifyContent="flex-start"
         >
           <DashboardCard
-            value={dashboardData.totalApprovedEvents}
+            value={displayedDashboardData.totalApprovedEvents}
             label="Approved Events"
             icon={<StadiumIcon sx={iconSx} />}
             onClick={() => {
@@ -452,7 +512,7 @@ const Dashboard = () => {
             }}
           />
           <DashboardCard
-            value={dashboardData.pendingEvents}
+            value={displayedDashboardData.pendingEvents}
             label="Pending Events"
             icon={<PendingIcon sx={iconSx} />}
             onClick={() => {
@@ -464,7 +524,7 @@ const Dashboard = () => {
             }}
           />
           <DashboardCard
-            value={dashboardData.rejectedEvents}
+            value={displayedDashboardData.rejectedEvents}
             label="Not Approved Event"
             icon={<DangerousIcon sx={iconSx} />}
             onClick={() => {
@@ -476,7 +536,7 @@ const Dashboard = () => {
             }}
           />
           <DashboardCard
-            value={dashboardData.implementedEvent}
+            value={displayedDashboardData.implementedEvent}
             label="Implemented Event"
             icon={<FactCheckIcon sx={iconSx} />}
             // onClick={() => {

@@ -10,6 +10,29 @@ import dayjs from "dayjs";
 import { useCachedFetch } from "../../hooks/useCachedFetch";
 import { CACHE_TIMES } from "../../utils/apiCache";
 
+const toEventMs = (value: unknown): number | null => {
+  if (value == null) return null;
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value >= 1e12 ? value : value * 1000;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const asNum = Number(trimmed);
+    if (Number.isFinite(asNum)) {
+      return asNum >= 1e12 ? asNum : asNum * 1000;
+    }
+
+    const parsed = Date.parse(trimmed);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  return null;
+};
+
 const CalendarPage = () => {
   // Use cached fetch - data persists when navigating away and coming back!
   const { data: eventsResponse, loading } = useCachedFetch({
@@ -27,15 +50,21 @@ const CalendarPage = () => {
           const status = String(event.status || "").toLowerCase().trim();
           return status !== "editing" && status !== "rejected";
         })
-        .sort((a, b) => a.durationStart - b.durationStart)
+        .sort((a, b) => {
+          const aMs = toEventMs((a as any).durationStart) ?? 0;
+          const bMs = toEventMs((b as any).durationStart) ?? 0;
+          return aMs - bMs;
+        })
     : [];
 
-  const formatDate = (timestamp: number) => {
-    return dayjs(timestamp).format("MMM DD, YYYY");
+  const formatDate = (value: unknown) => {
+    const ms = toEventMs(value);
+    return ms ? dayjs(ms).format("MMM DD, YYYY") : "Date unavailable";
   };
 
-  const formatTime = (timestamp: number) => {
-    return dayjs(timestamp).format("h:mm A");
+  const formatTime = (value: unknown) => {
+    const ms = toEventMs(value);
+    return ms ? dayjs(ms).format("h:mm A") : "--:--";
   };
 
   const getEventLocation = (event: ExternalEventProposalType | InternalEventProposalType) => {

@@ -26,6 +26,39 @@ import {
 import { getAllEvents } from '../../api/events';
 import { ExternalEventProposalType, InternalEventProposalType } from '../../interface/types';
 
+const toEventDate = (value: unknown): Date | null => {
+  if (value == null) return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const ms = value >= 1e12 ? value : value * 1000;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const asNum = Number(trimmed);
+    if (Number.isFinite(asNum)) {
+      const ms = asNum >= 1e12 ? asNum : asNum * 1000;
+      const d = new Date(ms);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    const parsed = Date.parse(trimmed);
+    if (!Number.isNaN(parsed)) {
+      return new Date(parsed);
+    }
+  }
+
+  return null;
+};
+
 const CompactEventCalendar: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<(ExternalEventProposalType | InternalEventProposalType)[]>([]);
@@ -56,7 +89,8 @@ const CompactEventCalendar: React.FC = () => {
     const month = date.getMonth();
     
     return events.filter(event => {
-      const eventDate = new Date(event.durationStart);
+      const eventDate = toEventDate((event as any).durationStart);
+      if (!eventDate) return false;
       return eventDate.getFullYear() === year && eventDate.getMonth() === month;
     });
   };
@@ -65,7 +99,8 @@ const CompactEventCalendar: React.FC = () => {
   const getEventsForDate = (date: Date) => {
     const dateStr = date.toDateString();
     return events.filter(event => {
-      const eventDate = new Date(event.durationStart);
+      const eventDate = toEventDate((event as any).durationStart);
+      if (!eventDate) return false;
       return eventDate.toDateString() === dateStr;
     });
   };
@@ -76,9 +111,14 @@ const CompactEventCalendar: React.FC = () => {
     const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
     
     return events.filter(event => {
-      const eventDate = new Date(event.durationStart);
+      const eventDate = toEventDate((event as any).durationStart);
+      if (!eventDate) return false;
       return eventDate >= today && eventDate <= nextWeek;
-    }).sort((a, b) => new Date(a.durationStart).getTime() - new Date(b.durationStart).getTime());
+    }).sort((a, b) => {
+      const aMs = toEventDate((a as any).durationStart)?.getTime() ?? 0;
+      const bMs = toEventDate((b as any).durationStart)?.getTime() ?? 0;
+      return aMs - bMs;
+    });
   };
 
   // Calendar navigation
@@ -234,15 +274,24 @@ const CompactEventCalendar: React.FC = () => {
                   }
                   secondary={
                     <Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '11px' }}>
-                        <LocationOn sx={{ fontSize: 12, mr: 0.5 }} />
-                        {(event as ExternalEventProposalType).location || (event as InternalEventProposalType).venue}
-                      </Typography>
-                      <br />
-                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '11px' }}>
-                        <AccessTime sx={{ fontSize: 12, mr: 0.5 }} />
-                        {new Date(event.durationStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Typography>
+                      {(() => {
+                        const eventDate = toEventDate((event as any).durationStart);
+                        return (
+                          <>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '11px' }}>
+                              <LocationOn sx={{ fontSize: 12, mr: 0.5 }} />
+                              {(event as ExternalEventProposalType).location || (event as InternalEventProposalType).venue}
+                            </Typography>
+                            <br />
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '11px' }}>
+                              <AccessTime sx={{ fontSize: 12, mr: 0.5 }} />
+                              {eventDate
+                                ? eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                : '--:--'}
+                            </Typography>
+                          </>
+                        );
+                      })()}
                     </Box>
                   }
                 />
@@ -278,10 +327,16 @@ const CompactEventCalendar: React.FC = () => {
                     </Typography>
                   }
                   secondary={
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '11px' }}>
-                      {new Date(event.durationStart).toLocaleDateString()} at{' '}
-                      {new Date(event.durationStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </Typography>
+                    (() => {
+                      const eventDate = toEventDate((event as any).durationStart);
+                      return (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '11px' }}>
+                          {eventDate
+                            ? `${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            : 'Date unavailable'}
+                        </Typography>
+                      );
+                    })()
                   }
                 />
               </ListItem>
