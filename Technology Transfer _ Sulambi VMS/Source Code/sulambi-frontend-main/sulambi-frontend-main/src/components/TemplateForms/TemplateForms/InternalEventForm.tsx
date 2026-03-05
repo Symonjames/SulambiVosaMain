@@ -1,6 +1,6 @@
 import { CheckBoxText, RomanListValues } from "./ExternalEventForm";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { InternalEventProposalType } from "../../../interface/types";
 
@@ -13,6 +13,7 @@ import BSUTemplateSigning from "./BSUTemplateSigning";
 import ColSizeGen from "./ColSizeGen";
 
 import dayjs from "dayjs";
+import { looseJsonParse } from "../../../utils/looseJson";
 
 interface Props {
   data: InternalEventProposalType;
@@ -125,6 +126,46 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
   const [activities, setActivities] = useState<Array<{ activity_name: string; months: number[] }>>([]);
   const [monthHeaders, setMonthHeaders] = useState<string[]>([]);
 
+  const renderedWorkPlan = useMemo(() => {
+    const parsedWorkPlan = looseJsonParse<any>(data.workPlan, {});
+    if (!parsedWorkPlan || typeof parsedWorkPlan !== "object" || Array.isArray(parsedWorkPlan)) {
+      return { headers: [] as string[], rows: [] as Array<{ activity: string; cells: Record<string, string> }> };
+    }
+
+    const rowKeys = Object.keys(parsedWorkPlan).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+    const headers: string[] = [];
+    const headerSet = new Set<string>();
+
+    rowKeys.forEach((k) => {
+      const row = parsedWorkPlan[k];
+      if (!row || typeof row !== "object") return;
+      Object.keys(row).forEach((colKey) => {
+        if (colKey === "Activities" || colKey === "activities") return;
+        if (!headerSet.has(colKey)) {
+          headerSet.add(colKey);
+          headers.push(colKey);
+        }
+      });
+    });
+
+    const rows = rowKeys
+      .map((k) => {
+        const row = parsedWorkPlan[k];
+        if (!row || typeof row !== "object") return null;
+        const activity = String(row.Activities ?? row.activities ?? "").trim();
+        if (!activity) return null;
+        const cells: Record<string, string> = {};
+        headers.forEach((h) => {
+          const val = row[h];
+          cells[h] = val === null || val === undefined ? "" : String(val);
+        });
+        return { activity, cells };
+      })
+      .filter(Boolean) as Array<{ activity: string; cells: Record<string, string> }>;
+
+    return { headers, rows };
+  }, [data.workPlan]);
+
   useEffect(() => {
     // Parse evaluationMechanicsPlan - handle both string and object formats
     try {
@@ -156,15 +197,118 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
       setFinancialRequirement({});
     }
 
-    // Use activities from API if available and has data, otherwise try to convert from workPlan
-    if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
+    // Prefer workPlan as source of truth. activities can be stale/backfilled data.
+    if (data.workPlan) {
+      // Convert workPlan format to activities format
+      try {
+        const parsedWorkPlan = looseJsonParse<any>(data.workPlan, {});
+        const convertedActivities: Array<{ activity_name: string; months: number[] }> = [];
+        
+        // Extract column headers from row keys in the data
+        let allMonthHeaders: string[] = [];
+        const headerSet = new Set<string>();
+        const firstRowKey = Object.keys(parsedWorkPlan || {})[0];
+        
+        if (firstRowKey && parsedWorkPlan[firstRowKey]) {
+          // Preserve order from first row
+          Object.keys(parsedWorkPlan[firstRowKey]).forEach((colKey) => {
+            if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
+              headerSet.add(colKey);
+              allMonthHeaders.push(colKey);
+            }
+          });
+          // Add columns that appear only in other rows
+          Object.keys(parsedWorkPlan).forEach((key) => {
+            const row = parsedWorkPlan[key];
+            if (row) {
+              Object.keys(row).forEach((colKey) => {
+                if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
+                  headerSet.add(colKey);
+                  allMonthHeaders.push(colKey);
+                }
+              });
+            }
+          });
+        } else {
+          Object.keys(parsedWorkPlan || {}).forEach((key) => {
+            const row = parsedWorkPlan[key];
+            if (row) {
+              Object.keys(row).forEach((colKey) => {
+                if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
+                  headerSet.add(colKey);
+                  allMonthHeaders.push(colKey);
+                }
+              });
+            }
+          });
+        }
+        
+        const allAreDefaultFormat = allMonthHeaders.every(h => 
+          /^Month \d+$/.test(h) || /^act_\d+$/.test(h)
+        );
+        if (allAreDefaultFormat) {
+          allMonthHeaders.sort((a, b) => {
+            const numA = parseInt(a.replace(/Month |act_/g, '')) || 0;
+            const numB = parseInt(b.replace(/Month |act_/g, '')) || 0;
+            if (numA > 0 && numB > 0) {
+              return numA - numB;
+            }
+            return 0;
+          });
+        }
+        
+        setMonthHeaders(allMonthHeaders);
+        
+        Object.keys(parsedWorkPlan || {}).forEach((key) => {
+          const row = parsedWorkPlan[key];
+          if (!row) return;
+
+          const activityName = row.Activities || row.activities;
+          if (!activityName || activityName.trim() === '') return;
+
+          const months: number[] = [];
+          allMonthHeaders.forEach((monthHeader, index) => {
+            const monthValue = row[monthHeader];
+            const normalized = typeof monthValue === 'string' ? monthValue.trim() : monthValue;
+            if (normalized === '' || normalized === null || normalized === undefined) return;
+            // Guard against corrupted rows where month cells mirror the activity name.
+            if (typeof normalized === 'string' && normalized.toLowerCase() === String(activityName).trim().toLowerCase()) return;
+            months.push(index);
+          });
+
+          if (months.length > 0) {
+            convertedActivities.push({
+              activity_name: activityName,
+              months
+            });
+          }
+        });
+        
+        if (convertedActivities.length > 0) {
+          setActivities(convertedActivities);
+        } else if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
+          // Fallback to API activities only when workPlan has no usable rows.
+          setActivities(data.activities);
+        } else {
+          setActivities([]);
+        }
+      } catch (e) {
+        console.error('Error parsing workPlan:', e);
+        if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
+          setActivities(data.activities);
+        } else {
+          setActivities([]);
+          setMonthHeaders([]);
+        }
+      }
+    } else if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
       // If activities exist and have data, use them and extract monthHeaders from them
       setActivities(data.activities);
       // Extract unique month headers from activities (if months are indices, we need to know the headers)
       // Since activities from API don't have month headers, we need to check workPlan for headers
       if (data.workPlan) {
         try {
-          const parsedWorkPlan = typeof data.workPlan === 'string' ? JSON.parse(data.workPlan) : data.workPlan;
+          const parsedWorkPlan = looseJsonParse<any>(data.workPlan, {});
           if (parsedWorkPlan && typeof parsedWorkPlan === 'object' && Object.keys(parsedWorkPlan).length > 0) {
             // Extract month headers from workPlan to display column headers
             const headerSet = new Set<string>();
@@ -215,118 +359,6 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
         } catch (e) {
           console.error('Error extracting month headers from workPlan:', e);
         }
-      }
-    } else if (data.workPlan) {
-      // Fallback: Convert old workPlan format to activities format
-      try {
-        const parsedWorkPlan = typeof data.workPlan === 'string' ? JSON.parse(data.workPlan) : data.workPlan;
-        const convertedActivities: Array<{ activity_name: string; months: number[] }> = [];
-        
-        // Extract column headers from the row keys in the data
-        // Column names are stored as keys in the row data when renamed
-        let allMonthHeaders: string[] = [];
-        
-        // Extract all month column headers from the data (all columns except Activities)
-        // IMPORTANT: Maintain the order they appear in the FIRST row to preserve user's column order
-        const headerSet = new Set<string>();
-        const firstRowKey = Object.keys(parsedWorkPlan)[0];
-        
-        if (firstRowKey && parsedWorkPlan[firstRowKey]) {
-          // Extract column order from the first row to preserve user's custom order
-          Object.keys(parsedWorkPlan[firstRowKey]).forEach((colKey) => {
-            // Skip the Activities column, collect all other columns as month headers
-            // IMPORTANT: Use the EXACT column key as it appears in the data
-            // If user changed "Month 1" to "Nov 14 2025", the key will be "Nov 14 2025"
-            if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
-              headerSet.add(colKey);
-              allMonthHeaders.push(colKey);
-            }
-          });
-          
-          // Also check other rows to catch any columns that might not be in the first row
-          Object.keys(parsedWorkPlan).forEach((key) => {
-            const row = parsedWorkPlan[key];
-            if (row) {
-              Object.keys(row).forEach((colKey) => {
-                if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
-                  headerSet.add(colKey);
-                  // Add to end to maintain order
-                  allMonthHeaders.push(colKey);
-                }
-              });
-            }
-          });
-        } else {
-          // Fallback: extract from all rows if first row doesn't exist
-          Object.keys(parsedWorkPlan).forEach((key) => {
-            const row = parsedWorkPlan[key];
-            if (row) {
-              Object.keys(row).forEach((colKey) => {
-                if (colKey !== 'Activities' && colKey !== 'activities' && !headerSet.has(colKey)) {
-                  headerSet.add(colKey);
-                  allMonthHeaders.push(colKey);
-                }
-              });
-            }
-          });
-        }
-        
-        // DON'T sort - preserve the exact order from the data
-        // The user's column order should be maintained as they set it
-        // Only sort if ALL headers are in "Month X" or "act_X" format (default format)
-        const allAreDefaultFormat = allMonthHeaders.every(h => 
-          /^Month \d+$/.test(h) || /^act_\d+$/.test(h)
-        );
-        
-        if (allAreDefaultFormat) {
-          // Only sort if all are default format
-          allMonthHeaders.sort((a, b) => {
-            const numA = parseInt(a.replace(/Month |act_/g, '')) || 0;
-            const numB = parseInt(b.replace(/Month |act_/g, '')) || 0;
-            if (numA > 0 && numB > 0) {
-              return numA - numB;
-            }
-            return 0;
-          });
-        }
-        
-        setMonthHeaders(allMonthHeaders);
-        
-        Object.keys(parsedWorkPlan).forEach((key) => {
-          const row = parsedWorkPlan[key];
-          if (row) {
-            // Handle both "Activities" and "activities" keys
-            const activityName = row.Activities || row.activities;
-            if (activityName && activityName.trim() !== '') {
-              const months: number[] = [];
-              
-              // Check each month header
-              allMonthHeaders.forEach((monthHeader, index) => {
-                const monthValue = row[monthHeader];
-                
-                // Check if month is assigned (has a value, even if it's the activity name)
-                if (monthValue && monthValue !== '' && monthValue !== null) {
-                  // If it has a value (even if it's the activity name), it's checked
-                  months.push(index);
-                }
-              });
-              
-              // Only add activities that have at least one month assigned
-              if (months.length > 0) {
-                convertedActivities.push({
-                  activity_name: activityName,
-                  months: months
-                });
-              }
-            }
-          }
-        });
-        
-        if (convertedActivities.length > 0) {
-          setActivities(convertedActivities);
-        }
-      } catch (e) {
-        console.error('Error parsing workPlan:', e);
       }
     } else {
       // If neither activities nor workPlan exist, reset to empty state
@@ -559,16 +591,16 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                   ]}
                 />
               <div style={{ width: "90%", margin: "0 auto" }}>
-                {activities.length > 0 && monthHeaders.length > 0 ? (
+                {((renderedWorkPlan.rows.length > 0 && renderedWorkPlan.headers.length > 0) || (activities.length > 0 && monthHeaders.length > 0)) ? (
                   <div className="workplan-table-wrapper" style={{ overflow: "hidden", width: "100%" }}>
                     <table className="bsuFormChild workplan-table internal-event-table-with-top-border" style={{ overflow: "hidden", width: "100%", borderTop: "1px solid black" }}>
-                      <ColSizeGen colSize={monthHeaders.length + 1} percentage={`${100 / (monthHeaders.length + 1)}%`} />
+                      <ColSizeGen colSize={(renderedWorkPlan.headers.length || monthHeaders.length) + 1} percentage={`${100 / ((renderedWorkPlan.headers.length || monthHeaders.length) + 1)}%`} />
                       <tbody>
                         <tr>
                           <td colSpan={1} style={{ textAlign: "center", fontWeight: "normal", borderTop: "1px solid black", padding: "4px 6px", fontSize: "11px" }} className="fontSet">
                             Activities
                           </td>
-                          {monthHeaders.map((header, headerIndex) => {
+                          {(renderedWorkPlan.headers.length > 0 ? renderedWorkPlan.headers : monthHeaders).map((header, headerIndex) => {
                             // Display EXACTLY what the officer entered - no processing, no stripping
                             // If they put "Nov 14 2025", show "Nov 14 2025"
                             // If they put "Month 1", show "Month 1"
@@ -586,7 +618,18 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                             );
                           })}
                         </tr>
-                        {activities.map((activity, rowIndex) => (
+                        {(renderedWorkPlan.rows.length > 0
+                          ? renderedWorkPlan.rows.map((row) => ({
+                              activity_name: row.activity,
+                              cells: row.cells,
+                              months: [] as number[],
+                            }))
+                          : activities.map((activity) => ({
+                              activity_name: activity.activity_name,
+                              cells: {} as Record<string, string>,
+                              months: activity.months,
+                            }))
+                        ).map((activity, rowIndex) => (
                           <tr key={rowIndex}>
                             <td
                               colSpan={1}
@@ -595,14 +638,16 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                             >
                               {activity.activity_name}
                             </td>
-                            {monthHeaders.map((_, headerIndex) => (
+                            {(renderedWorkPlan.headers.length > 0 ? renderedWorkPlan.headers : monthHeaders).map((header, headerIndex) => (
                               <td
                                 key={headerIndex}
                                 colSpan={1}
                                 style={{ textAlign: "center", padding: "4px 6px", fontSize: "11px" }}
                                 className="fontSet"
                               >
-                                {activity.months.includes(headerIndex) ? "X" : ""}
+                                {renderedWorkPlan.rows.length > 0
+                                  ? (activity.cells[header] || "")
+                                  : (activity.months.includes(headerIndex) ? "X" : "")}
                               </td>
                             ))}
                           </tr>

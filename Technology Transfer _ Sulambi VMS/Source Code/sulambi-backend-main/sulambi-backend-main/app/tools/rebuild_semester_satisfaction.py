@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 
-from ..database.connection import cursorInstance, quote_identifier, convert_placeholders
+from ..database.connection import cursorInstance, quote_identifier, convert_placeholders, table_name_for_query
 from ..database.connection import is_postgresql_url
 
 load_dotenv()
@@ -101,10 +101,10 @@ def rebuild(year_filter: str | None = None):
   ensure_table(conn, cursor)
 
   # Pull evaluations joined to events to get dates
-  internal_events_table = quote_identifier('internalEvents')
-  external_events_table = quote_identifier('externalEvents')
-  evaluation_table = quote_identifier('evaluation')
-  requirements_table = quote_identifier('requirements')
+  internal_events_table = table_name_for_query('internalEvents')
+  external_events_table = table_name_for_query('externalEvents')
+  evaluation_table = table_name_for_query('evaluation')
+  requirements_table = table_name_for_query('requirements')
   
   query = f"""
     SELECT e.id, e.criteria, e.finalized, e.q13, e.q14, e.comment,

@@ -44,6 +44,7 @@ import SignatoriesForm from "../../components/Forms/SignatoriesForm";
 import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
 import LoadingSpinner from "../../components/Loading/LoadingSpinner";
 import { toJsonString } from "../../utils/looseJson";
+import { getFromSessionObfuscated } from "../../utils/storage";
 
 const EventProposal = () => {
   const { formData, setFormData } = useContext(FormDataContext);
@@ -52,9 +53,11 @@ const EventProposal = () => {
 
   const [showFormPreview, setShowFormPreview] = useState(false);
   const [searchVal, setSearchVal] = useState("");
+  const [debouncedSearchVal, setDebouncedSearchVal] = useState("");
   const [openUpdateSignatories, setOpenUpdateSignatories] = useState(false);
   const [signatoryId, setSignatoryId] = useState<number | null>(null);
 
+  const [allEventsData, setAllEventsData] = useState<any[]>([]);
   const [tableData, setTableData] = useState<any>([]);
   const [refreshTable, setRefreshTable] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -84,6 +87,18 @@ const EventProposal = () => {
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ id: number; type: "external" | "internal" } | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchVal(searchVal), 250);
+    return () => clearTimeout(timer);
+  }, [searchVal]);
+
+  const normalizeText = (value: unknown) =>
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
   const chipMap = {
     editing: <Chip bgcolor="blue" label="editing" color="white" />,
@@ -150,30 +165,41 @@ const EventProposal = () => {
           | ExternalEventProposalType
           | InternalEventProposalType
         )[] = events.data.events;
+        setAllEventsData(sortedEventData);
+        setLoading(false);
+      } catch (err: any) {
+        console.log(err);
+        setAllEventsData([]);
+        setLoading(false);
+      }
+    })();
+  }, [refreshTable]);
 
-        // const externalEventData: ExternalEventProposalType[] =
-        //   events.data.external;
-        // const internalEventData: InternalEventProposalType[] =
-        //   events.data.internal;
-
-        setTableData(
-          sortedEventData
-            .filter((event) => {
-              if (searchVal === "") return true;
-              return (
-                event.title.toLowerCase().includes(searchVal) ||
-                event.status.toLowerCase().includes(searchVal)
-              );
-            })
-            .filter((event) => {
-              if (searchStatus === "") return true;
-              return event.status === searchStatus;
-            })
-            .filter((event: any) => {
-              if (searchFilter.type === "") return true;
-              return event.eventTypeIndicator === searchFilter.type;
-            })
-            .map((eventdata: any) => [
+  useEffect(() => {
+    const terms = normalizeText(debouncedSearchVal).split(" ").filter(Boolean);
+    setTableData(
+      allEventsData
+        .filter((event: any) => {
+          if (!terms.length) return true;
+          const haystack = normalizeText(
+            [
+              event.title,
+              event.status,
+              event.eventTypeIndicator,
+              event.createdBy?.username,
+            ].join(" ")
+          );
+          return terms.every((term) => haystack.includes(term));
+        })
+        .filter((event: any) => {
+          if (searchStatus === "") return true;
+          return event.status === searchStatus;
+        })
+        .filter((event: any) => {
+          if (searchFilter.type === "") return true;
+          return event.eventTypeIndicator === searchFilter.type;
+        })
+        .map((eventdata: any) => [
               eventdata.title,
               eventdata.eventTypeIndicator,
               chipMap[
@@ -290,14 +316,8 @@ const EventProposal = () => {
                 />
               ),
             ])
-        );
-        setLoading(false);
-      } catch (err: any) {
-        console.log(err);
-        setLoading(false);
-      }
-    })();
-  }, [refreshTable, searchFilter, searchVal, searchStatus]);
+    );
+  }, [allEventsData, debouncedSearchVal, searchFilter.type, searchStatus]);
 
   const ModRightComponents = [
     <CustomDropdown
@@ -373,7 +393,7 @@ const EventProposal = () => {
             <PrimaryButton
               label="Update"
               startIcon={<EditIcon />}
-              onClick={() => {
+              onClick={async () => {
                 if (eventType) {
                   if (eventType[1] == "external") {
                     // Process formData the same way as submitCallback - stringify objects
@@ -418,14 +438,67 @@ const EventProposal = () => {
                   }
 
                   if (eventType[1] == "internal") {
+                    // Flush any pending Gantt table updates synchronously before processing
+                    // This ensures workPlan is saved immediately, not waiting for debounce
+                    if (typeof window !== 'undefined') {
+                      const flushFn = (window as any)[`__flushGantt_workPlan`];
+                      if (flushFn && typeof flushFn === 'function') {
+                        console.log("[UPDATE_EVENT] Flushing workPlan updates synchronously");
+                        flushFn();
+                        // Small delay to let the flush complete
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                      }
+                    }
+                    
+                    // Get the latest formData - try reading from sessionStorage first since FormDataProvider saves there
+                    // This ensures we get the most up-to-date workPlan even if React state is stale
+                    let latestFormData = formData;
+                    try {
+                      const storedFormData = getFromSessionObfuscated<Record<string, any>>('formData', null);
+                      if (storedFormData && storedFormData.workPlan) {
+                        // If sessionStorage has workPlan data, check if it's more up-to-date
+                        const storedWorkPlan = storedFormData.workPlan;
+                        const currentWorkPlan = latestFormData.workPlan;
+                        
+                        // If stored workPlan is an object with data, or if current is empty/undefined, use stored
+                        if ((typeof storedWorkPlan === 'object' && Object.keys(storedWorkPlan).length > 0) ||
+                            (!currentWorkPlan || currentWorkPlan === "{}" || (typeof currentWorkPlan === 'object' && Object.keys(currentWorkPlan).length === 0))) {
+                          latestFormData = { ...latestFormData, workPlan: storedWorkPlan };
+                          console.log("[UPDATE_EVENT] Using workPlan from sessionStorage (more up-to-date)", Object.keys(storedWorkPlan).length, "rows");
+                        }
+                      }
+                    } catch (e) {
+                      console.warn("[UPDATE_EVENT] Could not read from sessionStorage:", e);
+                    }
+                    
+                    // Debug logging
+                    console.log("[UPDATE_EVENT] formData.workPlan before processing:", typeof latestFormData.workPlan, latestFormData.workPlan ? (typeof latestFormData.workPlan === 'object' ? Object.keys(latestFormData.workPlan).length + ' keys' : latestFormData.workPlan.substring(0, 100)) : 'undefined');
+                    
                     // Process formData the same way as submitCallback - stringify objects
-                    const processedFormData = { ...formData };
+                    const processedFormData = { ...latestFormData };
                     if (processedFormData.eventProposalType && typeof processedFormData.eventProposalType === "object") {
                       processedFormData.eventProposalType = toJsonString(processedFormData.eventProposalType, "[]");
                     }
-                    if (processedFormData.workPlan && typeof processedFormData.workPlan === 'object') {
-                      processedFormData.workPlan = JSON.stringify(processedFormData.workPlan);
+                    // Always ensure workPlan is included and properly stringified
+                    // Handle both object and string cases, and ensure it's never undefined
+                    if (processedFormData.workPlan) {
+                      if (typeof processedFormData.workPlan === 'object') {
+                        processedFormData.workPlan = JSON.stringify(processedFormData.workPlan);
+                        console.log("[UPDATE_EVENT] workPlan was object, stringified. Length:", processedFormData.workPlan.length);
+                      } else if (typeof processedFormData.workPlan === 'string') {
+                        // Already a string, use as-is
+                        console.log("[UPDATE_EVENT] workPlan was already string. Length:", processedFormData.workPlan.length);
+                      } else {
+                        // Fallback to empty object if invalid type
+                        processedFormData.workPlan = "{}";
+                        console.log("[UPDATE_EVENT] workPlan had invalid type, set to {}");
+                      }
+                    } else {
+                      // If workPlan is missing, set to empty object string
+                      processedFormData.workPlan = "{}";
+                      console.log("[UPDATE_EVENT] workPlan was missing/undefined, set to {}");
                     }
+                    console.log("[UPDATE_EVENT] Final workPlan being sent:", processedFormData.workPlan.substring(0, 100));
                     if (processedFormData.financialRequirement && typeof processedFormData.financialRequirement === 'object') {
                       processedFormData.financialRequirement = JSON.stringify(processedFormData.financialRequirement);
                     }
@@ -602,7 +675,7 @@ const EventProposal = () => {
             searchPlaceholder="Search name of event"
             searchOnSubmitOnly
             onSearch={(key) => {
-              setSearchVal(key.toLowerCase().trim());
+              setSearchVal(key);
             }}
           />
         )}

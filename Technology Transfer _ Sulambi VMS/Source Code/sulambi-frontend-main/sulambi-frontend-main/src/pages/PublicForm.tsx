@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import PrimaryButton from "../components/Buttons/PrimaryButton";
 import FlexBox from "../components/FlexBox";
 import FormGeneratorTemplate from "../components/Forms/FormGeneratorTemplate";
@@ -10,6 +10,7 @@ import { FormDataContext } from "../contexts/FormDataProvider";
 import { checkReqIdValidity, createEvaluation } from "../api/evaluation";
 import { IconButton, Typography } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CircularProgress from "@mui/material/CircularProgress";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
 import { useMediaQuery } from "react-responsive";
 
@@ -21,6 +22,7 @@ const PublicForm = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
   const [disableButton, setDisableButton] = useState(false);
   const [isIdValid, setIsIdValid] = useState<boolean | undefined>(undefined);
+  const [isCheckingId, setIsCheckingId] = useState(false);
   const [canSubmit, setCanSubmit] = useState(true);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState([]);
@@ -29,10 +31,12 @@ const PublicForm = () => {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const lastResetKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     (async function () {
       if (id) {
+        setIsCheckingId(true);
         try {
           const response = await checkReqIdValidity(id);
           setIsIdValid(true);
@@ -43,6 +47,8 @@ const PublicForm = () => {
           if (err.response?.data?.message) {
             showSnackbarMessage(err.response.data.message, "error");
           }
+        } finally {
+          setIsCheckingId(false);
         }
       }
     })();
@@ -52,6 +58,10 @@ const PublicForm = () => {
   // so rating and comment fields behave the same regardless of entry point.
   useEffect(() => {
     if (id) {
+      const resetKey = `${location.pathname}:${id}`;
+      // Prevent repeated wipes caused by provider function identity changes across renders.
+      if (lastResetKeyRef.current === resetKey) return;
+      lastResetKeyRef.current = resetKey;
       setFormData({});
       if (location.pathname) setPageFormData(location.pathname, {});
     }
@@ -107,7 +117,33 @@ const PublicForm = () => {
         background: "linear-gradient(180deg, #c07f00 0%, #ffdf75 100%)",
       }}
     >
-      {isIdValid === true ? (
+      {isCheckingId ? (
+        <FlexBox flexDirection="column" alignItems="center" rowGap="12px">
+          <CircularProgress sx={{ color: "white" }} />
+          <Typography color="white">Loading evaluation form...</Typography>
+        </FlexBox>
+      ) : isIdValid === true ? (
+        alreadySubmitted ? (
+          <PopupModal
+            open
+            hideCloseButton
+            disableBGShadow
+            width={isMobile ? "90vw" : "420px"}
+            header="Evaluation already submitted"
+            subHeader="This token has already been used."
+          >
+            <FlexBox flexDirection="column" alignItems="center" rowGap="12px" marginTop="8px">
+              <Typography textAlign="center">
+                You have already evaluated using this token. Thank you for your feedback!
+              </Typography>
+              <PrimaryButton
+                label="Back to Home"
+                size="small"
+                onClick={() => navigate("/")}
+              />
+            </FlexBox>
+          </PopupModal>
+        ) : (
         <>
           <PopupModal
             open
@@ -336,26 +372,21 @@ const PublicForm = () => {
               </FlexBox>
             </form>
             <FlexBox justifyContent="flex-end" marginTop="20px">
-              {alreadySubmitted ? (
-                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                  This evaluation has already been submitted. Thank you for your feedback!
-                </Typography>
-              ) : (
-                <PrimaryButton
-                  label="Submit"
-                  size="small"
-                  icon={<SendIcon />}
-                  disabled={disableButton || !canSubmit}
-                  onClick={() => {
-                    setDisableButton(true);
-                    submitCallback();
-                  }}
-                />
-              )}
+              <PrimaryButton
+                label="Submit"
+                size="small"
+                icon={<SendIcon />}
+                disabled={disableButton || !canSubmit}
+                onClick={() => {
+                  setDisableButton(true);
+                  submitCallback();
+                }}
+              />
             </FlexBox>
           </PopupModal>
         </>
-      ) : (
+        )
+      ) : isIdValid === false ? (
         <>
           <IconButton
             sx={{ position: "fixed", top: "20px", left: "20px" }}
@@ -368,7 +399,7 @@ const PublicForm = () => {
             The evaluation ID provided is not valid
           </TextHeader>
         </>
-      )}
+      ) : null}
     </FlexBox>
   );
 };

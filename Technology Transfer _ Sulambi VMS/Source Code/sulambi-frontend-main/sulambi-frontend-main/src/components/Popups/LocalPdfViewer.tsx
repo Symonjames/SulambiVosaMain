@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 // Import worker config for side effects (sets up worker before use)
 import "../../utils/pdfjsWorker";
-import { Box, IconButton, Typography, CircularProgress, Alert } from "@mui/material";
+import { Box, IconButton, Typography, CircularProgress, Alert, Button } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
@@ -28,8 +28,27 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
   const [scale, setScale] = useState(1.5);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadName, setDownloadName] = useState("document.pdf");
 
   // Worker is configured in utils/pdfjsWorker.ts (same-origin /pdf.worker.min.mjs)
+
+  const getFileNameFromUrl = (input: string) => {
+    try {
+      const parsed = new URL(input, window.location.origin);
+      const last = decodeURIComponent(parsed.pathname.split("/").pop() || "document");
+      return last || "document";
+    } catch {
+      return "document";
+    }
+  };
+
+  const ensureExtension = (name: string, mimeType: string) => {
+    if (/\.[a-z0-9]{2,8}$/i.test(name)) return name;
+    const mime = (mimeType || "").split(";")[0].trim().toLowerCase();
+    if (mime === "application/pdf") return `${name}.pdf`;
+    if (mime.startsWith("image/")) return `${name}.${mime.split("/")[1] || "img"}`;
+    return `${name}.bin`;
+  };
 
   useEffect(() => {
     if (!open || !url) return;
@@ -39,6 +58,7 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
       setError(null);
       setPageNumber(1);
       setPdfUrl(null);
+      setDownloadName("document.pdf");
 
       try {
         // Check if URL is a Cloudinary URL (public, no auth needed)
@@ -80,6 +100,9 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
 
         const blob = await response.blob();
         const objectUrl = URL.createObjectURL(blob);
+        const contentType = (blob.type || response.headers.get("content-type") || "application/pdf").toString();
+        const baseName = getFileNameFromUrl(url);
+        setDownloadName(ensureExtension(baseName, contentType));
         setPdfUrl(objectUrl);
       } catch (err: any) {
         console.error("Error loading PDF:", err);
@@ -156,7 +179,25 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
     if (pdfUrl) {
       const link = document.createElement("a");
       link.href = pdfUrl;
-      link.download = url.split("/").pop() || "document.pdf";
+      link.download = downloadName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handleDownloadFallback = () => {
+    // Prefer downloaded blob when available; otherwise open original source in a new tab.
+    if (pdfUrl) {
+      handleDownload();
+      return;
+    }
+    if (url) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = downloadName;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -277,49 +318,30 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
         )}
 
         {error && (
-          <Alert 
-            severity="error" 
-            sx={{ maxWidth: "500px" }}
-            action={
-              <IconButton
-                color="inherit"
-                size="small"
-                onClick={() => {
-                  // Fallback: open PDF in new tab
-                  if (url) {
-                    window.open(url, "_blank");
-                  }
-                }}
-                title="Open in new tab"
+          <Box sx={{ maxWidth: "560px", width: "100%" }}>
+            <Alert
+              severity="warning"
+              sx={{
+                mb: 2,
+                "& .MuiAlert-message": {
+                  width: "100%",
+                  textAlign: "center",
+                },
+              }}
+            >
+              Preview is unavailable for this file. Download if you want to see the contents.
+            </Alert>
+            <Box sx={{ display: "flex", justifyContent: "center" }}>
+              <Button
+                variant="contained"
+                color="warning"
+                startIcon={<DownloadIcon />}
+                onClick={handleDownloadFallback}
               >
-                <DownloadIcon />
-              </IconButton>
-            }
-          >
-            {error}
-            <br />
-            <Typography variant="caption" sx={{ marginTop: 1, display: "block" }}>
-              {url.includes("res.cloudinary.com") ? (
-                <>
-                  This is a Cloudinary file. If it's not loading, it may have been deleted or moved.
-                  <br />
-                  Click the download icon to try opening in a new tab.
-                </>
-              ) : url.includes("/uploads/") || url.includes("uploads/") ? (
-                <>
-                  This appears to be an old local file path that no longer exists on the server.
-                  <br />
-                  All new uploads are saved to Cloudinary. Please contact support if you need this file.
-                </>
-              ) : (
-                <>
-                  If this is a protected file, make sure you're logged in.
-                  <br />
-                  Click the download icon to try opening in a new tab.
-                </>
-              )}
-            </Typography>
-          </Alert>
+                Download File
+              </Button>
+            </Box>
+          </Box>
         )}
 
         {pdfUrl && !loading && !error && (

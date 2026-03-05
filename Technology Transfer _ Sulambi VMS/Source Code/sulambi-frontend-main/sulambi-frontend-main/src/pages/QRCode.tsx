@@ -20,10 +20,17 @@ const QRCode = () => {
   const [eventData, setEventData] = useState<any>(null);
 
   const checkvalidity = async () => {
+    const normalizedToken = (id || "").trim();
+    if (!normalizedToken) {
+      showSnackbarMessage("Please enter your evaluation token", "warning");
+      return;
+    }
     try {
-      await checkReqIdValidity(id);
-      setShowEvaluationOptions(true);
-      setEventData({ id, title: "Event Evaluation", type: "evaluation" });
+      await checkReqIdValidity(normalizedToken);
+      setId(normalizedToken);
+      // Token-based flow is for volunteer evaluation links.
+      // Navigate directly to the public evaluation form.
+      navigate(`/evaluation/${encodeURIComponent(normalizedToken)}`);
     } catch (err) {
       showSnackbarMessage("Cannot evaluate on the token provided", "warning");
     }
@@ -80,6 +87,12 @@ const QRCode = () => {
                 size="small"
                 value={id}
                 onChange={(event) => setId(event.target.value)}
+                onKeyDown={(event: any) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    checkvalidity();
+                  }
+                }}
               />
               <PrimaryButton
                 label="Evaluate Now"

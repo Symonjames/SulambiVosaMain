@@ -12,7 +12,9 @@ from ..modules.LSIAlgorithm import LSICosineSimilarityMatch
 
 from flask import request, g
 from datetime import datetime
+import random
 from ..database import connection
+from ..database.connection import table_name_for_query, convert_placeholders
 
 ExternalEventDb = ExternalEventModel()
 InternalEventDb = InternalEventModel()
@@ -31,6 +33,13 @@ def _validate_beneficiary_pin(pin_val):
   if len(pin_val) != 5 or not pin_val.isdigit():
     return False, "Beneficiary evaluation PIN must be exactly 5 digits (numbers only)."
   return True, pin_val
+
+def _coerce_or_generate_beneficiary_pin(pin_val):
+  """Return a valid 5-digit PIN; auto-generate when missing/invalid (for backward-compatible edits)."""
+  ok, result = _validate_beneficiary_pin(pin_val)
+  if ok:
+    return result
+  return f"{random.randint(10000, 99999)}"
 
 def getAll():
   try:
@@ -77,27 +86,58 @@ def getAll():
       if event.get("id"):
         all_internal_event_ids.append(event["id"])
     
-    # Batch fetch accounts
+    # Batch fetch accounts/signatories with a single query per table (with safe fallback)
     accounts_map = {}
-    if all_created_by_ids:
+    signatories_map = {}
+    try:
+      conn, cursor = connection.cursorInstance()
+
+      if all_created_by_ids:
+        account_ids = list(all_created_by_ids)
+        placeholders = ",".join(["?" for _ in account_ids])
+        accounts_table = table_name_for_query("accounts")
+        account_query = convert_placeholders(
+          f"SELECT * FROM {accounts_table} WHERE id IN ({placeholders})"
+        )
+        cursor.execute(account_query, tuple(account_ids))
+        rows = cursor.fetchall() or []
+        col_names = [d[0] for d in cursor.description] if cursor.description else []
+        for row in rows:
+          row_dict = {col_names[i]: row[i] for i in range(len(col_names))}
+          if row_dict.get("id") is not None:
+            accounts_map[row_dict["id"]] = row_dict
+
+      if all_signatory_ids:
+        signatory_ids = list(all_signatory_ids)
+        placeholders = ",".join(["?" for _ in signatory_ids])
+        signatories_table = table_name_for_query("eventSignatories")
+        signatory_query = convert_placeholders(
+          f"SELECT * FROM {signatories_table} WHERE id IN ({placeholders})"
+        )
+        cursor.execute(signatory_query, tuple(signatory_ids))
+        rows = cursor.fetchall() or []
+        col_names = [d[0] for d in cursor.description] if cursor.description else []
+        for row in rows:
+          row_dict = {col_names[i]: row[i] for i in range(len(col_names))}
+          if row_dict.get("id") is not None:
+            signatories_map[row_dict["id"]] = row_dict
+      conn.close()
+    except Exception as e:
+      print(f"Bulk account/signatory fetch failed, using fallback: {e}")
       for account_id in all_created_by_ids:
         try:
           account = AccountDb.get(account_id)
           if account:
             accounts_map[account_id] = account
-        except Exception as e:
-          print(f"Error fetching account {account_id}: {e}")
-    
-    # Batch fetch signatories
-    signatories_map = {}
-    if all_signatory_ids:
+        except Exception:
+          pass
       for signatory_id in all_signatory_ids:
         try:
           signatory = SignatoriesDb.get(signatory_id)
           if signatory:
             signatories_map[signatory_id] = signatory
-        except Exception as e:
-          print(f"Error fetching signatory {signatory_id}: {e}")
+        except Exception:
+          pass
     
     # Batch check for reports (one query per report type instead of per event)
     try:
@@ -287,16 +327,34 @@ def _duration_end_ms(value):
     return v * 1000
   return v
 
+def _duration_start_ms(value):
+  """Normalize durationStart to milliseconds (DB may store seconds or ms)."""
+  v = int(value or 0)
+  if v <= 0:
+    return 0
+  if v < 1e12:
+    return v * 1000
+  return v
+
+def _is_event_open_for_beneficiary_evaluation(duration_start, duration_end, now_ms):
+  """Eligible when ongoing OR ended within last 7 days."""
+  start_ms = _duration_start_ms(duration_start)
+  end_ms = _duration_end_ms(duration_end)
+  if start_ms <= 0 or end_ms <= 0:
+    return False
+  ongoing = start_ms <= now_ms < end_ms
+  ended_within_week = end_ms <= now_ms and end_ms >= (now_ms - (7 * 24 * 60 * 60 * 1000))
+  return ongoing or ended_within_week
+
 
 def getBeneficiaryEligibleEvents():
   """
   Public route. Returns events eligible for beneficiary evaluation:
-  public, accepted (or similar), ended within the last 7 days only.
+  public, accepted (or similar), and within evaluation window
+  (ongoing OR ended within the last 7 days).
   Each event includes requiresBeneficiaryPin (true if event has a PIN set).
   """
   time_now_ms = int(datetime.now().timestamp() * 1000)
-  seven_days_ms = 7 * 24 * 60 * 60 * 1000
-  cutoff_ms = time_now_ms - seven_days_ms
 
   allExternalEvents = ExternalEventDb.getAll()
   allInternalEvents = InternalEventDb.getAll()
@@ -305,10 +363,8 @@ def getBeneficiaryEligibleEvents():
   for event in allExternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
     to_public = event.get("toPublic") in (True, 1, "true", "1")
-    duration_end = _duration_end_ms(event.get("durationEnd"))
-    ended = duration_end <= time_now_ms
-    within_week = duration_end >= cutoff_ms
-    if status_lower not in ["editing", "rejected"] and to_public and ended and within_week:
+    in_window = _is_event_open_for_beneficiary_evaluation(event.get("durationStart"), event.get("durationEnd"), time_now_ms)
+    if status_lower not in ["editing", "rejected"] and to_public and in_window:
       pin_val = (event.get("beneficiaryEvaluationPin") or "").strip()
       if not pin_val:
         continue  # every event must have a PIN for beneficiary evaluation; skip if missing
@@ -322,10 +378,8 @@ def getBeneficiaryEligibleEvents():
   for event in allInternalEvents:
     status_lower = str(event.get("status", "")).lower().strip()
     to_public = event.get("toPublic") in (True, 1, "true", "1")
-    duration_end = _duration_end_ms(event.get("durationEnd"))
-    ended = duration_end <= time_now_ms
-    within_week = duration_end >= cutoff_ms
-    if status_lower not in ["editing", "rejected"] and to_public and ended and within_week:
+    in_window = _is_event_open_for_beneficiary_evaluation(event.get("durationStart"), event.get("durationEnd"), time_now_ms)
+    if status_lower not in ["editing", "rejected"] and to_public and in_window:
       pin_val = (event.get("beneficiaryEvaluationPin") or "").strip()
       if not pin_val:
         continue  # every event must have a PIN for beneficiary evaluation; skip if missing
@@ -595,7 +649,13 @@ def editExternalEventStatus(id, status: str):
   if (externalEvent["createdBy"] != accountSessionInfo["id"] and status == "submitted"):
     return ({ "message": "You have no permission to submit this event" }, 403)
 
-  ExternalEventDb.updateSpecific(id, ["status"], (status,))
+  update_fields = ["status"]
+  update_values = [status]
+  # Newly approved events should be visible on homepage/public feeds.
+  if str(status).lower().strip() == "accepted":
+    update_fields.append("toPublic")
+    update_values.append(True)
+  ExternalEventDb.updateSpecific(id, update_fields, tuple(update_values))
   updatedData = ExternalEventDb.get(id)
   return {
     "data": updatedData,
@@ -612,7 +672,13 @@ def editInternalEventStatus(id, status: str):
   if (internalEvent["createdBy"] != accountSessionInfo["id"] and status == "submitted"):
     return ({ "message": "You have no permission to submit this event" }, 403)
 
-  InternalEventDb.updateSpecific(id, ["status"], (status,))
+  update_fields = ["status"]
+  update_values = [status]
+  # Newly approved events should be visible on homepage/public feeds.
+  if str(status).lower().strip() == "accepted":
+    update_fields.append("toPublic")
+    update_values.append(True)
+  InternalEventDb.updateSpecific(id, update_fields, tuple(update_values))
   updatedData = InternalEventDb.get(id)
   return {
     "data": updatedData,
@@ -652,13 +718,18 @@ def updateEvent(id, eventType: str):
         
         # Ensure workPlan is a string (JSON stringified)
         workPlan = request.json.get("workPlan")
+        print(f"[UPDATE_EVENT] workPlan from request: {type(workPlan)}, value: {str(workPlan)[:100] if workPlan else None}")
         if workPlan is None:
           workPlan = matchedEvent.get("workPlan", "{}")
+          print(f"[UPDATE_EVENT] workPlan was None, using existing: {str(workPlan)[:100]}")
         elif isinstance(workPlan, dict):
           workPlan = json.dumps(workPlan)
+          print(f"[UPDATE_EVENT] workPlan was dict, stringified to: {str(workPlan)[:100]}")
         elif not isinstance(workPlan, str):
           workPlan = json.dumps(workPlan) if workPlan else "{}"
+          print(f"[UPDATE_EVENT] workPlan was not string, converted to: {str(workPlan)[:100]}")
         # If it's already a string, use as-is
+        print(f"[UPDATE_EVENT] Final workPlan to save: {str(workPlan)[:100]}")
 
         # Ensure financialRequirement and evaluationMechanicsPlan are strings
         financialRequirement = request.json.get("financialRequirement")
@@ -757,11 +828,9 @@ def updateEvent(id, eventType: str):
           createdAt = datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
 
         beneficiary_pin_raw = (request.json.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
-        ok, beneficiary_pin_result = _validate_beneficiary_pin(beneficiary_pin_raw)
-        if not ok:
-          return ({"message": beneficiary_pin_result}, 400)
-        beneficiaryEvaluationPin = beneficiary_pin_result
+        beneficiaryEvaluationPin = _coerce_or_generate_beneficiary_pin(beneficiary_pin_raw)
 
+        print(f"[UPDATE_EVENT] Updating event {id} with workPlan length: {len(str(workPlan))}")
         updatedEvent = InternalEventDb.update(id, (
           title,
           durationStart,
@@ -791,6 +860,10 @@ def updateEvent(id, eventType: str):
           beneficiaryEvaluationPin
         ))
         
+        # Verify workPlan was saved
+        saved_workPlan = updatedEvent.get("workPlan", "NOT_FOUND")
+        print(f"[UPDATE_EVENT] Saved workPlan length: {len(str(saved_workPlan))}, first 100 chars: {str(saved_workPlan)[:100]}")
+        
         return {
           "data": updatedEvent,
           "message": "Successfully updated internal event"
@@ -812,10 +885,7 @@ def updateEvent(id, eventType: str):
 
     j = request.json if request.json is not None else {}
     ext_beneficiary_pin_raw = (j.get("beneficiaryEvaluationPin") or matchedEvent.get("beneficiaryEvaluationPin") or "").strip()
-    ok, ext_beneficiary_pin_result = _validate_beneficiary_pin(ext_beneficiary_pin_raw)
-    if not ok:
-      return ({"message": ext_beneficiary_pin_result}, 400)
-    ext_beneficiary_pin = ext_beneficiary_pin_result
+    ext_beneficiary_pin = _coerce_or_generate_beneficiary_pin(ext_beneficiary_pin_raw)
 
     def _to_str(v, fallback):
       if v is None:

@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getCachedResponse, setCachedResponse, getMemoryCache, setMemoryCache, removeCachedResponse, clearMemoryCache, CACHE_TIMES } from '../utils/apiCache';
 
+// De-duplicate concurrent fetches by cache key (prevents request storms on rapid route changes).
+const inFlightRequests = new Map<string, Promise<any>>();
+
 interface UseCachedFetchOptions<T> {
   // Cache key (should be unique per request)
   cacheKey: string;
@@ -84,8 +87,18 @@ export function useCachedFetch<T>({
     setLoading(true);
     setError(null);
 
+    let responsePromise: Promise<any> | null = null;
     try {
-      const response = await fetchFn();
+      const existingRequest = !skipCache ? inFlightRequests.get(cacheKey) : null;
+
+      if (existingRequest) {
+        responsePromise = existingRequest;
+      } else {
+        responsePromise = fetchFn();
+        inFlightRequests.set(cacheKey, responsePromise);
+      }
+
+      const response = await responsePromise;
       // Handle both axios response ({ data: T }) and direct responses
       const fetchedData = response?.data !== undefined ? response.data : response;
 
@@ -112,6 +125,9 @@ export function useCachedFetch<T>({
       console.error(`[useCachedFetch] Error fetching data for cache key "${cacheKey}":`, error);
       console.error(`[useCachedFetch] Error details:`, err);
     } finally {
+      if (responsePromise && inFlightRequests.get(cacheKey) === responsePromise) {
+        inFlightRequests.delete(cacheKey);
+      }
       setLoading(false);
     }
   }, [cacheKey, fetchFn, cacheTime, useMemoryCache, forceRefresh, enabled]);

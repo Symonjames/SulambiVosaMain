@@ -25,6 +25,12 @@ def quote_identifier(identifier):
         return f'"{identifier}"'
     return identifier
 
+def table_name_for_query(identifier):
+    """Table name for FROM/JOIN: PostgreSQL stores unquoted names lowercase, so use lowercase."""
+    if IS_POSTGRESQL:
+        return identifier.lower()
+    return identifier
+
 def convert_placeholders(query):
     """Convert SQLite ? placeholders to PostgreSQL %s placeholders if needed"""
     if IS_POSTGRESQL:
