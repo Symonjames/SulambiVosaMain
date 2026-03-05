@@ -649,10 +649,12 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                     "Unit Cost",
                     "Total",
                   ]}
-                  dataKeys={["item", "qty", "unit", "unitCost", "total"]}
-                  data={Object.keys(financialRequirement).map((index) => {
-                    return financialRequirement[index];
-                  })}
+                  data={
+                    Array.isArray(financialRequirement)
+                      ? financialRequirement
+                      : Object.values(financialRequirement || {})
+                  }
+                  
                 />
               </div>
 
@@ -692,9 +694,11 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                       "frequencyOfCollection",
                       "personResponsible",
                     ]}
-                    data={Object.keys(evaluationMechanicsPlan).map((index) => {
-                      return evaluationMechanicsPlan[index];
-                    })}
+                    data={
+                      Array.isArray(evaluationMechanicsPlan)
+                        ? evaluationMechanicsPlan
+                        : Object.values(evaluationMechanicsPlan || {})
+                    }                    
                   />
                 </div>
                 <RomanListValues
