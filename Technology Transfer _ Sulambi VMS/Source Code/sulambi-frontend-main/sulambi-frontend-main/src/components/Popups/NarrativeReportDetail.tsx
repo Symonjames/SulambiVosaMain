@@ -17,6 +17,26 @@ const NarrativeReportDetail: React.FC<Props> = (props) => {
   if (!reportData) return null;
 
   const event = reportData.eventId;
+  const internalReport = reportData as InternalReportType;
+
+  const approvedBudget =
+    internalReport.approvedBudget ?? internalReport.finance?.approvedBudget ?? 0;
+  const approvedBudgetSource =
+    internalReport.approvedBudgetSrc ?? internalReport.finance?.approvedBudgetSource ?? "N/A";
+  const budgetUtilized =
+    internalReport.budgetUtilized ?? internalReport.finance?.budgetUtilized ?? 0;
+  const budgetUtilizedSource =
+    internalReport.budgetUtilizedSrc ?? internalReport.finance?.budgetUtilizedSource ?? "N/A";
+  const psAttribution =
+    internalReport.psAttribution ?? internalReport.finance?.psAttribution ?? 0;
+  const psAttributionSource =
+    internalReport.psAttributionSrc ?? internalReport.finance?.psAttributionSource ?? "N/A";
+
+  const formatCurrency = (value: number | string) => {
+    const parsed = Number(value);
+    const amount = Number.isFinite(parsed) ? parsed : 0;
+    return `₱${amount.toLocaleString()}`;
+  };
 
   return (
     <PopupModal
@@ -89,7 +109,7 @@ const NarrativeReportDetail: React.FC<Props> = (props) => {
         )}
 
         {/* Financial Information for Internal Reports */}
-        {reportType === "internal" && (reportData as InternalReportType).finance && (
+        {reportType === "internal" && (
           <>
             <br />
             <CustomDivider />
@@ -98,20 +118,28 @@ const NarrativeReportDetail: React.FC<Props> = (props) => {
               Financial Information
             </Typography>
             <Typography>
+              <b>Approved Budget as Proposed: </b>
+              {formatCurrency(approvedBudget)}
+            </Typography>
+            <Typography>
+              <b>Approved Budget Source: </b>
+              {approvedBudgetSource}
+            </Typography>
+            <Typography>
               <b>Budget Utilized: </b>
-              ₱{(reportData as InternalReportType).finance.budgetUtilized?.toLocaleString() || "0"}
+              {formatCurrency(budgetUtilized)}
             </Typography>
             <Typography>
               <b>Budget Source: </b>
-              {(reportData as InternalReportType).finance.budgetUtilizedSource || "N/A"}
+              {budgetUtilizedSource}
             </Typography>
             <Typography>
               <b>PS Attribution: </b>
-              ₱{(reportData as InternalReportType).finance.psAttribution?.toLocaleString() || "0"}
+              {formatCurrency(psAttribution)}
             </Typography>
             <Typography>
               <b>PS Attribution Source: </b>
-              {(reportData as InternalReportType).finance.psAttributionSource || "N/A"}
+              {psAttributionSource}
             </Typography>
           </>
         )}

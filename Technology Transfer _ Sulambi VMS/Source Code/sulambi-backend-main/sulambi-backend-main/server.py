@@ -109,6 +109,13 @@ try:
 except Exception as e:
   print(f"[startup] migrate_beneficiary_pin: {e}")
 
+# Run migration to ensure officer-submitted internal report finance columns exist.
+try:
+  from app.database.migrate_internal_report_finance import run_internal_report_finance_migration
+  run_internal_report_finance_migration()
+except Exception as e:
+  print(f"[startup] migrate_internal_report_finance: {e}")
+
 # Export app for Gunicorn (production)
 app = Server
 

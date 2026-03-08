@@ -988,6 +988,224 @@ def updateEvent(id, eventType: str):
     "data": updatedEvent
   }
 
+def deleteMyEvents():
+  """
+  Permanently delete all events created by the currently authenticated user.
+  Related records are cleaned up to prevent orphaned rows.
+  """
+  accountSessionInfo = g.get("accountSessionInfo")
+  if not accountSessionInfo:
+    return ({"message": "Authentication required. Please log in."}, 403)
+
+  try:
+    account_id = int(accountSessionInfo.get("id"))
+  except (TypeError, ValueError):
+    return ({"message": "Invalid session account information."}, 401)
+
+  conn, cursor = connection.cursorInstance()
+  try:
+    external_table = table_name_for_query("externalEvents")
+    internal_table = table_name_for_query("internalEvents")
+    requirements_table = table_name_for_query("requirements")
+    evaluation_table = table_name_for_query("evaluation")
+    external_report_table = table_name_for_query("externalReport")
+    internal_report_table = table_name_for_query("internalReport")
+    satisfaction_table = table_name_for_query("satisfactionSurveys")
+    assignments_table = table_name_for_query("activity_month_assignments")
+    signatories_table = table_name_for_query("eventSignatories")
+    feedback_table = table_name_for_query("feedback")
+
+    def _affected_rows():
+      rc = cursor.rowcount
+      return rc if isinstance(rc, int) and rc >= 0 else 0
+
+    def _in_placeholders(values_count: int):
+      return ",".join(["?"] * values_count)
+
+    def _fetch_user_event_rows(table_name: str):
+      query = convert_placeholders(
+        f"SELECT id, signatoriesid, feedback_id FROM {table_name} WHERE createdby=?"
+      )
+      cursor.execute(query, (account_id,))
+      rows = cursor.fetchall() or []
+
+      event_ids = []
+      signatory_ids = []
+      feedback_ids = []
+
+      for row in rows:
+        if row[0] is not None:
+          event_ids.append(int(row[0]))
+        if len(row) > 1 and row[1] is not None:
+          signatory_ids.append(int(row[1]))
+        if len(row) > 2 and row[2] is not None:
+          feedback_ids.append(int(row[2]))
+
+      return event_ids, signatory_ids, feedback_ids
+
+    deleted_counts = {
+      "externalEvents": 0,
+      "internalEvents": 0,
+      "externalReports": 0,
+      "internalReports": 0,
+      "requirements": 0,
+      "evaluations": 0,
+      "satisfactionSurveys": 0,
+      "activityMonthAssignments": 0,
+      "eventSignatories": 0,
+      "feedback": 0,
+    }
+
+    external_event_ids, external_signatory_ids, external_feedback_ids = _fetch_user_event_rows(external_table)
+    internal_event_ids, internal_signatory_ids, internal_feedback_ids = _fetch_user_event_rows(internal_table)
+
+    if not external_event_ids and not internal_event_ids:
+      conn.close()
+      return {
+        "message": "No events found for your account.",
+        "deleted": deleted_counts,
+        "totalEventsDeleted": 0,
+      }
+
+    def _delete_event_related_rows(event_ids: list[int], event_type: str):
+      if not event_ids:
+        return []
+
+      placeholders = _in_placeholders(len(event_ids))
+
+      # Collect linked requirements first so linked evaluations can be removed.
+      req_query = convert_placeholders(
+        f"SELECT id FROM {requirements_table} WHERE eventid IN ({placeholders}) AND type=?"
+      )
+      cursor.execute(req_query, tuple(event_ids) + (event_type,))
+      requirement_ids = [row[0] for row in (cursor.fetchall() or []) if row and row[0] is not None]
+
+      if requirement_ids:
+        req_placeholders = _in_placeholders(len(requirement_ids))
+        delete_eval_query = convert_placeholders(
+          f"DELETE FROM {evaluation_table} WHERE requirementid IN ({req_placeholders})"
+        )
+        cursor.execute(delete_eval_query, tuple(requirement_ids))
+        deleted_counts["evaluations"] += _affected_rows()
+
+      delete_requirements_query = convert_placeholders(
+        f"DELETE FROM {requirements_table} WHERE eventid IN ({placeholders}) AND type=?"
+      )
+      cursor.execute(delete_requirements_query, tuple(event_ids) + (event_type,))
+      deleted_counts["requirements"] += _affected_rows()
+
+      delete_satisfaction_query = convert_placeholders(
+        f"DELETE FROM {satisfaction_table} WHERE eventid IN ({placeholders}) AND eventtype=?"
+      )
+      cursor.execute(delete_satisfaction_query, tuple(event_ids) + (event_type,))
+      deleted_counts["satisfactionSurveys"] += _affected_rows()
+
+      return requirement_ids
+
+    _delete_event_related_rows(external_event_ids, "external")
+    _delete_event_related_rows(internal_event_ids, "internal")
+
+    if external_event_ids:
+      ext_placeholders = _in_placeholders(len(external_event_ids))
+
+      delete_external_reports_query = convert_placeholders(
+        f"DELETE FROM {external_report_table} WHERE eventid IN ({ext_placeholders})"
+      )
+      cursor.execute(delete_external_reports_query, tuple(external_event_ids))
+      deleted_counts["externalReports"] += _affected_rows()
+
+      delete_external_events_query = convert_placeholders(
+        f"DELETE FROM {external_table} WHERE id IN ({ext_placeholders}) AND createdby=?"
+      )
+      cursor.execute(delete_external_events_query, tuple(external_event_ids) + (account_id,))
+      deleted_counts["externalEvents"] += _affected_rows()
+
+    if internal_event_ids:
+      int_placeholders = _in_placeholders(len(internal_event_ids))
+
+      delete_internal_reports_query = convert_placeholders(
+        f"DELETE FROM {internal_report_table} WHERE eventid IN ({int_placeholders})"
+      )
+      cursor.execute(delete_internal_reports_query, tuple(internal_event_ids))
+      deleted_counts["internalReports"] += _affected_rows()
+
+      delete_assignments_query = convert_placeholders(
+        f"DELETE FROM {assignments_table} WHERE eventid IN ({int_placeholders})"
+      )
+      cursor.execute(delete_assignments_query, tuple(internal_event_ids))
+      deleted_counts["activityMonthAssignments"] += _affected_rows()
+
+      delete_internal_events_query = convert_placeholders(
+        f"DELETE FROM {internal_table} WHERE id IN ({int_placeholders}) AND createdby=?"
+      )
+      cursor.execute(delete_internal_events_query, tuple(internal_event_ids) + (account_id,))
+      deleted_counts["internalEvents"] += _affected_rows()
+
+    # Delete signatories only if no remaining event/report row points to them.
+    all_signatory_ids = sorted(set(external_signatory_ids + internal_signatory_ids))
+    for signatory_id in all_signatory_ids:
+      ref_query = convert_placeholders(
+        f"""
+        SELECT
+          (SELECT COUNT(*) FROM {external_table} WHERE signatoriesid=?) +
+          (SELECT COUNT(*) FROM {internal_table} WHERE signatoriesid=?) +
+          (SELECT COUNT(*) FROM {external_report_table} WHERE signatoriesid=?) +
+          (SELECT COUNT(*) FROM {internal_report_table} WHERE signatoriesid=?)
+        """
+      )
+      cursor.execute(ref_query, (signatory_id, signatory_id, signatory_id, signatory_id))
+      still_referenced = (cursor.fetchone() or [0])[0]
+
+      if int(still_referenced or 0) == 0:
+        delete_signatory_query = convert_placeholders(
+          f"DELETE FROM {signatories_table} WHERE id=?"
+        )
+        cursor.execute(delete_signatory_query, (signatory_id,))
+        deleted_counts["eventSignatories"] += _affected_rows()
+
+    # Delete feedback rows only when no event references them anymore.
+    all_feedback_ids = sorted(set(external_feedback_ids + internal_feedback_ids))
+    for feedback_id in all_feedback_ids:
+      feedback_ref_query = convert_placeholders(
+        f"""
+        SELECT
+          (SELECT COUNT(*) FROM {external_table} WHERE feedback_id=?) +
+          (SELECT COUNT(*) FROM {internal_table} WHERE feedback_id=?)
+        """
+      )
+      cursor.execute(feedback_ref_query, (feedback_id, feedback_id))
+      still_referenced = (cursor.fetchone() or [0])[0]
+
+      if int(still_referenced or 0) == 0:
+        delete_feedback_query = convert_placeholders(
+          f"DELETE FROM {feedback_table} WHERE id=?"
+        )
+        cursor.execute(delete_feedback_query, (feedback_id,))
+        deleted_counts["feedback"] += _affected_rows()
+
+    conn.commit()
+
+    total_events_deleted = deleted_counts["externalEvents"] + deleted_counts["internalEvents"]
+    return {
+      "message": "Successfully and permanently deleted your events.",
+      "deleted": deleted_counts,
+      "totalEventsDeleted": total_events_deleted,
+    }
+  except Exception as e:
+    print(f"Error deleting user events: {e}")
+    import traceback
+    traceback.print_exc()
+    try:
+      conn.rollback()
+    except Exception:
+      pass
+    return ({"message": f"Failed to delete your events: {str(e)}"}, 500)
+  finally:
+    try:
+      conn.close()
+    except Exception:
+      pass
+
 def averageAnalysis(data):
   avg_data = {}
   for key in data:

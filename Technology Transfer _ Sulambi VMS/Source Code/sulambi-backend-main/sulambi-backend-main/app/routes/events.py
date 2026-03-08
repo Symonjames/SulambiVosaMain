@@ -95,6 +95,10 @@ def makeInternalEventPublic(id):
 def updateInternalEvent(id):
   return events.updateEvent(id, "internal")
 
+@EventsBlueprint.delete("/mine")
+def deleteMyEventsRoute():
+  return events.deleteMyEvents()
+
 @EventsBlueprint.before_request
 def eventsMiddleware():
   # Auth + RBAC handled by global_api_auth; only param validation here

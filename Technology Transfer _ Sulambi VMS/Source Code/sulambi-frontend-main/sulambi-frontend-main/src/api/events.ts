@@ -74,6 +74,10 @@ export const updateInternalEvent = (eventId: number, data: any) => {
   return axios.put(`${basePath}/internal/${eventId}`, data);
 };
 
+export const deleteMyEvents = () => {
+  return axios.delete(`${basePath}/mine`);
+};
+
 export const updateSignatories = (signatoryId: number, payload: any) => {
   return axios.put(`${basePath}/signatories/${signatoryId}`, payload);
 };

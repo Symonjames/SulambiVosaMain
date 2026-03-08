@@ -231,11 +231,20 @@ export interface InternalReportType {
   photos: string[];
   photoCaptions?: string[];
   signatoriesId?: any;
-  finance: {
-    budgetUtilized: number;
-    psAttribution: number;
-    budgetUtilizedSource: string;
-    psAttributionSource: string;
+  approvedBudget?: number | string;
+  approvedBudgetSrc?: string;
+  budgetUtilized?: number | string;
+  budgetUtilizedSrc?: string;
+  psAttribution?: number | string;
+  psAttributionSrc?: string;
+  // Backward compatibility for older API payloads.
+  finance?: {
+    approvedBudget?: number;
+    approvedBudgetSource?: string;
+    budgetUtilized?: number;
+    psAttribution?: number;
+    budgetUtilizedSource?: string;
+    psAttributionSource?: string;
   };
 }
 

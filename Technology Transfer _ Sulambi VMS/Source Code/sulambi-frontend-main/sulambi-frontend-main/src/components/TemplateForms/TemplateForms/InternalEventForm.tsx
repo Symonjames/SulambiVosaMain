@@ -24,20 +24,25 @@ interface InnerFormTableTemplateProps {
   customColsize?: number;
   customPercentage?: number;
   customFlexSize?: number[];
-  header: string[];
-  dataKeys: any[];
-  data: any[];
+  header?: string[];
+  dataKeys?: any[];
+  data?: any[];
 }
 
 export const InnerFormTableTemplate: React.FC<InnerFormTableTemplateProps> = ({
   customColsize,
   customFlexSize,
   customPercentage,
-  data,
-  dataKeys,
-  header,
+  data = [],
+  dataKeys = [],
+  header = [],
   textAlign,
 }) => {
+  const safeHeader = Array.isArray(header) ? header : [];
+  const safeDataKeys = Array.isArray(dataKeys) ? dataKeys : [];
+  const safeData = Array.isArray(data) ? data : [];
+  const headerColumnCount = Math.max(1, safeHeader.length);
+
   const isMeaningfulCellValue = (value: unknown) => {
     if (value === null || value === undefined) return false;
     if (typeof value === "number") return !Number.isNaN(value);
@@ -55,23 +60,21 @@ export const InnerFormTableTemplate: React.FC<InnerFormTableTemplateProps> = ({
   };
 
   // Remove rows that are visually empty across all configured columns.
-  const filteredRows = Array.isArray(data)
-    ? data.filter((rowData) => {
+  const filteredRows = safeData.filter((rowData) => {
         if (!rowData || typeof rowData !== "object") return false;
-        return dataKeys.some((colKey) => isMeaningfulCellValue((rowData as any)[colKey]));
+        return safeDataKeys.some((colKey) => isMeaningfulCellValue((rowData as any)[colKey]));
       })
-    : [];
 
   return (
     <div style={{ overflow: "hidden", width: "100%" }}>
       <table className="bsuFormChild internal-event-table-with-top-border" style={{ overflow: "hidden", borderTop: "1px solid black" }}>
         <ColSizeGen
-          colSize={customColsize ?? header.length}
-          percentage={`${customPercentage ?? 100 / header.length}%`}
+          colSize={customColsize ?? headerColumnCount}
+          percentage={`${customPercentage ?? 100 / headerColumnCount}%`}
         />
         <tbody>
           <tr>
-            {header.map((head, id) => (
+            {safeHeader.map((head, id) => (
               <td
                 key={id}
                 colSpan={customFlexSize ? customFlexSize[id] : 1}
@@ -82,11 +85,11 @@ export const InnerFormTableTemplate: React.FC<InnerFormTableTemplateProps> = ({
               </td>
             ))}
           </tr>
-          {dataKeys.length === header.length ? (
+          {safeDataKeys.length === safeHeader.length ? (
             filteredRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={customColsize ?? header.length}
+                  colSpan={customColsize ?? headerColumnCount}
                   style={{ textAlign }}
                   className="fontSet"
                 >
@@ -96,7 +99,7 @@ export const InnerFormTableTemplate: React.FC<InnerFormTableTemplateProps> = ({
             ) : (
               filteredRows.map((rowData, rowIndex) => (
                 <tr key={rowIndex}>
-                  {dataKeys.map((colKeys, colId) => (
+                  {safeDataKeys.map((colKeys, colId) => (
                     <td
                       key={colId}
                       colSpan={customFlexSize ? customFlexSize[colId] ?? 1 : 1}
@@ -694,6 +697,7 @@ const InternalEventForm: React.FC<Props> = ({ data }) => {
                     "Unit Cost",
                     "Total",
                   ]}
+                  dataKeys={["item", "qty", "unit", "unitCost", "total"]}
                   data={
                     Array.isArray(financialRequirement)
                       ? financialRequirement

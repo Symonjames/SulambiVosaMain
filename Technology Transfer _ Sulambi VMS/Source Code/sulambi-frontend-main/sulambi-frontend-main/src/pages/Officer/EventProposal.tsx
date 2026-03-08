@@ -9,8 +9,10 @@ import PageLayout from "../PageLayout";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveRedEyeIcon from "@mui/icons-material/RemoveRedEye";
 import PublicIcon from "@mui/icons-material/Public";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 
 import {
+  deleteMyEvents,
   getAllEvents,
   publicizeExternalEvent,
   publicizeInternalEvent,
@@ -153,6 +155,34 @@ const EventProposal = () => {
     } finally {
       setRefreshTable(refreshTable + 1);
       setShowFormPreview(false);
+    }
+  };
+
+  const deleteMyEventsOnClick = async () => {
+    const confirmed = window.confirm(
+      "This will permanently delete ALL events you created, including related reports, requirements, and evaluations. This cannot be undone. Continue?"
+    );
+    if (!confirmed) return;
+
+    try {
+      const response = await deleteMyEvents();
+      const deleted = response?.data?.deleted ?? {};
+      const total =
+        response?.data?.totalEventsDeleted ??
+        (Number(deleted.externalEvents || 0) + Number(deleted.internalEvents || 0));
+
+      showSnackbarMessage(
+        `Deleted ${total} event(s) you created permanently.`,
+        "success"
+      );
+    } catch (err: any) {
+      const apiMessage = err?.response?.data?.message;
+      showSnackbarMessage(
+        apiMessage || "An error occurred while deleting your events.",
+        "error"
+      );
+    } finally {
+      setRefreshTable((prev) => prev + 1);
     }
   };
 
@@ -371,6 +401,22 @@ const EventProposal = () => {
         setOpenProposalForm(true);
         setFormData({});
       }}
+    />,
+    <CustomButton
+      label="Delete All My Events"
+      startIcon={<DeleteForeverIcon />}
+      hoverSx={{
+        backgroundColor: "#7f1d1d",
+        color: "white",
+      }}
+      sx={{
+        bgcolor: "#991b1b",
+        border: "1px solid #7f1d1d",
+        borderRadius: "10px",
+        color: "white",
+        padding: "0px 20px",
+      }}
+      onClick={deleteMyEventsOnClick}
     />,
   ];
 

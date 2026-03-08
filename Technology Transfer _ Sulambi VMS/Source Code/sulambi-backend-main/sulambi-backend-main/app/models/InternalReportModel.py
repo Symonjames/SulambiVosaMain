@@ -9,6 +9,8 @@ class InternalReportModel(Model):
     self.columns = [
       "eventId",
       "narrative",
+      "approvedBudget",
+      "approvedBudgetSrc",
       "budgetUtilized",
       "budgetUtilizedSrc",
       "psAttribution",
@@ -29,7 +31,7 @@ class InternalReportModel(Model):
     conn.close()
     return ids
 
-  def create(self, eventId: int, narrative: str, budgetUtilized: int, budgetUtilizedSrc: str, psAttribution: int, psAttributionSrc: str, photos, photoCaptions: str, signatoriesId: int=None):
+  def create(self, eventId: int, narrative: str, approvedBudget: int | str, approvedBudgetSrc: str, budgetUtilized: int | str, budgetUtilizedSrc: str, psAttribution: int | str, psAttributionSrc: str, photos, photoCaptions: str, signatoriesId: int | None=None):
     return super().create((
-      eventId, narrative, budgetUtilized, budgetUtilizedSrc, psAttribution, psAttributionSrc, photos, photoCaptions, signatoriesId
+      eventId, narrative, approvedBudget, approvedBudgetSrc, budgetUtilized, budgetUtilizedSrc, psAttribution, psAttributionSrc, photos, photoCaptions, signatoriesId
     ))

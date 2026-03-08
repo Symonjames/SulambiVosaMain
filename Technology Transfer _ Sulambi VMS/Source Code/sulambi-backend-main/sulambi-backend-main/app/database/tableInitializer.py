@@ -318,6 +318,8 @@ execute_sql("""
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     eventId INTEGER NOT NULL,
     narrative TEXT NOT NULL,
+    approvedBudget INTEGER NOT NULL,
+    approvedBudgetSrc STRING NOT NULL,
     budgetUtilized INTEGER NOT NULL,
     budgetUtilizedSrc STRING NOT NULL,
     psAttribution INTEGER NOT NULL,
@@ -329,6 +331,23 @@ execute_sql("""
 """)
 
 DEBUG and print("Done")
+
+# Migration for existing DBs: ensure internal report officer-submitted approved budget columns exist.
+try:
+    if is_postgresql:
+        execute_sql('ALTER TABLE "internalReport" ADD COLUMN IF NOT EXISTS "approvedBudget" INTEGER NOT NULL DEFAULT 0')
+        execute_sql('ALTER TABLE "internalReport" ADD COLUMN IF NOT EXISTS "approvedBudgetSrc" TEXT NOT NULL DEFAULT \'\'')
+    else:
+        try:
+            execute_sql("ALTER TABLE internalReport ADD COLUMN approvedBudget INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            execute_sql("ALTER TABLE internalReport ADD COLUMN approvedBudgetSrc STRING NOT NULL DEFAULT ''")
+        except Exception:
+            pass
+except Exception as e:
+    DEBUG and print(f"[*] Migration internalReport approvedBudget columns (may already exist): {e}")
 
 ####################
 #  HELPDESK TABLE  #

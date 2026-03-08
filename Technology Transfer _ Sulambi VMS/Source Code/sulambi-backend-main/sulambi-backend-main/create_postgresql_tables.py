@@ -231,6 +231,8 @@ tables = {
             id SERIAL PRIMARY KEY,
             "eventId" INTEGER NOT NULL,
             narrative TEXT NOT NULL,
+            "approvedBudget" INTEGER NOT NULL,
+            "approvedBudgetSrc" VARCHAR(255) NOT NULL,
             "budgetUtilized" INTEGER NOT NULL,
             "budgetUtilizedSrc" VARCHAR(255) NOT NULL,
             "psAttribution" INTEGER NOT NULL,
@@ -469,7 +471,8 @@ for old, new in [("medcert", '"medCert"'), ("eventid", '"eventId"'), ("firstaid"
 # externalreport, internalreport
 for old, new in [("eventid", '"eventId"'), ("photocaptions", '"photoCaptions"'), ("signatoriesid", '"signatoriesId"')]:
     _rename_col("externalreport", old, new)
-for old, new in [("eventid", '"eventId"'), ("budgetutilized", '"budgetUtilized"'), ("budgetutilizedsrc", '"budgetUtilizedSrc"'), ("psattribution", '"psAttribution"'),
+for old, new in [("eventid", '"eventId"'), ("approvedbudget", '"approvedBudget"'), ("approvedbudgetsrc", '"approvedBudgetSrc"'),
+                 ("budgetutilized", '"budgetUtilized"'), ("budgetutilizedsrc", '"budgetUtilizedSrc"'), ("psattribution", '"psAttribution"'),
                  ("psattributionsrc", '"psAttributionSrc"'), ("photocaptions", '"photoCaptions"'), ("signatoriesid", '"signatoriesId"')]:
     _rename_col("internalreport", old, new)
 # internalevents, externalevents (camelCase columns only; feedback_id etc. stay lowercase)
@@ -555,6 +558,27 @@ except Exception:
     pg_conn.rollback()
 try:
     pg_cursor.execute('ALTER TABLE externalevents RENAME COLUMN beneficiaryevaluationpin TO "beneficiaryEvaluationPin"')
+    pg_conn.commit()
+except Exception:
+    pg_conn.rollback()
+
+# Ensure internalreport has officer-submitted approved budget fields.
+try:
+    pg_cursor.execute('ALTER TABLE internalreport ADD COLUMN IF NOT EXISTS approvedbudget INTEGER NOT NULL DEFAULT 0')
+    pg_cursor.execute("ALTER TABLE internalreport ADD COLUMN IF NOT EXISTS approvedbudgetsrc TEXT NOT NULL DEFAULT ''")
+    pg_conn.commit()
+    print("✓ Ensured internalReport approved budget columns exist")
+except Exception as e:
+    print(f"⚠️  Could not add internalReport approved budget columns: {e}")
+    pg_conn.rollback()
+# Rename to quoted camelCase so migration INSERT "approvedBudget" matches
+try:
+    pg_cursor.execute('ALTER TABLE internalreport RENAME COLUMN approvedbudget TO "approvedBudget"')
+    pg_conn.commit()
+except Exception:
+    pg_conn.rollback()
+try:
+    pg_cursor.execute('ALTER TABLE internalreport RENAME COLUMN approvedbudgetsrc TO "approvedBudgetSrc"')
     pg_conn.commit()
 except Exception:
     pg_conn.rollback()

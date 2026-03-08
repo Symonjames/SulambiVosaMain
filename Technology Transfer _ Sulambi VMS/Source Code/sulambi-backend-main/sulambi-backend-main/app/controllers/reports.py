@@ -382,6 +382,8 @@ def createReport(eventId: int, eventType: str):
     createdReport = InternalReportDb.create(
       eventId=eventId,
       narrative=request.form.get("narrative"),
+      approvedBudget=request.form.get("approvedBudget") or "",
+      approvedBudgetSrc=request.form.get("approvedBudgetSrc") or "",
       budgetUtilized=request.form.get("budgetUtilized") or "",
       budgetUtilizedSrc=request.form.get("budgetUtilizedSrc") or "",
       psAttribution=request.form.get("psAttribution") or "",
@@ -450,9 +452,19 @@ def updateReport(reportId: int, reportType: str):
         return ({"message": "Internal report not found"}, 404)
       
       # Update specific fields
-      updateFields = ["narrative", "budgetUtilized", "budgetUtilizedSrc", "psAttribution", "psAttributionSrc"]
+      updateFields = [
+        "narrative",
+        "approvedBudget",
+        "approvedBudgetSrc",
+        "budgetUtilized",
+        "budgetUtilizedSrc",
+        "psAttribution",
+        "psAttributionSrc",
+      ]
       updateValues = [
         request.form.get("narrative"),
+        request.form.get("approvedBudget") or "",
+        request.form.get("approvedBudgetSrc") or "",
         request.form.get("budgetUtilized") or "",
         request.form.get("budgetUtilizedSrc") or "",
         request.form.get("psAttribution") or "",
