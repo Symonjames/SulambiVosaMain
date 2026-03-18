@@ -18,6 +18,9 @@ import {
   submitInternalEvent,
   updateExternalEvent,
   updateInternalEvent,
+  deleteExternalEvent,
+  deleteInternalEvent,
+  deleteMyEvents,
 } from "../../api/events";
 import {
   ExternalEventProposalType,
@@ -123,6 +126,41 @@ const EventProposal = () => {
     }
   };
 
+  const deleteEventOnClick = async (eventId: number, eventType: "external" | "internal") => {
+    try {
+      if (eventType === "external") {
+        await deleteExternalEvent(eventId);
+      } else {
+        await deleteInternalEvent(eventId);
+      }
+      showSnackbarMessage("Event deleted successfully", "success");
+    } catch (err) {
+      console.error("Error deleting event", err);
+      showSnackbarMessage("An error occurred while deleting the event", "error");
+    } finally {
+      setRefreshTable((r) => r + 1);
+    }
+  };
+
+  const deleteMyEventsOnClick = async () => {
+    const ok = window.confirm(
+      "This will permanently delete ALL events you created (internal + external) from this database (local or production). Continue?"
+    );
+    if (!ok) return;
+
+    try {
+      const res = await deleteMyEvents();
+      const exCount = res?.data?.deletedExternalIds?.length ?? 0;
+      const inCount = res?.data?.deletedInternalIds?.length ?? 0;
+      showSnackbarMessage(`Deleted your events: ${exCount} external, ${inCount} internal`, "success");
+    } catch (err) {
+      console.error("Error deleting my events", err);
+      showSnackbarMessage("An error occurred while deleting your events", "error");
+    } finally {
+      setRefreshTable((r) => r + 1);
+    }
+  };
+
   const makePublicOnClick = async () => {
     try {
       if (selectedFormType === "external") {
@@ -216,6 +254,15 @@ const EventProposal = () => {
                         eventdata.eventTypeIndicator === "internal"
                           ? submitInternalOnClick(eventdata.id)
                           : submitExternalOnClick(eventdata.id),
+                    },
+                    {
+                      label: "Delete",
+                      icon: <HistoryEduIcon />, // reuse icon; can be changed to a delete icon later
+                      onClick: () =>
+                        deleteEventOnClick(
+                          eventdata.id,
+                          eventdata.eventTypeIndicator === "internal" ? "internal" : "external"
+                        ),
                     },
                   ]}
                 />
@@ -351,6 +398,22 @@ const EventProposal = () => {
         setOpenProposalForm(true);
         setFormData({});
       }}
+    />,
+    <CustomButton
+      label="Delete All My Events"
+      startIcon={<HistoryEduIcon />}
+      hoverSx={{
+        backgroundColor: "white",
+        color: "black",
+      }}
+      sx={{
+        bgcolor: "#b71c1c",
+        border: "1px solid #b71c1c",
+        borderRadius: "10px",
+        color: "white",
+        padding: "0px 20px",
+      }}
+      onClick={deleteMyEventsOnClick}
     />,
   ];
 

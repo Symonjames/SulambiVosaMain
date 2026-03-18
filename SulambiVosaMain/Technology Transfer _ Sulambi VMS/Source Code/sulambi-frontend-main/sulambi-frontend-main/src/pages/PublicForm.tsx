@@ -1,0 +1,407 @@
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import PrimaryButton from "../components/Buttons/PrimaryButton";
+import FlexBox from "../components/FlexBox";
+import FormGeneratorTemplate from "../components/Forms/FormGeneratorTemplate";
+import PopupModal from "../components/Modal/PopupModal";
+import SendIcon from "@mui/icons-material/Send";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import TextHeader from "../components/Headers/TextHeader";
+import { FormDataContext } from "../contexts/FormDataProvider";
+import { checkReqIdValidity, createEvaluation } from "../api/evaluation";
+import { IconButton, Typography } from "@mui/material";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CircularProgress from "@mui/material/CircularProgress";
+import { SnackbarContext } from "../contexts/SnackbarProvider";
+import { useMediaQuery } from "react-responsive";
+
+const PublicForm = () => {
+  const isMobile = useMediaQuery({
+    query: "(max-width: 1224px)",
+  });
+
+  const { showSnackbarMessage } = useContext(SnackbarContext);
+  const [disableButton, setDisableButton] = useState(false);
+  const [isIdValid, setIsIdValid] = useState<boolean | undefined>(undefined);
+  const [isCheckingId, setIsCheckingId] = useState(false);
+  const [canSubmit, setCanSubmit] = useState(true);
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState([]);
+
+  const { formData, setFormData, setPageFormData } = useContext(FormDataContext);
+  const { id } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const lastResetKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    (async function () {
+      if (id) {
+        setIsCheckingId(true);
+        try {
+          const response = await checkReqIdValidity(id);
+          setIsIdValid(true);
+          setCanSubmit(response.data?.canSubmit ?? true);
+          setAlreadySubmitted(response.data?.alreadySubmitted ?? false);
+        } catch (err: any) {
+          setIsIdValid(false);
+          if (err.response?.data?.message) {
+            showSnackbarMessage(err.response.data.message, "error");
+          }
+        } finally {
+          setIsCheckingId(false);
+        }
+      }
+    })();
+  }, [id]);
+
+  // Single evaluation form for both email link and QR link: always start with a clean form
+  // so rating and comment fields behave the same regardless of entry point.
+  useEffect(() => {
+    if (id) {
+      const resetKey = `${location.pathname}:${id}`;
+      // Prevent repeated wipes caused by provider function identity changes across renders.
+      if (lastResetKeyRef.current === resetKey) return;
+      lastResetKeyRef.current = resetKey;
+      setFormData({});
+      if (location.pathname) setPageFormData(location.pathname, {});
+    }
+  }, [id, location.pathname, setFormData, setPageFormData]);
+
+  const submitCallback = useCallback(async () => {
+    if (!id) return;
+    const criteria = {
+      overall: formData.overall,
+      appropriateness: formData.appropriateness,
+      expectations: formData.expectations,
+      session: formData.session,
+      time: formData.time,
+      materials: formData.materials,
+      relevance: formData.relevance,
+      explained: formData.explained,
+      learningEnvironment: formData.learningEnvironment,
+      timeManagement: formData.timeManagement,
+      keenness: formData.keenness,
+      venue: formData.venue,
+    };
+    const payload = {
+      criteria,
+      q13: formData.q13 ?? "",
+      q14: formData.q14 ?? "",
+      comment: formData.comment ?? "",
+      recommendations: formData.recommendations ?? "",
+    };
+    try {
+      await createEvaluation(id, payload);
+      window.dispatchEvent(new CustomEvent('satisfaction-rating-submitted'));
+      navigate("/feedback-message");
+    } catch (err: any) {
+      if (err.response?.data) {
+        const message = err.response.data.message;
+        const errors = err.response.data.fieldError ?? [];
+        setFieldErrors(errors);
+        showSnackbarMessage(`Error Occured: ${message}`, "error");
+      }
+    } finally {
+      setDisableButton(false);
+    }
+  }, [id, formData, navigate, showSnackbarMessage]);
+
+  return (
+    <FlexBox
+      minHeight="100vh"
+      width="100%"
+      justifyContent="center"
+      alignItems="center"
+      bgcolor="white"
+      sx={{
+        background: "linear-gradient(180deg, #c07f00 0%, #ffdf75 100%)",
+      }}
+    >
+      {isCheckingId ? (
+        <FlexBox flexDirection="column" alignItems="center" rowGap="12px">
+          <CircularProgress sx={{ color: "white" }} />
+          <Typography color="white">Loading evaluation form...</Typography>
+        </FlexBox>
+      ) : isIdValid === true ? (
+        alreadySubmitted ? (
+          <PopupModal
+            open
+            hideCloseButton
+            disableBGShadow
+            width={isMobile ? "90vw" : "420px"}
+            header="Evaluation already submitted"
+            subHeader="This token has already been used."
+          >
+            <FlexBox flexDirection="column" alignItems="center" rowGap="12px" marginTop="8px">
+              <Typography textAlign="center">
+                You have already evaluated using this token. Thank you for your feedback!
+              </Typography>
+              <PrimaryButton
+                label="Back to Home"
+                size="small"
+                onClick={() => navigate("/")}
+              />
+            </FlexBox>
+          </PopupModal>
+        ) : (
+        <>
+          <PopupModal
+            open
+            hideCloseButton
+            disableBGShadow
+            width={isMobile ? "100vw" : "60vw"}
+            minHeight="90vh"
+            maxHeight="90vh"
+            header="Evaluation modal"
+            subHeader={alreadySubmitted ? "Evaluation form has already been submitted" : "Kindly answer the evaluation form below"}
+          >
+            <form
+              style={{
+                maxHeight: "75vh",
+                overflowY: "auto",
+                scrollbarWidth: "thin",
+              }}
+            >
+              <FlexBox
+                flexDirection="column"
+                alignItems="center"
+                marginBottom="20px"
+                rowGap="15px"
+              >
+                <FormGeneratorTemplate
+                  enableAutoFieldCheck
+                  viewOnly={false}
+                  fieldErrors={fieldErrors}
+                  template={[
+                    { type: "divider" },
+                    [
+                      {
+                        type: "label",
+                        message:
+                          "Welcome to Our Event Evaluation! Thank you for joining us the event! Your feedback is incredibly valuable to us and will help us improve future events. Please take a moment to share your thoughts and experiences by completing this evaluation form. Your insights will contribute to making our events even better. We appreciate your time and input!",
+                      },
+                    ],
+                    { type: "section", message: "Training/Seminar experience" },
+                    [
+                      {
+                        id: "overall",
+                        type: "radiolist",
+                        message: "Overall, how would you rate the seminar/training?",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "appropriateness",
+                        type: "radiolist",
+                        message: "How would you rate the appropriateness of time and the proper use of resources provided?",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "expectations",
+                        type: "radiolist",
+                        message: "Objectives and expectations were clearly communicated and achieved.",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "session",
+                        type: "radiolist",
+                        message: "Session activities were appropriate and relevant to the achievement of the learning objectives.",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "time",
+                        type: "radiolist",
+                        message: "Sufficient time was allotted for group discussion and comments.",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "materials",
+                        type: "radiolist",
+                        message: "Materials and audio-visual aids provided were useful.",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "relevance",
+                        type: "radiolist",
+                        message: "The resource person/trainer displayed thorough knowledge of, and provided relevant insights on the topic/s discussed.",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "explained",
+                        type: "radiolist",
+                        message: "The resource person/trainer thoroughly explained and processed the learning activities throughout the training.",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "learningEnvironment",
+                        type: "radiolist",
+                        message: "The resource person/trainer created a good learning environment, sustained the attention of the participants, and encouraged their participation in the training duration.",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "timeManagement",
+                        type: "radiolist",
+                        message: "The resource person/trainer managed the time well, including some adjustments in the training schedule, if needed.",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "keenness",
+                        type: "radiolist",
+                        message: "The resource person/trainer demonstrated keenness to the participants' needs and other requirements related to the training.",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    [
+                      {
+                        id: "venue",
+                        type: "radiolist",
+                        message: "The venue or platform used was conducive for learning.",
+                        radioListRowDirection: true,
+                        selectionQuestion: [
+                          { label: "Excellent", initialValue: false },
+                          { label: "Very Satisfactory", initialValue: false },
+                          { label: "Satisfactory", initialValue: false },
+                          { label: "Fair", initialValue: false },
+                          { label: "Poor", initialValue: false },
+                        ],
+                      },
+                    ],
+                    { type: "section", message: "Comments / Suggestions / Complaint" },
+                    { id: "q13", type: "textQuestion", message: "Was the training helpful for you in the practice of your profession? Why or why not?" },
+                    { id: "q14", type: "textQuestion", message: "What aspect of the training has been helpful to you? What other topics would you suggest for future trainings?" },
+                    { id: "comment", type: "textQuestion", message: "Comments/Commendations/Complaints:" },
+                    { id: "recommendations", type: "textQuestion", message: "What topic for future events do you want recommend?" },
+                  ]}
+                />
+              </FlexBox>
+            </form>
+            <FlexBox justifyContent="flex-end" marginTop="20px">
+              <PrimaryButton
+                label="Submit"
+                size="small"
+                icon={<SendIcon />}
+                disabled={disableButton || !canSubmit}
+                onClick={() => {
+                  setDisableButton(true);
+                  submitCallback();
+                }}
+              />
+            </FlexBox>
+          </PopupModal>
+        </>
+        )
+      ) : isIdValid === false ? (
+        <>
+          <IconButton
+            sx={{ position: "fixed", top: "20px", left: "20px" }}
+            onClick={() => navigate("/")}
+          >
+            <ArrowBackIcon />
+          </IconButton>
+
+          <TextHeader textAlign={"center"}>
+            The evaluation ID provided is not valid
+          </TextHeader>
+        </>
+      ) : null}
+    </FlexBox>
+  );
+};
+
+export default PublicForm;

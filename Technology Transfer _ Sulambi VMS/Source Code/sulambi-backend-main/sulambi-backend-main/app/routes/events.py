@@ -41,6 +41,10 @@ def getAllPublicEventsRoute():
 def getBeneficiaryEligibleEventsRoute():
   return events.getBeneficiaryEligibleEvents()
 
+@EventsBlueprint.delete("/mine")
+def deleteMyEventsRoute():
+  return events.deleteMyEvents()
+
 ###############################
 #  EXTERNAL EVENT OPERATIONS  #
 ###############################
@@ -68,6 +72,11 @@ def makeExternalEventPublic(id):
 def updateExternalEvent(id):
   return events.updateEvent(id, "external")
 
+
+@EventsBlueprint.delete("/external/<id>")
+def deleteExternalEventRoute(id):
+  return events.deleteEvent(int(id), "external")
+
 ###############################
 #  INTERNAL EVENT OPERATIONS  #
 ###############################
@@ -94,6 +103,11 @@ def makeInternalEventPublic(id):
 @EventsBlueprint.put("/internal/<id>")
 def updateInternalEvent(id):
   return events.updateEvent(id, "internal")
+
+
+@EventsBlueprint.delete("/internal/<id>")
+def deleteInternalEventRoute(id):
+  return events.deleteEvent(int(id), "internal")
 
 @EventsBlueprint.before_request
 def eventsMiddleware():

@@ -1,0 +1,179 @@
+{
+  "name": "Sulambi VMS Members",
+  "fields": [
+    {
+      "name": "applyingAs",
+      "type": "Custom List",
+      "values": ["Student", "Faculty", "Staff", "Alumni"]
+    },
+    {
+      "name": "volunterismExperience",
+      "type": "Boolean"
+    },
+    {
+      "name": "weekdaysTimeDevotion",
+      "type": "Custom List",
+      "values": ["1-2 hours", "3-4 hours", "5-6 hours", "7+ hours"]
+    },
+    {
+      "name": "weekendsTimeDevotion",
+      "type": "Custom List",
+      "values": ["1-2 hours", "3-4 hours", "5-6 hours", "7+ hours"]
+    },
+    {
+      "name": "areasOfInterest",
+      "type": "Custom List",
+      "values": ["Outreach", "Education", "Environment", "Health", "Technology", "Sports", "Arts", "Community Service"]
+    },
+    {
+      "name": "fullname",
+      "type": "Full Name"
+    },
+    {
+      "name": "email",
+      "type": "Email Address"
+    },
+    {
+      "name": "affiliation",
+      "type": "Custom List",
+      "values": ["Batangas State University", "Other University", "Private Organization", "Government Agency"]
+    },
+    {
+      "name": "srcode",
+      "type": "Custom List",
+      "values": ["21-12345", "22-12345", "23-12345", "24-12345", "25-12345"]
+    },
+    {
+      "name": "age",
+      "type": "Number",
+      "min": 18,
+      "max": 65
+    },
+    {
+      "name": "birthday",
+      "type": "Date",
+      "format": "%B, %d %Y"
+    },
+    {
+      "name": "sex",
+      "type": "Custom List",
+      "values": ["Male", "Female"]
+    },
+    {
+      "name": "campus",
+      "type": "Custom List",
+      "values": ["Main Campus", "Alangilan", "Balayan", "Lemery", "Lipa", "Malvar", "Nasugbu", "Rosario", "San Juan"]
+    },
+    {
+      "name": "collegeDept",
+      "type": "Custom List",
+      "values": [
+        "College of Engineering",
+        "College of Arts and Sciences", 
+        "College of Business",
+        "College of Education",
+        "College of Nursing",
+        "College of Information and Communications Technology",
+        "College of Industrial Technology",
+        "College of Accountancy"
+      ]
+    },
+    {
+      "name": "yrlevelprogram",
+      "type": "Custom List",
+      "values": [
+        "1st Year - BS Computer Science",
+        "2nd Year - BS Information Technology", 
+        "3rd Year - BS Civil Engineering",
+        "4th Year - BS Mechanical Engineering",
+        "1st Year - BS Nursing",
+        "2nd Year - BS Education",
+        "3rd Year - BS Business Administration",
+        "4th Year - BS Accountancy",
+        "1st Year - BS Psychology",
+        "2nd Year - BS Biology"
+      ]
+    },
+    {
+      "name": "address",
+      "type": "Street Address"
+    },
+    {
+      "name": "contactNum",
+      "type": "Phone Number",
+      "format": "+63 9## ### ####"
+    },
+    {
+      "name": "fblink",
+      "type": "URL"
+    },
+    {
+      "name": "bloodType",
+      "type": "Custom List",
+      "values": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+    },
+    {
+      "name": "bloodDonation",
+      "type": "Custom List",
+      "values": ["Yes", "No", "Maybe"]
+    },
+    {
+      "name": "medicalCondition",
+      "type": "Custom List",
+      "values": ["None", "Asthma", "Diabetes", "Hypertension", "Heart Condition", "Other"]
+    },
+    {
+      "name": "paymentOption",
+      "type": "Custom List",
+      "values": ["GCash", "PayMaya", "Bank Transfer", "Cash", "Check"]
+    },
+    {
+      "name": "volunteerExpQ1",
+      "type": "Text",
+      "max": 200
+    },
+    {
+      "name": "volunteerExpQ2", 
+      "type": "Text",
+      "max": 200
+    },
+    {
+      "name": "volunteerExpProof",
+      "type": "URL"
+    },
+    {
+      "name": "reasonQ1",
+      "type": "Text",
+      "max": 300
+    },
+    {
+      "name": "reasonQ2",
+      "type": "Text", 
+      "max": 300
+    }
+  ]
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

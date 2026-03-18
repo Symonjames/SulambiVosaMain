@@ -341,6 +341,114 @@ def getBeneficiaryEligibleEvents():
     "message": "Successfully retrieved events eligible for beneficiary evaluation"
   }
 
+
+def deleteEvent(id: int, eventType: str):
+  """
+  Delete a single event (internal or external).
+  Only the creator of the event or an admin account can delete.
+  Returns the deleted event payload so the frontend can confirm.
+  """
+  try:
+    accountSessionInfo = g.get("accountSessionInfo")
+    if not accountSessionInfo:
+      return ({"message": "Authentication required. Please log in."}, 403)
+
+    is_admin = accountSessionInfo.get("accountType") == "admin"
+
+    if eventType == "external":
+      event = ExternalEventDb.get(id)
+      if event is None:
+        return ({"message": "The specified external event does not exist"}, 404)
+
+      if (not is_admin) and event.get("createdBy") != accountSessionInfo.get("id"):
+        return ({"message": "You do not have permission to delete this event"}, 403)
+
+      deleted = ExternalEventDb.delete(id)
+      return {
+        "data": deleted,
+        "message": "External event deleted successfully",
+      }
+
+    if eventType == "internal":
+      event = InternalEventDb.get(id)
+      if event is None:
+        return ({"message": "The specified internal event does not exist"}, 404)
+
+      if (not is_admin) and event.get("createdBy") != accountSessionInfo.get("id"):
+        return ({"message": "You do not have permission to delete this event"}, 403)
+
+      deleted = InternalEventDb.delete(id)
+      return {
+        "data": deleted,
+        "message": "Internal event deleted successfully",
+      }
+
+    return ({"message": "Invalid event type"}, 400)
+  except Exception as e:
+    print(f"Error deleting event {id} ({eventType}): {e}")
+    import traceback
+    traceback.print_exc()
+    return ({"message": f"Error deleting event: {str(e)}"}, 500)
+
+
+def deleteMyEvents():
+  """
+  Delete all events (internal and external) created by the currently logged-in user.
+  Admins can optionally pass a query param ?forUserId=<id> to delete for another account.
+  """
+  try:
+    accountSessionInfo = g.get("accountSessionInfo")
+    if not accountSessionInfo:
+      return ({"message": "Authentication required. Please log in."}, 403)
+
+    from flask import request as flask_request
+
+    requester_is_admin = accountSessionInfo.get("accountType") == "admin"
+    target_user_id = accountSessionInfo.get("id")
+
+    # Allow admin to specify a different user id via query param if needed
+    if requester_is_admin:
+      override = flask_request.args.get("forUserId")
+      if override is not None:
+        try:
+          target_user_id = int(override)
+        except ValueError:
+          return ({"message": "Invalid forUserId parameter"}, 400)
+
+    if target_user_id is None:
+      return ({"message": "Cannot determine target user id."}, 400)
+
+    # Fetch all events created by this user
+    external_events = ExternalEventDb.getAndSearch(["createdBy"], [target_user_id])
+    internal_events = InternalEventDb.getAndSearch(["createdBy"], [target_user_id])
+
+    deleted_external_ids = []
+    deleted_internal_ids = []
+
+    for ev in external_events:
+      ev_id = ev.get("id")
+      if ev_id is not None:
+        ExternalEventDb.delete(ev_id)
+        deleted_external_ids.append(ev_id)
+
+    for ev in internal_events:
+      ev_id = ev.get("id")
+      if ev_id is not None:
+        InternalEventDb.delete(ev_id)
+        deleted_internal_ids.append(ev_id)
+
+    return {
+      "message": "Successfully deleted your events",
+      "deletedExternalIds": deleted_external_ids,
+      "deletedInternalIds": deleted_internal_ids,
+      "targetUserId": target_user_id,
+    }
+  except Exception as e:
+    print(f"Error deleting my events: {e}")
+    import traceback
+    traceback.print_exc()
+    return ({"message": f"Error deleting your events: {str(e)}"}, 500)
+
 def getAnalysis(id: int, eventType: str):
   eventDetails = None
   if (eventType == "external"):

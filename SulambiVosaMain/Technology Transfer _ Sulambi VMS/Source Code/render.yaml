@@ -1,0 +1,76 @@
+# Render Blueprint for Sulambi VMS
+# This Blueprint deploys:
+# 1. PostgreSQL Database
+# 2. Backend Flask API Service
+# 3. Frontend React Static Site
+#
+# To deploy:
+# 1. Push this file to your GitHub repository
+# 2. In Render Dashboard: New + → Blueprint
+# 3. Connect your repository
+# 4. Render will automatically create all services
+# 5. Set VITE_API_URI in frontend service (see instructions below)
+
+services:
+  # Backend Flask API Service
+  - type: web
+    name: sulambi-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: cd sulambi-backend-main/sulambi-backend-main && pip install -r requirements.txt
+    startCommand: cd sulambi-backend-main/sulambi-backend-main && chmod +x start.sh && ./start.sh
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sulambi-database
+          property: connectionString
+      - key: DB_PATH
+        value: app/database/database.db
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        fromService:
+          type: web
+          name: sulambi-backend
+          property: port
+      - key: AUTOMAILER_EMAIL
+        sync: false
+      - key: AUTOMAILER_PASSW
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: DEBUG
+        value: "False"
+
+  # Frontend Static Site
+  - type: web
+    name: sulambi-frontend
+    env: static
+    region: oregon
+    plan: free
+    buildCommand: cd sulambi-frontend-main/sulambi-frontend-main && chmod +x build.sh && ./build.sh
+    staticPublishPath: sulambi-frontend-main/sulambi-frontend-main/dist
+    envVars:
+      # IMPORTANT: After backend deploys, set this to: https://sulambi-backend.onrender.com/api
+      # Go to frontend service → Environment → Add VITE_API_URI
+      # Replace 'sulambi-backend' with your actual backend service name
+      - key: VITE_API_URI
+        sync: false
+
+databases:
+  # PostgreSQL Database
+  - name: sulambi-database
+    databaseName: sulambi
+    user: sulambi_user
+    plan: free
+    region: oregon
+

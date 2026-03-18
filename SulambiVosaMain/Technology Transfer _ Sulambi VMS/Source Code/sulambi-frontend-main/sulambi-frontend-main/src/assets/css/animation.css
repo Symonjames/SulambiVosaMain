@@ -1,0 +1,6 @@
+@keyframes fadeInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}

@@ -1,4 +1,4 @@
-import axios from "./init";
+  import axios from "./init";
 
 const basePath = "/events";
 
@@ -72,6 +72,18 @@ export const updateExternalEvent = (eventId: number, data: any) => {
 
 export const updateInternalEvent = (eventId: number, data: any) => {
   return axios.put(`${basePath}/internal/${eventId}`, data);
+};
+
+export const deleteExternalEvent = (eventId: number) => {
+  return axios.delete(`${basePath}/external/${eventId}`);
+};
+
+export const deleteInternalEvent = (eventId: number) => {
+  return axios.delete(`${basePath}/internal/${eventId}`);
+};
+
+export const deleteMyEvents = () => {
+  return axios.delete(`${basePath}/mine`);
 };
 
 export const updateSignatories = (signatoryId: number, payload: any) => {

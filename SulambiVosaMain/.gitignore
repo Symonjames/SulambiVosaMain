@@ -1,0 +1,144 @@
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Node / Frontend (Vite/React) ---
+node_modules/
+dist/
+build/
+.vite/
+.turbo/
+.next/
+coverage/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+pip-wheel-metadata/
+
+# Virtual envs
+.venv/
+venv/
+env/
+ENV/
+
+# --- Environment / secrets ---
+.env
+.env.*
+
+# --- Databases / local state ---
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# --- EXCEPTION: commit selected local DB snapshots (requested) ---
+!Technology Transfer _ Sulambi VMS/Source Code/sulambi-backend-main/sulambi-backend-main/app/database/database.db
+!Technology Transfer _ Sulambi VMS/Source Code/sulambi-backend-main/sulambi-backend-main/data/sulambi.db
+!Technology Transfer _ Sulambi VMS/Source Code/sulambi-backend-main/sulambi-backend-main/sulambi.db
+
+# --- Uploads / generated assets (keep out of git) ---
+**/uploads/
+**/upload/
+**/uploaded/
+
+# System files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+*.tsbuildinfo
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+*.log
+
+# Uploads (if sensitive)
+uploads/*
+!uploads/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
