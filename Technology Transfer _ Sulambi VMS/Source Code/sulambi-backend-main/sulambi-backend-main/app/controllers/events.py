@@ -1130,16 +1130,16 @@ def deleteMyEvents():
     def _in_placeholders(values_count: int):
       return ",".join(["?"] * values_count)
 
-    def _fetch_user_event_rows(table_name: str):
+    def _try_fetch_user_event_rows(table_name: str, created_by_col: str, signatories_col: str):
       query = convert_placeholders(
-        f"SELECT id, signatoriesid, feedback_id FROM {table_name} WHERE createdby=?"
+        f"SELECT id, {signatories_col}, feedback_id FROM {table_name} WHERE {created_by_col}=?"
       )
       cursor.execute(query, (account_id,))
       rows = cursor.fetchall() or []
 
-      event_ids = []
-      signatory_ids = []
-      feedback_ids = []
+      event_ids: list[int] = []
+      signatory_ids: list[int] = []
+      feedback_ids: list[int] = []
 
       for row in rows:
         if row[0] is not None:
@@ -1150,6 +1150,18 @@ def deleteMyEvents():
           feedback_ids.append(int(row[2]))
 
       return event_ids, signatory_ids, feedback_ids
+
+    def _fetch_user_event_rows(table_name: str):
+      """
+      PostgreSQL identifier casing can differ between deployments:
+      - Some DBs were created with unquoted identifiers (folded to lowercase)
+      - Others were created with quoted mixed-case identifiers (e.g. "signatoriesId")
+      Try both variants for createdBy/signatoriesId.
+      """
+      try:
+        return _try_fetch_user_event_rows(table_name, "createdby", "signatoriesid")
+      except Exception:
+        return _try_fetch_user_event_rows(table_name, '"createdBy"', '"signatoriesId"')
 
     deleted_counts = {
       "externalEvents": 0,
@@ -1252,19 +1264,33 @@ def deleteMyEvents():
     # Delete signatories only if no remaining event/report row points to them.
     all_signatory_ids = sorted(set(external_signatory_ids + internal_signatory_ids))
     for signatory_id in all_signatory_ids:
-      ref_query = convert_placeholders(
-        f"""
-        SELECT
-          (SELECT COUNT(*) FROM {external_table} WHERE signatoriesid=?) +
-          (SELECT COUNT(*) FROM {internal_table} WHERE signatoriesid=?) +
-          (SELECT COUNT(*) FROM {external_report_table} WHERE signatoriesid=?) +
-          (SELECT COUNT(*) FROM {internal_report_table} WHERE signatoriesid=?)
-        """
-      )
-      cursor.execute(ref_query, (signatory_id, signatory_id, signatory_id, signatory_id))
-      still_referenced = (cursor.fetchone() or [0])[0]
+      still_referenced = 0
+      try:
+        ref_query = convert_placeholders(
+          f"""
+          SELECT
+            (SELECT COUNT(*) FROM {external_table} WHERE signatoriesid=?) +
+            (SELECT COUNT(*) FROM {internal_table} WHERE signatoriesid=?) +
+            (SELECT COUNT(*) FROM {external_report_table} WHERE signatoriesid=?) +
+            (SELECT COUNT(*) FROM {internal_report_table} WHERE signatoriesid=?)
+          """
+        )
+        cursor.execute(ref_query, (signatory_id, signatory_id, signatory_id, signatory_id))
+        still_referenced = int((cursor.fetchone() or [0])[0] or 0)
+      except Exception:
+        ref_query = convert_placeholders(
+          f"""
+          SELECT
+            (SELECT COUNT(*) FROM {external_table} WHERE "signatoriesId"=?) +
+            (SELECT COUNT(*) FROM {internal_table} WHERE "signatoriesId"=?) +
+            (SELECT COUNT(*) FROM {external_report_table} WHERE "signatoriesId"=?) +
+            (SELECT COUNT(*) FROM {internal_report_table} WHERE "signatoriesId"=?)
+          """
+        )
+        cursor.execute(ref_query, (signatory_id, signatory_id, signatory_id, signatory_id))
+        still_referenced = int((cursor.fetchone() or [0])[0] or 0)
 
-      if int(still_referenced or 0) == 0:
+      if still_referenced == 0:
         delete_signatory_query = convert_placeholders(
           f"DELETE FROM {signatories_table} WHERE id=?"
         )
