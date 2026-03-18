@@ -138,9 +138,9 @@ def getVolunteerDropoutAnalytics(year=None):
         
         conn, cursor = cursorInstance()
         
-        from ..database.connection import quote_identifier
-        membership_table = quote_identifier('membership')
-        vph_table = quote_identifier('volunteerParticipationHistory')
+        from ..database.connection import table_name_for_query
+        membership_table = table_name_for_query('membership')
+        vph_table = table_name_for_query('volunteerParticipationHistory')
         
         # Check if volunteerParticipationHistory table exists
         # Use database-agnostic query - detect from connection type
@@ -154,7 +154,7 @@ def getVolunteerDropoutAnalytics(year=None):
                 cursor.execute("""
                     SELECT table_name FROM information_schema.tables 
                     WHERE table_schema = 'public' 
-                    AND table_name = 'volunteerParticipationHistory'
+                    AND lower(table_name) = 'volunteerparticipationhistory'
                 """)
             else:
                 # SQLite: use sqlite_master
@@ -171,7 +171,7 @@ def getVolunteerDropoutAnalytics(year=None):
                     cursor.execute("""
                         SELECT table_name FROM information_schema.tables 
                         WHERE table_schema = 'public' 
-                        AND table_name = 'volunteerParticipationHistory'
+                        AND lower(table_name) = 'volunteerparticipationhistory'
                     """)
                     table_exists = cursor.fetchone()
                 except Exception as e2:
@@ -224,16 +224,22 @@ def getVolunteerDropoutAnalytics(year=None):
         # Get semester data from participation history table
         try:
             from ..database.connection import convert_placeholders
+            vph_volunteer_email_col = '"volunteerEmail"' if is_postgresql else 'volunteerEmail'
+            vph_events_joined_col = '"eventsJoined"' if is_postgresql else 'eventsJoined'
+            vph_events_attended_col = '"eventsAttended"' if is_postgresql else 'eventsAttended'
+            vph_events_dropped_col = '"eventsDropped"' if is_postgresql else 'eventsDropped'
+            vph_attendance_rate_col = '"attendanceRate"' if is_postgresql else 'attendanceRate'
+            vph_semester_year_col = '"semesterYear"' if is_postgresql else 'semesterYear'
             if year:
                 query = f"""
                     SELECT semester, 
-                           COUNT(DISTINCT volunteerEmail) as total_volunteers,
-                           SUM(eventsJoined) as total_joined,
-                           SUM(eventsAttended) as total_attended,
-                           SUM(eventsDropped) as total_dropped,
-                           AVG(attendanceRate) as avg_attendance_rate
+                           COUNT(DISTINCT {vph_volunteer_email_col}) as total_volunteers,
+                           SUM({vph_events_joined_col}) as total_joined,
+                           SUM({vph_events_attended_col}) as total_attended,
+                           SUM({vph_events_dropped_col}) as total_dropped,
+                           AVG({vph_attendance_rate_col}) as avg_attendance_rate
                     FROM {vph_table}
-                    WHERE semesterYear = ?
+                    WHERE {vph_semester_year_col} = ?
                     GROUP BY semester
                     ORDER BY semester
                 """
@@ -242,11 +248,11 @@ def getVolunteerDropoutAnalytics(year=None):
             else:
                 cursor.execute(f"""
                     SELECT semester, 
-                           COUNT(DISTINCT volunteerEmail) as total_volunteers,
-                           SUM(eventsJoined) as total_joined,
-                           SUM(eventsAttended) as total_attended,
-                           SUM(eventsDropped) as total_dropped,
-                           AVG(attendanceRate) as avg_attendance_rate
+                           COUNT(DISTINCT {vph_volunteer_email_col}) as total_volunteers,
+                           SUM({vph_events_joined_col}) as total_joined,
+                           SUM({vph_events_attended_col}) as total_attended,
+                           SUM({vph_events_dropped_col}) as total_dropped,
+                           AVG({vph_attendance_rate_col}) as avg_attendance_rate
                     FROM {vph_table}
                     GROUP BY semester
                     ORDER BY semester
@@ -281,17 +287,24 @@ def getVolunteerDropoutAnalytics(year=None):
         # This ensures we're reading from the membership table as the source of truth
         try:
             from ..database.connection import convert_boolean_condition
+            vph_last_event_date_col = 'vph."lastEventDate"' if is_postgresql else 'vph.lastEventDate'
+            vph_events_joined_col = 'vph."eventsJoined"' if is_postgresql else 'vph.eventsJoined'
+            vph_events_attended_col = 'vph."eventsAttended"' if is_postgresql else 'vph.eventsAttended'
+            vph_attendance_rate_col = 'vph."attendanceRate"' if is_postgresql else 'vph.attendanceRate'
+            vph_semester_col = 'vph.semester'
+            vph_volunteer_email_col = 'vph."volunteerEmail"' if is_postgresql else 'vph.volunteerEmail'
+
             query = f"""
                 SELECT 
                     m.email,
                     m.fullname,
-                    COALESCE(MAX(vph.lastEventDate), 0) as most_recent_date,
-                    COALESCE(SUM(vph.eventsJoined), 0) as total_joined,
-                    COALESCE(SUM(vph.eventsAttended), 0) as total_attended,
-                    COALESCE(AVG(vph.attendanceRate), 0) as avg_attendance_rate,
-                    COALESCE(COUNT(DISTINCT vph.semester), 0) as semesters_active
+                    COALESCE(MAX({vph_last_event_date_col}), 0) as most_recent_date,
+                    COALESCE(SUM({vph_events_joined_col}), 0) as total_joined,
+                    COALESCE(SUM({vph_events_attended_col}), 0) as total_attended,
+                    COALESCE(AVG({vph_attendance_rate_col}), 0) as avg_attendance_rate,
+                    COALESCE(COUNT(DISTINCT {vph_semester_col}), 0) as semesters_active
                 FROM {membership_table} m
-                LEFT JOIN {vph_table} vph ON m.email = vph.volunteerEmail
+                LEFT JOIN {vph_table} vph ON m.email = {vph_volunteer_email_col}
                 WHERE m.accepted = 1 AND m.active = 1
                 GROUP BY m.email, m.fullname
             """
@@ -331,8 +344,9 @@ def getVolunteerDropoutAnalytics(year=None):
             
             # Calculate days since last event
             inactivity_days = 0
-            if most_recent_date and most_recent_date > 0:
-                inactivity_days = int((current_time_ms - most_recent_date) / ms_per_day)
+            most_recent_dt = _timestamp_to_datetime(most_recent_date)
+            if most_recent_dt is not None:
+                inactivity_days = int((datetime.now().timestamp() - most_recent_dt.timestamp()) / (60 * 60 * 24))
             elif total_joined == 0 and total_attended == 0:
                 # If member has never participated, use a high inactivity days value
                 # This ensures members with no participation are flagged as high risk
@@ -380,8 +394,8 @@ def getVolunteerDropoutAnalytics(year=None):
             # Only include volunteers with risk score >= 50
             if risk_score >= 50:
                 last_event_str = None
-                if most_recent_date and most_recent_date > 0:
-                    last_event_str = datetime.fromtimestamp(most_recent_date / 1000).strftime('%Y-%m-%d')
+                if most_recent_dt is not None:
+                    last_event_str = most_recent_dt.strftime('%Y-%m-%d')
                 
                 at_risk_volunteers.append({
                     "name": name,
@@ -440,18 +454,21 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         conn, cursor = cursorInstance()
         
         # Get all events with their dates to calculate semesters
-        from ..database.connection import quote_identifier
-        internal_events_table = quote_identifier("internalEvents")
-        external_events_table = quote_identifier("externalEvents")
+        from ..database.connection import table_name_for_query, DATABASE_URL, is_postgresql_url
+        is_pg = is_postgresql_url(DATABASE_URL)
+        internal_events_table = table_name_for_query("internalEvents")
+        external_events_table = table_name_for_query("externalEvents")
+        col_ds = '"durationStart"' if is_pg else 'durationStart'
+        col_de = '"durationEnd"' if is_pg else 'durationEnd'
         cursor.execute(f"""
-            SELECT id, title, durationStart, durationEnd, 'internal' as type
+            SELECT id, title, {col_ds}, {col_de}, 'internal' as type
             FROM {internal_events_table}
             WHERE status IN ('accepted', 'completed')
             UNION ALL
-            SELECT id, title, durationStart, durationEnd, 'external' as type
+            SELECT id, title, {col_ds}, {col_de}, 'external' as type
             FROM {external_events_table}
             WHERE status IN ('accepted', 'completed')
-            ORDER BY durationStart
+            ORDER BY {col_ds}
         """)
         all_events = cursor.fetchall()
         
@@ -494,9 +511,9 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             # Count volunteers who JOINED (submitted requirements) for events in this semester.
             # Include accepted OR pending, exclude rejected.
             # Use a robust volunteer key: email -> srcode -> fullname
-            from ..database.connection import quote_identifier
-            requirements_table = quote_identifier('requirements')
-            evaluation_table = quote_identifier('evaluation')
+            from ..database.connection import table_name_for_query
+            requirements_table = table_name_for_query('requirements')
+            evaluation_table = table_name_for_query('evaluation')
             from ..database.connection import convert_placeholders, convert_boolean_condition
             joined_query = f"""
                 SELECT COUNT(DISTINCT COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)) as joined_count
@@ -506,16 +523,16 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             joined_params = []
             
             if event_ids_internal and event_ids_external:
-                joined_query += " AND ((r.type = 'internal' AND r.eventId IN ({}) OR (r.type = 'external' AND r.eventId IN ({}))))".format(
+                joined_query += " AND ((r.type = 'internal' AND r.\"eventId\" IN ({}) OR (r.type = 'external' AND r.\"eventId\" IN ({}))))".format(
                     ','.join(['?' for _ in event_ids_internal]),
                     ','.join(['?' for _ in event_ids_external])
                 )
                 joined_params = event_ids_internal + event_ids_external
             elif event_ids_internal:
-                joined_query += " AND r.type = 'internal' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_internal]))
+                joined_query += " AND r.type = 'internal' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_internal]))
                 joined_params = event_ids_internal
             elif event_ids_external:
-                joined_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
+                joined_query += " AND r.type = 'external' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_external]))
                 joined_params = event_ids_external
             else:
                 continue
@@ -530,7 +547,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             attended_query = f"""
                 SELECT COUNT(DISTINCT COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)) as attended_count
                 FROM {requirements_table} r
-                INNER JOIN {evaluation_table} e ON r.id = e.requirementId
+                INNER JOIN {evaluation_table} e ON r.id = e.\"requirementId\"
                 WHERE r.accepted = 1 
                 AND e.finalized = 1 
                 AND e.criteria IS NOT NULL 
@@ -539,16 +556,16 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             attended_params = []
             
             if event_ids_internal and event_ids_external:
-                attended_query += " AND ((r.type = 'internal' AND r.eventId IN ({}) OR (r.type = 'external' AND r.eventId IN ({}))))".format(
+                attended_query += " AND ((r.type = 'internal' AND r.\"eventId\" IN ({}) OR (r.type = 'external' AND r.\"eventId\" IN ({}))))".format(
                     ','.join(['?' for _ in event_ids_internal]),
                     ','.join(['?' for _ in event_ids_external])
                 )
                 attended_params = event_ids_internal + event_ids_external
             elif event_ids_internal:
-                attended_query += " AND r.type = 'internal' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_internal]))
+                attended_query += " AND r.type = 'internal' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_internal]))
                 attended_params = event_ids_internal
             elif event_ids_external:
-                attended_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
+                attended_query += " AND r.type = 'external' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_external]))
                 attended_params = event_ids_external
             
             attended_query = convert_boolean_condition(attended_query)
@@ -566,7 +583,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 total_attendances_query = f"""
                     SELECT COUNT(*) as total_attendances
                     FROM {requirements_table} r
-                    INNER JOIN {evaluation_table} e ON r.id = e.requirementId
+                    INNER JOIN {evaluation_table} e ON r.id = e.\"requirementId\"
                     WHERE r.accepted = 1 
                     AND e.finalized = 1 
                     AND e.criteria IS NOT NULL 
@@ -575,16 +592,16 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 total_attendances_params = []
                 
                 if event_ids_internal and event_ids_external:
-                    total_attendances_query += " AND ((r.type = 'internal' AND r.eventId IN ({}) OR (r.type = 'external' AND r.eventId IN ({}))))".format(
+                    total_attendances_query += " AND ((r.type = 'internal' AND r.\"eventId\" IN ({}) OR (r.type = 'external' AND r.\"eventId\" IN ({}))))".format(
                         ','.join(['?' for _ in event_ids_internal]),
                         ','.join(['?' for _ in event_ids_external])
                     )
                     total_attendances_params = event_ids_internal + event_ids_external
                 elif event_ids_internal:
-                    total_attendances_query += " AND r.type = 'internal' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_internal]))
+                    total_attendances_query += " AND r.type = 'internal' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_internal]))
                     total_attendances_params = event_ids_internal
                 elif event_ids_external:
-                    total_attendances_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
+                    total_attendances_query += " AND r.type = 'external' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_external]))
                     total_attendances_params = event_ids_external
                 
                 total_attendances_query = convert_boolean_condition(total_attendances_query)
@@ -602,11 +619,11 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             })
             
             # Track individual volunteer stats for at-risk calculation
-            from ..database.connection import quote_identifier, convert_boolean_condition, convert_placeholders
-            internal_events_table = quote_identifier('internalEvents')
-            external_events_table = quote_identifier('externalEvents')
-            requirements_table = quote_identifier('requirements')
-            evaluation_table = quote_identifier('evaluation')
+            from ..database.connection import table_name_for_query, convert_boolean_condition, convert_placeholders
+            internal_events_table = table_name_for_query('internalEvents')
+            external_events_table = table_name_for_query('externalEvents')
+            requirements_table = table_name_for_query('requirements')
+            evaluation_table = table_name_for_query('evaluation')
             volunteer_query = f"""
                 SELECT
                        COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname) as volunteerKey,
@@ -619,25 +636,25 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                            ELSE ee.durationEnd
                        END) as last_event_date
                 FROM {requirements_table} r
-                LEFT JOIN {evaluation_table} e ON r.id = e.requirementId
-                LEFT JOIN {internal_events_table} ei ON r.eventId = ei.id AND r.type = 'internal'
-                LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
+                LEFT JOIN {evaluation_table} e ON r.id = e.\"requirementId\"
+                LEFT JOIN {internal_events_table} ei ON r.\"eventId\" = ei.id AND r.type = 'internal'
+                LEFT JOIN {external_events_table} ee ON r.\"eventId\" = ee.id AND r.type = 'external'
                 WHERE (r.accepted = 1 OR r.accepted IS NULL)
             """
             volunteer_query = convert_boolean_condition(volunteer_query)
             volunteer_params = []
             
             if event_ids_internal and event_ids_external:
-                volunteer_query += " AND ((r.type = 'internal' AND r.eventId IN ({}) OR (r.type = 'external' AND r.eventId IN ({}))))".format(
+                volunteer_query += " AND ((r.type = 'internal' AND r.\"eventId\" IN ({}) OR (r.type = 'external' AND r.\"eventId\" IN ({}))))".format(
                     ','.join(['?' for _ in event_ids_internal]),
                     ','.join(['?' for _ in event_ids_external])
                 )
                 volunteer_params = event_ids_internal + event_ids_external
             elif event_ids_internal:
-                volunteer_query += " AND r.type = 'internal' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_internal]))
+                volunteer_query += " AND r.type = 'internal' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_internal]))
                 volunteer_params = event_ids_internal
             elif event_ids_external:
-                volunteer_query += " AND r.type = 'external' AND r.eventId IN ({})".format(','.join(['?' for _ in event_ids_external]))
+                volunteer_query += " AND r.type = 'external' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_external]))
                 volunteer_params = event_ids_external
             
             volunteer_query += " GROUP BY volunteerKey"
@@ -845,80 +862,92 @@ def getSatisfactionAnalytics(year=None):
             except Exception:
                 return float(default)
 
-        # 0) Prefer pre-aggregated semester_satisfaction only when no year filter (so 2026/new years use live data)
-        if not year:
-            try:
-                from ..database.connection import cursorInstance
-                conn, cursor = cursorInstance()
-                from ..database.connection import quote_identifier
-                semester_satisfaction_table = quote_identifier('semester_satisfaction')
-                from ..database.connection import convert_placeholders
-                from ..database.connection import DATABASE_URL, is_postgresql_url
-                is_postgresql = is_postgresql_url(DATABASE_URL)
-                if is_postgresql:
-                    topIssues_col = '"topIssues"'
-                else:
-                    topIssues_col = 'topIssues'
+        # 0) Prefer pre-aggregated semester_satisfaction first (both all-years and year-specific requests).
+        # If no rows are found, fall back to live/raw table computation below.
+        try:
+            from ..database.connection import cursorInstance
+            conn, cursor = cursorInstance()
+            from ..database.connection import table_name_for_query
+            semester_satisfaction_table = table_name_for_query('semester_satisfaction')
+            from ..database.connection import convert_placeholders
+            from ..database.connection import DATABASE_URL, is_postgresql_url
+            is_postgresql = is_postgresql_url(DATABASE_URL)
+            if is_postgresql:
+                topIssues_col = '"topIssues"'
+            else:
+                topIssues_col = 'topIssues'
+
+            if year:
+                query = f"""
+                    SELECT year, semester, overall, volunteers, beneficiaries, {topIssues_col}
+                    FROM {semester_satisfaction_table}
+                    WHERE year = ?
+                    ORDER BY year ASC, semester ASC
+                """
+                query = convert_placeholders(query)
+                cursor.execute(query, (int(year),))
+            else:
                 query = f"""
                     SELECT year, semester, overall, volunteers, beneficiaries, {topIssues_col}
                     FROM {semester_satisfaction_table}
                     ORDER BY year ASC, semester ASC
                 """
                 cursor.execute(query)
-                rows = cursor.fetchall()
-                conn.close()
-                if rows and len(rows) > 0:
-                    satisfactionData = []
-                    issues_counter = {}
-                    for y, sem, ov, vol, ben, topIssues in rows:
-                        satisfactionData.append({
-                            "semester": f"{y}-{sem}",
-                            "score": round(float(ov or 0), 1),
-                            "volunteers": round(float(vol or 0), 1),
-                            "beneficiaries": round(float(ben or 0), 1),
-                        })
-                        try:
-                            if isinstance(topIssues, str):
-                                parsed = eval(topIssues) if topIssues.strip().startswith("[") else []
-                            else:
-                                parsed = topIssues or []
-                            for it in parsed:
-                                issues_counter[it.get("issue", "Issue")] = issues_counter.get(it.get("issue", "Issue"), 0) + int(it.get("frequency", 1))
-                        except Exception:
-                            pass
-                    overall_avg = sum([item["score"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-                    volunteer_avg = sum([item["volunteers"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-                    beneficiary_avg = sum([item["beneficiaries"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-                    top_issues = [{"issue": k, "frequency": v, "category": "volunteers"} for k, v in sorted(issues_counter.items(), key=lambda x: x[1], reverse=True)[:5]]
-                    return {
-                        "success": True,
-                        "data": {
-                            "satisfactionData": satisfactionData,
-                            "topIssues": top_issues,
-                            "averageScore": round(overall_avg, 1),
-                            "volunteerScore": round(volunteer_avg, 1),
-                            "beneficiaryScore": round(beneficiary_avg, 1),
-                            "totalEvaluations": 0,
-                            "processedEvaluations": 0,
-                            "volunteerCount": 0,
-                            "beneficiaryCount": 0,
-                            "totalCount": 0
-                        },
-                        "message": "Satisfaction analytics retrieved from pre-aggregated store"
-                    }
-            except Exception as _:
-                pass
+
+            rows = cursor.fetchall()
+            conn.close()
+            if rows and len(rows) > 0:
+                satisfactionData = []
+                issues_counter = {}
+                for y, sem, ov, vol, ben, topIssues in rows:
+                    satisfactionData.append({
+                        "semester": f"{y}-{sem}",
+                        "score": round(float(ov or 0), 1),
+                        "volunteers": round(float(vol or 0), 1),
+                        "beneficiaries": round(float(ben or 0), 1),
+                    })
+                    try:
+                        if isinstance(topIssues, str):
+                            parsed = eval(topIssues) if topIssues.strip().startswith("[") else []
+                        else:
+                            parsed = topIssues or []
+                        for it in parsed:
+                            issues_counter[it.get("issue", "Issue")] = issues_counter.get(it.get("issue", "Issue"), 0) + int(it.get("frequency", 1))
+                    except Exception:
+                        pass
+                overall_avg = sum([item["score"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
+                volunteer_avg = sum([item["volunteers"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
+                beneficiary_avg = sum([item["beneficiaries"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
+                top_issues = [{"issue": k, "frequency": v, "category": "volunteers"} for k, v in sorted(issues_counter.items(), key=lambda x: x[1], reverse=True)[:5]]
+                return {
+                    "success": True,
+                    "data": {
+                        "satisfactionData": satisfactionData,
+                        "topIssues": top_issues,
+                        "averageScore": round(overall_avg, 1),
+                        "volunteerScore": round(volunteer_avg, 1),
+                        "beneficiaryScore": round(beneficiary_avg, 1),
+                        "totalEvaluations": 0,
+                        "processedEvaluations": 0,
+                        "volunteerCount": 0,
+                        "beneficiaryCount": 0,
+                        "totalCount": 0
+                    },
+                    "message": "Satisfaction analytics retrieved from pre-aggregated store"
+                }
+        except Exception as _:
+            pass
 
         # Get all evaluations with their requirement and event info
         from ..database.connection import cursorInstance
         conn, cursor = cursorInstance()
         
         # Get evaluations with event dates
-        from ..database.connection import quote_identifier
-        internal_events_table = quote_identifier('internalEvents')
-        external_events_table = quote_identifier('externalEvents')
-        evaluation_table = quote_identifier('evaluation')
-        requirements_table = quote_identifier('requirements')
+        from ..database.connection import table_name_for_query
+        internal_events_table = table_name_for_query('internalEvents')
+        external_events_table = table_name_for_query('externalEvents')
+        evaluation_table = table_name_for_query('evaluation')
+        requirements_table = table_name_for_query('requirements')
         # Import here to avoid circular imports
         from ..database.connection import DATABASE_URL, is_postgresql_url
         is_postgresql = is_postgresql_url(DATABASE_URL)
@@ -928,16 +957,16 @@ def getSatisfactionAnalytics(year=None):
         
         # Query 1: Get evaluations from evaluation table (volunteers with requirementIds)
         query = f"""
-            SELECT e.id, e."requirementid", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                   r."eventid", r.type,
+            SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
+                   r."eventId", r.type,
                    CASE 
-                       WHEN r.type = 'internal' THEN ei."durationstart"
-                       ELSE ee."durationstart"
+                       WHEN r.type = 'internal' THEN ei."durationStart"
+                       ELSE ee."durationStart"
                    END as eventDate
             FROM {evaluation_table} e
-            INNER JOIN {requirements_table} r ON e."requirementid" = r.id
-            LEFT JOIN {internal_events_table} ei ON r."eventid" = ei.id AND r.type = 'internal'
-            LEFT JOIN {external_events_table} ee ON r."eventid" = ee.id AND r.type = 'external'
+            INNER JOIN {requirements_table} r ON e."requirementId" = r.id
+            LEFT JOIN {internal_events_table} ei ON r."eventId" = ei.id AND r.type = 'internal'
+            LEFT JOIN {external_events_table} ee ON r."eventId" = ee.id AND r.type = 'external'
             WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
         """
         cursor.execute(query)
@@ -947,25 +976,23 @@ def getSatisfactionAnalytics(year=None):
         # (These don't have requirementIds linked to evaluation table - includes both Volunteers and Beneficiaries)
         survey_rows = []
         try:
-            satisfaction_surveys_table = quote_identifier('satisfactionSurveys')
+            satisfaction_surveys_table = table_name_for_query('satisfactionSurveys')
             finalized_survey_condition = "ss.finalized = true" if is_postgresql else "ss.finalized = 1"
             
             # Get event dates and submission dates for satisfactionSurveys
             # Include both Volunteers and Beneficiaries, and use submittedAt for year filtering
-            # Use lowercase column names (actual column names in PostgreSQL - unquoted identifiers are lowercased)
             if is_postgresql:
-                # PostgreSQL: All unquoted identifiers are lowercased
                 survey_query = f"""
-                    SELECT ss.id, ss.requirementid, ss.respondenttype, ss.overallsatisfaction, 
-                           ss.volunteerrating, ss.beneficiaryrating, ss.q13, ss.q14, ss.comment, ss.recommendations,
-                           ss.eventid, ss.eventtype, ss.submittedat,
+                    SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction",
+                           ss."volunteerRating", ss."beneficiaryRating", ss.q13, ss.q14, ss.comment, ss.recommendations,
+                           ss."eventId", ss."eventType", ss."submittedAt",
                            CASE 
-                               WHEN ss.eventtype = 'internal' THEN ei.durationstart
-                               ELSE ee.durationstart
+                               WHEN ss."eventType" = 'internal' THEN ei."durationStart"
+                               ELSE ee."durationStart"
                            END as eventdate
                     FROM {satisfaction_surveys_table} ss
-                    LEFT JOIN {internal_events_table} ei ON ss.eventid = ei.id AND ss.eventtype = 'internal'
-                    LEFT JOIN {external_events_table} ee ON ss.eventid = ee.id AND ss.eventtype = 'external'
+                    LEFT JOIN {internal_events_table} ei ON ss."eventId" = ei.id AND ss."eventType" = 'internal'
+                    LEFT JOIN {external_events_table} ee ON ss."eventId" = ee.id AND ss."eventType" = 'external'
                     WHERE {finalized_survey_condition}
                 """
             else:
@@ -1273,11 +1300,15 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         conn, cursor = cursorInstance()
         
         # Get event title
-        from ..database.connection import quote_identifier, convert_placeholders
+        from ..database.connection import table_name_for_query, convert_placeholders, DATABASE_URL, is_postgresql_url
+        is_pg = is_postgresql_url(DATABASE_URL)
         event_table = "internalEvents" if eventType == "internal" else "externalEvents"
-        quoted_table = quote_identifier(event_table)
-        query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
-        query = convert_placeholders(query)
+        quoted_table = table_name_for_query(event_table)
+        if is_pg:
+            query = f'SELECT title, "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
+        else:
+            query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
+        query = convert_placeholders(query) if not is_pg else query
         cursor.execute(query, (eventId,))
         event_row = cursor.fetchone()
         
@@ -1292,10 +1323,10 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         event_title, event_start, event_end = event_row
         
         # Get satisfaction surveys for this specific event (primary source)
-        from ..database.connection import quote_identifier, DATABASE_URL, is_postgresql_url
-        satisfaction_surveys_table = quote_identifier('satisfactionSurveys')
-        evaluation_table = quote_identifier('evaluation')
-        requirements_table = quote_identifier('requirements')
+        from ..database.connection import table_name_for_query, DATABASE_URL, is_postgresql_url
+        satisfaction_surveys_table = table_name_for_query('satisfactionSurveys')
+        evaluation_table = table_name_for_query('evaluation')
+        requirements_table = table_name_for_query('requirements')
         from ..database.connection import convert_placeholders
         is_postgresql = is_postgresql_url(DATABASE_URL)
         
@@ -1316,11 +1347,11 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         
         # Also get evaluations as fallback (for backward compatibility)
         query2 = f"""
-            SELECT e.id, e."requirementid", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                   r."eventid", r.type
+            SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
+                   r."eventId", r.type
             FROM {evaluation_table} e
-            INNER JOIN {requirements_table} r ON e."requirementid" = r.id
-            WHERE r."eventid" = ? AND r.type = ? AND {finalized_condition2} AND e.criteria IS NOT NULL AND e.criteria != ''
+            INNER JOIN {requirements_table} r ON e."requirementId" = r.id
+            WHERE r."eventId" = ? AND r.type = ? AND {finalized_condition2} AND e.criteria IS NOT NULL AND e.criteria != ''
         """
         query2 = convert_placeholders(query2)
         cursor.execute(query2, (eventId, eventType))
@@ -1538,9 +1569,9 @@ def clearAnalyticsData():
         # Start transaction
         conn.execute("BEGIN TRANSACTION")
         
-        from ..database.connection import quote_identifier
-        evaluation_table = quote_identifier('evaluation')
-        requirements_table = quote_identifier('requirements')
+        from ..database.connection import table_name_for_query
+        evaluation_table = table_name_for_query('evaluation')
+        requirements_table = table_name_for_query('requirements')
         
         # Delete all evaluations first (they reference requirements)
         cursor.execute(f"DELETE FROM {evaluation_table}")
@@ -1600,10 +1631,10 @@ def deleteDummyVolunteersData():
         # Step 1: Identify dummy user emails
         # Find all dummy members by email pattern
         # Only match obvious dummy/test patterns - be conservative to avoid deleting real users
-        from ..database.connection import quote_identifier
-        membership_table = quote_identifier('membership')
-        requirements_table = quote_identifier('requirements')
-        evaluation_table = quote_identifier('evaluation')
+        from ..database.connection import table_name_for_query
+        membership_table = table_name_for_query('membership')
+        requirements_table = table_name_for_query('requirements')
+        evaluation_table = table_name_for_query('evaluation')
         print("[DELETE DUMMY] Step 1: Identifying dummy members...")
         cursor.execute(f"""
             SELECT id, email FROM {membership_table} 

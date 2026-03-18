@@ -170,8 +170,21 @@ const EventProposalForm: React.FC<Props> = ({
               eventProposalType: response.data.data?.eventProposalType
                 ? parseCheckboxList(response.data.data.eventProposalType)
                 : [],
-              // Keep workPlan as-is (string/object). EditableGanttTable will hydrate it lazily.
-              workPlan: response.data.data?.workPlan ?? {},
+              // Parse workPlan - handle both string and object formats
+              // EditableGanttTable expects an object, so parse if it's a string
+              workPlan: (() => {
+                const wp = response.data.data?.workPlan;
+                if (!wp) return {};
+                if (typeof wp === 'string') {
+                  try {
+                    const parsed = JSON.parse(wp);
+                    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+                  } catch {
+                    return {};
+                  }
+                }
+                return (wp && typeof wp === 'object' && !Array.isArray(wp)) ? wp : {};
+              })(),
               financialPlan,
               financialRequirement: response.data.data?.financialRequirement
                 ? parseObj<any>(response.data.data.financialRequirement, {})
@@ -202,15 +215,32 @@ const EventProposalForm: React.FC<Props> = ({
     setDisableButton(true);
     let response;
     try {
+      // Small delay to allow any pending debounced updates (like Gantt chart) to complete
+      // This ensures workPlan and other debounced fields are saved before submission
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       // Stringify object fields for backend compatibility
+      // Note: formData is in the dependency array, so it should be up-to-date after the delay
       const processedFormData = { ...formData };
       if (proposalType === "internal") {
         // Ensure checkbox/selection objects are persisted as JSON strings (not "[object Object]" or Python-style repr)
         if (processedFormData.eventProposalType && typeof processedFormData.eventProposalType === "object") {
           processedFormData.eventProposalType = toJsonString(processedFormData.eventProposalType, "[]");
         }
-        if (processedFormData.workPlan && typeof processedFormData.workPlan === 'object') {
-          processedFormData.workPlan = JSON.stringify(processedFormData.workPlan);
+        // Always ensure workPlan is included and properly stringified
+        // Handle both object and string cases, and ensure it's never undefined
+        if (processedFormData.workPlan) {
+          if (typeof processedFormData.workPlan === 'object') {
+            processedFormData.workPlan = JSON.stringify(processedFormData.workPlan);
+          } else if (typeof processedFormData.workPlan === 'string') {
+            // Already a string, use as-is
+          } else {
+            // Fallback to empty object if invalid type
+            processedFormData.workPlan = "{}";
+          }
+        } else {
+          // If workPlan is missing, set to empty object string
+          processedFormData.workPlan = "{}";
         }
         if (processedFormData.financialRequirement && typeof processedFormData.financialRequirement === 'object') {
           processedFormData.financialRequirement = JSON.stringify(processedFormData.financialRequirement);

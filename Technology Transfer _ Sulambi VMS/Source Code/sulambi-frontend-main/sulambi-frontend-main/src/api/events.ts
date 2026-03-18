@@ -81,7 +81,6 @@ export const deleteExternalEvent = (eventId: number) => {
 export const deleteInternalEvent = (eventId: number) => {
   return axios.delete(`${basePath}/internal/${eventId}`);
 };
-
 export const deleteMyEvents = () => {
   return axios.delete(`${basePath}/mine`);
 };

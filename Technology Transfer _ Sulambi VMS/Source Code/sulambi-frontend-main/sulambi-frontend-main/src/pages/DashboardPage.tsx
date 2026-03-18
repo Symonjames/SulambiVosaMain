@@ -10,7 +10,7 @@ import DangerousIcon from "@mui/icons-material/Dangerous";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { getDashboardAnalytics, getDashboardSummary } from "../api/dashboard";
 // REMOVED: clearAnalyticsData import - was deleting data on every page load
@@ -27,7 +27,6 @@ import SelectionCard from "../components/Cards/SelectionCard";
 import { getAllEvents } from "../api/events";
 import EventDetail from "../components/Popups/EventDetail";
 import ActiveMembersDashboard from "../components/Popups/ActiveMembersDashboard";
-import { getPublicReports } from "../api/reports";
 import { useNavigate } from "react-router-dom";
 import PredictiveSatisfactionRatings from "../components/Analytics/PredictiveSatisfactionRatings";
 import DropoutRiskAssessment from "../components/Analytics/DropoutRiskAssessment";
@@ -39,6 +38,36 @@ import { CACHE_TIMES } from "../utils/apiCache";
 const iconSx = {
   height: "45px",
   width: "45px",
+};
+
+const toEventMs = (value: unknown): number | null => {
+  if (value == null) return null;
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value >= 1e12 ? value : value * 1000;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const asNum = Number(trimmed);
+    if (Number.isFinite(asNum) && trimmed !== "") {
+      return asNum >= 1e12 ? asNum : asNum * 1000;
+    }
+
+    const parsed = Date.parse(trimmed);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  return null;
+};
+
+const getEventYear = (value: unknown): number | null => {
+  const ms = toEventMs(value);
+  if (ms == null) return null;
+  const year = new Date(ms).getFullYear();
+  return Number.isNaN(year) ? null : year;
 };
 
 // Analytics Box Component
@@ -194,17 +223,6 @@ const Dashboard = () => {
     { sex: string; total: number }[]
   >([]);
 
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log('[DASHBOARD STATE] ageGroupData:', ageGroupData);
-    console.log('[DASHBOARD STATE] sexGroupData:', sexGroupData);
-    console.log('[DASHBOARD STATE] ageGroupData length:', ageGroupData.length);
-    console.log('[DASHBOARD STATE] sexGroupData length:', sexGroupData.length);
-  }, [ageGroupData, sexGroupData]);
-
-  const [events, setEvents] = useState<
-    (ExternalEventProposalType | InternalEventProposalType)[]
-  >([]);
   const [eventYearFilter, setEventYearFilter] = useState<string>("");
 
   // Photos grid now fetches its own data
@@ -232,15 +250,15 @@ const Dashboard = () => {
   const { data: summaryResponse } = useCachedFetch({
     cacheKey: 'dashboard_summary',
     fetchFn: () => getDashboardSummary(),
-    cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds (more dynamic)
+    cacheTime: CACHE_TIMES.MEDIUM, // 5 minutes keeps navigation fast while staying fresh
     useMemoryCache: true,
   });
 
   // Use cached fetch for dashboard analytics - data persists when navigating away and coming back!
-  const { data: analyticsResponse, loading: analyticsLoading, error: analyticsError } = useCachedFetch({
+  const { data: analyticsResponse, error: analyticsError } = useCachedFetch({
     cacheKey: 'dashboard_analytics',
     fetchFn: () => getDashboardAnalytics(),
-    cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds
+    cacheTime: CACHE_TIMES.MEDIUM, // 5 minutes keeps navigation fast while staying fresh
     useMemoryCache: true,
   });
 
@@ -256,7 +274,6 @@ const Dashboard = () => {
   useEffect(() => {
     if (summaryResponse?.data) {
       const data = summaryResponse.data || {};
-      console.log('[DASHBOARD] Summary data received:', data);
       setDashboardData({
         implementedEvent: data.implementedEvent || 0,
         pendingEvents: data.pendingEvents || 0,
@@ -273,29 +290,20 @@ const Dashboard = () => {
 
   // Process analytics data
   useEffect(() => {
-    // Debug: Log analytics response
-    console.log('[DASHBOARD] Analytics response:', analyticsResponse);
-    console.log('[DASHBOARD] Analytics loading:', analyticsLoading);
-    console.log('[DASHBOARD] Analytics error:', analyticsError);
-    
     if (analyticsError) {
-      console.error('[DASHBOARD] Error loading analytics:', analyticsError);
       setAgeGroupData([]);
       setSexGroupData([]);
       return;
     }
 
     if (!analyticsResponse) {
-      console.log('[DASHBOARD] No analytics response yet (still loading)');
       return;
     }
 
     // Handle both response.data.data and response.data structures
     const analyticsData = analyticsResponse?.data?.data || analyticsResponse?.data || {};
-    console.log('[DASHBOARD] Analytics data:', analyticsData);
     
     if (!analyticsData || (Object.keys(analyticsData).length === 0 && !analyticsData.sexGroup && !analyticsData.ageGroup)) {
-      console.warn('[DASHBOARD] Empty analytics data - setting empty arrays');
       setAgeGroupData([]);
       setSexGroupData([]);
       return;
@@ -303,10 +311,6 @@ const Dashboard = () => {
 
     const sexGroup = analyticsData.sexGroup || {};
     const ageGroup = analyticsData.ageGroup || {};
-    
-    console.log('[DASHBOARD] Raw sexGroup:', sexGroup);
-    console.log('[DASHBOARD] Raw ageGroup:', ageGroup);
-
     // Validate and sanitize sex group data
     const validatedSexData = Object.keys(sexGroup)
       .filter(sex => sex && sex.trim() !== '')
@@ -341,38 +345,30 @@ const Dashboard = () => {
       .map(({ ageNum, ...rest }) => rest);
 
     setAgeGroupData(validatedAgeData);
-  }, [analyticsResponse]);
+  }, [analyticsResponse, analyticsError]);
 
-  // Process events data
-  useEffect(() => {
-    if (eventsResponse) {
-      const externalEvent: ExternalEventProposalType[] = eventsResponse.external || [];
-      const internalEvent: InternalEventProposalType[] = eventsResponse.internal || [];
-      setEvents(
-        [...externalEvent, ...internalEvent].filter(
-          (event) => event && event.status === "accepted"
-        )
-      );
-    }
-  }, [eventsResponse]);
+  const allEvents = useMemo(
+    () =>
+      eventsResponse
+        ? [
+            ...((eventsResponse.external || []) as ExternalEventProposalType[]),
+            ...((eventsResponse.internal || []) as InternalEventProposalType[]),
+          ]
+        : [],
+    [eventsResponse]
+  );
 
-  // Minimal connectivity check (public endpoint, no auth required)
-  useEffect(() => {
-    console.log('🔍 Testing backend connectivity...');
-    getPublicReports()
-      .then(() => console.log('🔍 Reports endpoint reachable'))
-      .catch((error) => console.error('❌ Reports endpoint error:', error));
-  }, []);
+  const events = useMemo(
+    () => allEvents.filter((event) => event && event.status === "accepted"),
+    [allEvents]
+  );
 
   // Unique years from events (by start date) for the year filter
   const eventYears = useMemo(() => {
     const years = new Set<number>();
     events.forEach((evt) => {
-      const start = evt.durationStart;
-      if (start == null) return;
-      const ms = start > 1e12 ? start : start * 1000;
-      const y = new Date(ms).getFullYear();
-      if (!isNaN(y)) years.add(y);
+      const y = getEventYear(evt.durationStart);
+      if (y !== null) years.add(y);
     });
     return Array.from(years).sort((a, b) => b - a);
   }, [events]);
@@ -382,13 +378,70 @@ const Dashboard = () => {
     if (!eventYearFilter || eventYearFilter === "all") return events;
     const yearNum = parseInt(eventYearFilter, 10);
     if (isNaN(yearNum)) return events;
-    return events.filter((evt) => {
-      const start = evt.durationStart;
-      if (start == null) return false;
-      const ms = start > 1e12 ? start : start * 1000;
-      return new Date(ms).getFullYear() === yearNum;
-    });
+    return events.filter((evt) => getEventYear(evt.durationStart) === yearNum);
   }, [events, eventYearFilter]);
+
+  // Apply year filter to event-stat cards without changing membership/account totals.
+  const displayedDashboardData = useMemo(() => {
+    if (!eventYearFilter || eventYearFilter === "all") return dashboardData;
+    const yearNum = parseInt(eventYearFilter, 10);
+    if (isNaN(yearNum)) return dashboardData;
+
+    const nowMs = Date.now();
+    let approved = 0;
+    let pending = 0;
+    let rejected = 0;
+    let implemented = 0;
+
+    allEvents.forEach((event) => {
+      if (!event || event.status === "editing") return;
+      if (getEventYear(event.durationStart) !== yearNum) return;
+
+      if (event.status === "accepted") {
+        approved += 1;
+        const endMs = toEventMs(event.durationEnd);
+        if (endMs !== null && endMs < nowMs) {
+          implemented += 1;
+        }
+      } else if (event.status === "submitted") {
+        pending += 1;
+      } else {
+        rejected += 1;
+      }
+    });
+
+    return {
+      ...dashboardData,
+      totalApprovedEvents: approved,
+      pendingEvents: pending,
+      rejectedEvents: rejected,
+      implementedEvent: implemented,
+    };
+  }, [dashboardData, eventYearFilter, allEvents]);
+
+  const handleProjectSearchResults = useCallback(
+    (_results: (ExternalEventProposalType | InternalEventProposalType)[]) => {
+      // Searchbar currently drives its own UI; keep callback stable for performance.
+    },
+    []
+  );
+
+  const handleProjectYearFilter = useCallback((_year: string) => {
+    // Dashboard year filtering is controlled by the dropdown above.
+  }, []);
+
+  const handleProjectEventClick = useCallback(
+    (event: ExternalEventProposalType | InternalEventProposalType) => {
+      setEventId(event.id);
+      if ((event as ExternalEventProposalType).location) {
+        setEventType("external");
+      } else if ((event as InternalEventProposalType).venue) {
+        setEventType("internal");
+      }
+      setOpenEventDetail(true);
+    },
+    []
+  );
 
   return (
     <>
@@ -428,12 +481,9 @@ const Dashboard = () => {
             />
             <Box sx={{ width: "320px", maxWidth: "320px" }}>
               <ProjectSearchBar
-                onSearchResults={(results) => {
-                  console.log("Search results:", results);
-                }}
-                onYearFilter={(year) => {
-                  console.log("Year filter:", year);
-                }}
+                onSearchResults={handleProjectSearchResults}
+                onYearFilter={handleProjectYearFilter}
+                onEventClick={handleProjectEventClick}
                 placeholder="Search projects, locations, or descriptions..."
                 showFilters={false}
                 maxWidth="100%"
@@ -450,7 +500,7 @@ const Dashboard = () => {
           justifyContent="flex-start"
         >
           <DashboardCard
-            value={dashboardData.totalApprovedEvents}
+            value={displayedDashboardData.totalApprovedEvents}
             label="Approved Events"
             icon={<StadiumIcon sx={iconSx} />}
             onClick={() => {
@@ -462,7 +512,7 @@ const Dashboard = () => {
             }}
           />
           <DashboardCard
-            value={dashboardData.pendingEvents}
+            value={displayedDashboardData.pendingEvents}
             label="Pending Events"
             icon={<PendingIcon sx={iconSx} />}
             onClick={() => {
@@ -474,7 +524,7 @@ const Dashboard = () => {
             }}
           />
           <DashboardCard
-            value={dashboardData.rejectedEvents}
+            value={displayedDashboardData.rejectedEvents}
             label="Not Approved Event"
             icon={<DangerousIcon sx={iconSx} />}
             onClick={() => {
@@ -486,7 +536,7 @@ const Dashboard = () => {
             }}
           />
           <DashboardCard
-            value={dashboardData.implementedEvent}
+            value={displayedDashboardData.implementedEvent}
             label="Implemented Event"
             icon={<FactCheckIcon sx={iconSx} />}
             // onClick={() => {

@@ -63,6 +63,8 @@ const ReportForm: React.FC<Props> = (props) => {
         setFormData({
           narrative: initialData.narrative || "",
           photos: photosWithCaptions,
+          approvedBudget: initialData.approvedBudget || "",
+          approvedBudgetSrc: initialData.approvedBudgetSrc || "",
           budgetUtilized: initialData.budgetUtilized || "",
           budgetUtilizedSrc: initialData.budgetUtilizedSrc || "",
           psAttribution: initialData.psAttribution || "",
@@ -120,6 +122,8 @@ const ReportForm: React.FC<Props> = (props) => {
     }
 
     if (type === "internal") {
+      formUploadable.append("approvedBudget", formData.approvedBudget ?? "");
+      formUploadable.append("approvedBudgetSrc", formData.approvedBudgetSrc ?? "");
       formUploadable.append("budgetUtilized", formData.budgetUtilized ?? "");
       formUploadable.append(
         "budgetUtilizedSrc",
@@ -222,6 +226,18 @@ const ReportForm: React.FC<Props> = (props) => {
         {
           type: "label",
           message: "Financial requirements and Source of Funds",
+        },
+      ],
+      [
+        {
+          id: "approvedBudget",
+          type: "number",
+          message: "Approved Budget as Proposed",
+        },
+        {
+          id: "approvedBudgetSrc",
+          type: "text",
+          message: "Budget Source",
         },
       ],
       [

@@ -136,6 +136,13 @@ const RequirementEvalPage = () => {
     rejected: <Chip bgcolor="#c10303" label="rejected" color="white" />,
   }), []);
 
+  const normalizeText = (value: unknown) =>
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
   const tableData = useMemo(() => {
     if (!allRequirementsData.length) return [];
 
@@ -159,9 +166,9 @@ const RequirementEvalPage = () => {
 
     const afterSearch = normalizedData.filter((req) => {
       if (!debouncedSearchVal || !debouncedSearchVal.trim()) return true;
-      const terms = debouncedSearchVal.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      const terms = normalizeText(debouncedSearchVal).split(" ").filter(Boolean);
       if (!terms.length) return true;
-      const text = [
+      const text = normalizeText([
         req.eventId?.title ?? "Unknown Event",
         req.fullname ?? "",
         req.srcode ?? "",
@@ -172,7 +179,7 @@ const RequirementEvalPage = () => {
         req.address ?? "",
         req.contactNum ?? "",
         req.type ?? "",
-      ].join(" ").toLowerCase();
+      ].join(" "));
       return terms.every((t) => text.includes(t));
     });
 
@@ -324,9 +331,9 @@ const RequirementEvalPage = () => {
       <PageLayout page="requirement-evaluation">
         <TextHeader>REQUIREMENT EVALUATION</TextHeader>
         <TextSubHeader>Evaluate participant requirements here</TextSubHeader>
-        {tableData.length === 0 ? (
+        {tableData.length === 0 && (
           <div style={{ 
-            padding: "40px", 
+            padding: "20px 0 0 0", 
             textAlign: "center",
             color: "var(--text-landing, #666)"
           }}>
@@ -351,35 +358,32 @@ const RequirementEvalPage = () => {
               </Typography>
             )}
           </div>
-        ) : (
-          <>
-            {(debouncedSearchVal || searchStatus !== 3) && (
-              <Box sx={{ 
-                padding: "10px 20px", 
-                backgroundColor: "#f5f5f5", 
-                borderRadius: "8px",
-                marginBottom: "10px",
-                display: "flex",
-                alignItems: "center",
-                gap: 1
-              }}>
-                <Typography variant="body2" color="text.secondary">
-                  Showing {tableData.length} result{tableData.length !== 1 ? 's' : ''}
-                  {debouncedSearchVal && ` for "${debouncedSearchVal}"`}
-                  {searchStatus !== 3 && ` (${searchStatus === 2 ? 'Not Evaluated' : searchStatus === 1 ? 'Approved' : 'Rejected'})`}
-                </Typography>
-              </Box>
-            )}
-            <DataTable
-              title="Participant Requirements"
-              fields={["Event Title", "Participant Name", "Status", "Actions"]}
-              data={tableData}
-              onSearch={(key) => setSearchVal(key)}
-              componentBeforeSearch={ModRightComponents}
-              // componentOnLeft={ModLeftComponents}
-            />
-          </>
         )}
+        {(debouncedSearchVal || searchStatus !== 3) && (
+          <Box sx={{ 
+            padding: "10px 20px", 
+            backgroundColor: "#f5f5f5", 
+            borderRadius: "8px",
+            marginBottom: "10px",
+            display: "flex",
+            alignItems: "center",
+            gap: 1
+          }}>
+            <Typography variant="body2" color="text.secondary">
+              Showing {tableData.length} result{tableData.length !== 1 ? 's' : ''}
+              {debouncedSearchVal && ` for "${debouncedSearchVal}"`}
+              {searchStatus !== 3 && ` (${searchStatus === 2 ? 'Not Evaluated' : searchStatus === 1 ? 'Approved' : 'Rejected'})`}
+            </Typography>
+          </Box>
+        )}
+        <DataTable
+          title="Participant Requirements"
+          fields={["Event Title", "Participant Name", "Status", "Actions"]}
+          data={tableData}
+          onSearch={(key) => setSearchVal(key)}
+          componentBeforeSearch={ModRightComponents}
+          // componentOnLeft={ModLeftComponents}
+        />
       </PageLayout>
     </>
   );

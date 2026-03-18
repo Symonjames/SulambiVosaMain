@@ -54,18 +54,6 @@ const EventsPage = () => {
       .catch(() => setJoinedEventKeys(new Set()));
   }, [openRequirementForm]); // re-fetch after closing form in case they just joined
 
-  // Debug: Log events response
-  useEffect(() => {
-    if (eventsResponse) {
-      console.log('[EventsPage] Events response:', eventsResponse);
-      console.log('[EventsPage] External events:', eventsResponse.external);
-      console.log('[EventsPage] Internal events:', eventsResponse.internal);
-    }
-    if (error) {
-      console.error('[EventsPage] Error loading events:', error);
-    }
-  }, [eventsResponse, error]);
-
   // Process events data
   const events = eventsResponse
     ? [

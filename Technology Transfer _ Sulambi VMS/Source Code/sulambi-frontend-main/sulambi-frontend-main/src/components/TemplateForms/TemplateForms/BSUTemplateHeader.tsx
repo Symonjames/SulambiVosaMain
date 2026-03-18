@@ -10,12 +10,14 @@ const BSUTemplateHeader: React.FC<BsuTemplateHeaderProps> = ({
   revisionNumber,
   romaize,
 }) => {
+  const isGadProposal = String(formTitle || "").toLowerCase().includes("gad proposal");
+
   return (
     <FlexBox 
       width="100%" 
       alignItems="center" 
       flexDirection="column"
-      className="bsu-form-wrapper"
+      className={`bsu-form-wrapper${isGadProposal ? " gad-proposal-form" : ""}`}
       sx={{ 
         pageBreakInside: "auto", 
         breakInside: "auto",

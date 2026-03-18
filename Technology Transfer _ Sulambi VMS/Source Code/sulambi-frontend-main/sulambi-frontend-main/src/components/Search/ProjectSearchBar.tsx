@@ -35,6 +35,7 @@ interface ProjectSearchBarProps {
   showFilters?: boolean;
   maxWidth?: string;
   leftSlot?: React.ReactNode;
+  onEventClick?: (event: ExternalEventProposalType | InternalEventProposalType) => void;
 }
 
 const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
@@ -43,7 +44,8 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
   placeholder = "Search projects by title, location, or description...",
   showFilters = true,
   maxWidth = "600px",
-  leftSlot
+  leftSlot,
+  onEventClick
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [allEvents, setAllEvents] = useState<(ExternalEventProposalType | InternalEventProposalType)[]>([]);
@@ -54,9 +56,20 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const onSearchResultsRef = useRef(onSearchResults);
+  const onYearFilterRef = useRef(onYearFilter);
+
+  useEffect(() => {
+    onSearchResultsRef.current = onSearchResults;
+  }, [onSearchResults]);
+
+  useEffect(() => {
+    onYearFilterRef.current = onYearFilter;
+  }, [onYearFilter]);
 
   // Debounced search to prevent excessive re-renders
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -78,15 +91,15 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
         const all = [...externalEvents, ...internalEvents];
         setAllEvents(all);
         setFilteredEvents(all);
-        onSearchResults(all);
+        onSearchResultsRef.current(all);
       })
       .catch((error) => {
         console.error('Error fetching events:', error);
         setAllEvents([]);
         setFilteredEvents([]);
-        onSearchResults([]);
+        onSearchResultsRef.current([]);
       });
-  }, [onSearchResults]);
+  }, []);
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -149,8 +162,8 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
 
     setFilteredEvents(filtered);
     // Only emit results automatically if user typed something or changed filters
-    onSearchResults(filtered);
-  }, [debouncedSearchTerm, selectedYear, selectedStatus, selectedType, allEvents, onSearchResults]);
+    onSearchResultsRef.current(filtered);
+  }, [debouncedSearchTerm, selectedYear, selectedStatus, selectedType, allEvents]);
 
   // Suggestions: return up to 5 matching event objects for predictive UI - Memoized to prevent unnecessary recalculations
   const suggestionEvents = React.useMemo(() => {
@@ -168,13 +181,20 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
     const title = evt.title || '';
     setSearchTerm(title);
     setShowSuggestions(false);
+    setSuggestionsVisible(false);
+    setSelectedIndex(-1);
     addToRecentSearches(title);
     setFilteredEvents([evt]);
-    onSearchResults([evt]);
+    onSearchResultsRef.current([evt]);
+    // Call onEventClick if provided to make results interactive
+    if (onEventClick) {
+      onEventClick(evt);
+    }
   };
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
+    setSelectedIndex(-1); // Reset selection when typing
     // Show suggestions when typing or when focusing and empty input
     setShowSuggestions(true);
     // Delay visibility for smooth transition
@@ -186,7 +206,7 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
     setShowSuggestions(false);
     setSuggestionsVisible(false);
     setFilteredEvents(allEvents);
-    onSearchResults(allEvents);
+    onSearchResultsRef.current(allEvents);
   };
 
   // Click outside to close suggestion dropdown
@@ -202,16 +222,38 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Keyboard: Enter = perform search (use filteredEvents), Escape = close
+  // Keyboard: Enter = perform search or select, Arrow keys = navigate, Escape = close
   const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.key === 'Enter') {
-      setShowSuggestions(false);
-      setSuggestionsVisible(false);
-      addToRecentSearches(searchTerm);
-      onSearchResults(filteredEvents);
+      if (showSuggestions && selectedIndex >= 0 && filteredEvents[selectedIndex]) {
+        // If an item is selected, click it
+        handleSuggestionClick(filteredEvents[selectedIndex]);
+      } else {
+        // Otherwise, perform search
+        setShowSuggestions(false);
+        setSuggestionsVisible(false);
+        setSelectedIndex(-1);
+        addToRecentSearches(searchTerm);
+        onSearchResultsRef.current(filteredEvents);
+      }
     } else if (e.key === 'Escape') {
       setShowSuggestions(false);
       setSuggestionsVisible(false);
+      setSelectedIndex(-1);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (showSuggestions && filteredEvents.length > 0) {
+        setSelectedIndex(prev => (prev < filteredEvents.length - 1 ? prev + 1 : prev));
+        setShowSuggestions(true);
+        setSuggestionsVisible(true);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (showSuggestions && filteredEvents.length > 0) {
+        setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
+        setShowSuggestions(true);
+        setSuggestionsVisible(true);
+      }
     }
   };
 
@@ -346,28 +388,43 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
                     <List dense disablePadding>
                       {filteredEvents.map((event, index) => {
                         const location = getLocationLabel(event);
+                        const isSelected = selectedIndex === index;
                         
                         return (
                           <ListItem
                             key={`${event.title}-${index}`}
                             component="div"
                             onClick={() => handleSuggestionClick(event)}
+                            onMouseEnter={() => setSelectedIndex(index)}
                             sx={{
                               py: 0.5,
                               px: 1,
                               cursor: 'pointer',
                               borderRadius: 0.5,
                               minHeight: 'auto',
-                              '&:hover': { backgroundColor: 'action.hover' }
+                              backgroundColor: isSelected ? 'action.selected' : 'transparent',
+                              '&:hover': { 
+                                backgroundColor: isSelected ? 'action.selected' : 'action.hover',
+                                transform: 'translateX(2px)',
+                                transition: 'all 0.2s ease'
+                              },
+                              transition: 'all 0.2s ease'
                             }}
                           >
                             <ListItemIcon sx={{ minWidth: 32 }}>
-                              <Search fontSize="small" />
+                              <Search fontSize="small" color={isSelected ? 'primary' : 'action'} />
                             </ListItemIcon>
                             
                             <ListItemText
                               primary={
-                                <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    fontWeight: isSelected ? 600 : 500, 
+                                    fontSize: '0.875rem',
+                                    color: isSelected ? 'primary.main' : 'text.primary'
+                                  }}
+                                >
                                   {event.title}
                                 </Typography>
                               }
@@ -403,7 +460,7 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
                               (evt.title || '').toLowerCase().includes(s.toLowerCase())
                             );
                             setFilteredEvents(matches);
-                            onSearchResults(matches);
+                            onSearchResultsRef.current(matches);
                           }}
                           secondaryAction={
                             <IconButton
@@ -443,7 +500,7 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
           >
             <FormControl size="small" sx={{ minWidth: 120, '& .MuiOutlinedInput-root': { height: 44 }, '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0 } }}>
               <InputLabel>Year</InputLabel>
-              <Select value={selectedYear} label="Year" onChange={(e) => { setSelectedYear(e.target.value); onYearFilter(e.target.value); }}>
+              <Select value={selectedYear} label="Year" onChange={(e) => { setSelectedYear(e.target.value); onYearFilterRef.current(e.target.value); }}>
                 <MenuItem value="all">All Years</MenuItem>
                 {availableYears.map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
               </Select>

@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import accuracy_score, mean_squared_error
 import joblib
 import os
-from ..database.connection import cursorInstance, quote_identifier, DATABASE_URL
+from ..database.connection import cursorInstance, DATABASE_URL, table_name_for_query
 from ..database.connection import is_postgresql_url
 
 class AnalyticsEngine:
@@ -19,11 +19,11 @@ class AnalyticsEngine:
         
     def prepare_event_success_data(self):
         """Prepare data for event success prediction"""
-        internal_events_table = quote_identifier('internalEvents')
-        external_events_table = quote_identifier('externalEvents')
-        requirements_table = quote_identifier('requirements')
-        evaluation_table = quote_identifier('evaluation')
-        feedback_table = quote_identifier('feedback')
+        internal_events_table = table_name_for_query('internalEvents')
+        external_events_table = table_name_for_query('externalEvents')
+        requirements_table = table_name_for_query('requirements')
+        evaluation_table = table_name_for_query('evaluation')
+        feedback_table = table_name_for_query('feedback')
         query = f"""
         SELECT 
             ie.id,
@@ -89,9 +89,9 @@ class AnalyticsEngine:
         is_postgresql = is_postgresql_url(DATABASE_URL)
         accepted_value = 'true' if is_postgresql else '1'
         
-        membership_table = quote_identifier('membership')
-        requirements_table = quote_identifier('requirements')
-        evaluation_table = quote_identifier('evaluation')
+        membership_table = table_name_for_query('membership')
+        requirements_table = table_name_for_query('requirements')
+        evaluation_table = table_name_for_query('evaluation')
         query = f"""
         SELECT 
             m.id,

@@ -56,6 +56,14 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
 
   const navigate = useNavigate();
   const location = useLocation();
+
+  const greetingName = (() => {
+    if (accountDetails.accountType === "admin") return "Admin";
+    if (accountDetails.accountType === "officer") return "Officer";
+    const fullName = accountDetails.details?.fullname?.trim();
+    if (fullName) return fullName;
+    return accountDetails.username || localStorage.getItem("username") || "User";
+  })();
   
   // Helper function to navigate only if not already on the target route
   const navigateIfDifferent = (path: string) => {
@@ -130,7 +138,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
             color="var(--text-default)"
             textAlign="center"
           >
-            {`Welcome back ${localStorage.getItem("username") ?? "User"}!`}
+            {`Welcome back ${greetingName}!`}
           </Typography>
           <FlexBox
             width="100%"

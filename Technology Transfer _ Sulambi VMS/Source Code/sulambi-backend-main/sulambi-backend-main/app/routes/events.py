@@ -104,10 +104,12 @@ def makeInternalEventPublic(id):
 def updateInternalEvent(id):
   return events.updateEvent(id, "internal")
 
-
 @EventsBlueprint.delete("/internal/<id>")
 def deleteInternalEventRoute(id):
   return events.deleteEvent(int(id), "internal")
+@EventsBlueprint.delete("/admin/all")
+def deleteAllEventsRoute():
+  return events.deleteAllEvents()
 
 @EventsBlueprint.before_request
 def eventsMiddleware():

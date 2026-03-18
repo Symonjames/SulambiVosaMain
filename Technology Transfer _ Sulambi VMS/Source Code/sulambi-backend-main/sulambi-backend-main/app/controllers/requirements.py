@@ -12,6 +12,7 @@ from ..database import connection as db_connection
 
 from dotenv import load_dotenv
 import os
+import time
 
 load_dotenv()
 
@@ -57,11 +58,54 @@ def getMyRequirements():
   user_details = MembershipDb.get(membership_id)
   if not user_details:
     return ({ "message": "Member profile not found" }, 403)
+
   user_email = (user_details.get("email") or "").strip()
-  if not user_email:
-    return { "message": "Successfully retrieved my requirements", "data": [] }
-  matched = RequirementsDb.getAndSearch(["email"], [user_email])
-  data = [{"eventId": r.get("eventId"), "type": r.get("type") or "external"} for r in (matched or [])]
+  user_srcode = (user_details.get("srcode") or "").strip()
+  user_fullname = (user_details.get("fullname") or "").strip().lower()
+
+  # Primary match by email (existing behavior), with fallback by srcode/fullname
+  # so legacy requirement rows with blank email still appear as "Joined".
+  matches = []
+  seen_req_ids = set()
+
+  if user_email:
+    for r in (RequirementsDb.getAndSearch(["email"], [user_email]) or []):
+      rid = str(r.get("id") or "")
+      if rid and rid not in seen_req_ids:
+        seen_req_ids.add(rid)
+        matches.append(r)
+
+  if user_srcode:
+    for r in (RequirementsDb.getAndSearch(["srcode"], [user_srcode]) or []):
+      rid = str(r.get("id") or "")
+      if rid and rid not in seen_req_ids:
+        seen_req_ids.add(rid)
+        matches.append(r)
+
+  if (not user_email and not user_srcode) or len(matches) == 0:
+    # Last fallback for older records where only fullname was captured.
+    for r in (RequirementsDb.getAll() or []):
+      rid = str(r.get("id") or "")
+      if not rid or rid in seen_req_ids:
+        continue
+      req_name = (r.get("fullname") or "").strip().lower()
+      if user_fullname and req_name == user_fullname:
+        seen_req_ids.add(rid)
+        matches.append(r)
+
+  data = [{"eventId": r.get("eventId"), "type": r.get("type") or "external"} for r in matches]
+
+  # Keep unique event/type pairs
+  seen_event_keys = set()
+  deduped = []
+  for item in data:
+    key = (item.get("eventId"), item.get("type"))
+    if key in seen_event_keys:
+      continue
+    seen_event_keys.add(key)
+    deduped.append(item)
+
+  data = deduped
   return { "message": "Successfully retrieved my requirements", "data": data }
 
 def getAllRequirements():
@@ -280,12 +324,58 @@ def _normalize_accepted_for_response(req):
     req = {**req, "accepted": None}
   return req
 
+def _backfill_requirement_email(requirement: dict) -> str:
+  """Best-effort backfill for requirement email from membership by srcode/fullname."""
+  requirement_id = str(requirement.get("id") or "").strip()
+  existing_email = (requirement.get("email") or "").strip()
+  if existing_email:
+    return existing_email
+
+  candidate_email = ""
+  srcode = (requirement.get("srcode") or "").strip()
+  fullname = (requirement.get("fullname") or "").strip().lower()
+
+  try:
+    if srcode:
+      members = MembershipDb.getAndSearch(["srcode"], [srcode]) or []
+      for m in members:
+        e = (m.get("email") or "").strip()
+        if e:
+          candidate_email = e
+          break
+
+    if (not candidate_email) and fullname:
+      for m in (MembershipDb.getAll() or []):
+        m_fullname = (m.get("fullname") or "").strip().lower()
+        m_email = (m.get("email") or "").strip()
+        if m_fullname == fullname and m_email:
+          candidate_email = m_email
+          break
+  except Exception as e:
+    print(f"[REQUIREMENTS_ACCEPT] Warning: Email backfill lookup failed: {e}")
+
+  if candidate_email and requirement_id:
+    try:
+      RequirementsDb.updateSpecific(requirement_id, ["email"], (candidate_email,))
+      print(f"[REQUIREMENTS_ACCEPT] Backfilled email for req={requirement_id} -> {candidate_email}")
+    except Exception as e:
+      print(f"[REQUIREMENTS_ACCEPT] Warning: Failed to persist backfilled email: {e}")
+
+  return candidate_email
+
 def acceptRequirements(id):
   # id can be string (UUID) or int from URL - requirements table uses string primary key
   id = str(id).strip()
   existence = RequirementsDb.get(id)
   if (existence == None):
     return ({"message": "Requirement ID entered does not exist"}, 404)
+
+  # Email is required for evaluation email delivery; try to backfill for legacy records.
+  participant_email = (existence.get("email") or "").strip()
+  if not participant_email:
+    participant_email = _backfill_requirement_email(existence)
+    if participant_email:
+      existence = RequirementsDb.get(id) or existence
 
   # Update requirement to accepted FIRST so status always persists
   # (mailing is best-effort; missing event must not block accept)
@@ -307,31 +397,40 @@ def acceptRequirements(id):
       "data": updatedData
     }
 
-  # create an evaluation template for user to answer (best-effort; do not fail accept)
+  if not participant_email:
+    print("[REQUIREMENTS_ACCEPT] Warning: Missing participant email; acceptance saved, evaluation email skipped")
+    sendAcceptedRequirementsMail(existence, eventDetails)
+    return {
+      "message": "Successfully accepted requirement, but participant email is missing so evaluation email was not scheduled",
+      "data": updatedData
+    }
+
+  # Create one evaluation template row per requirement (best-effort; do not fail accept).
+  # Skip creation if any row already exists to prevent duplicate-token behavior.
   try:
-    EvaluationDb.create(id, "", "", "", "", "", False)
+    existing_eval_rows = EvaluationDb.getAndSearch(["requirementId"], [id]) or []
+    if len(existing_eval_rows) == 0:
+      EvaluationDb.create(id, "", "", "", "", "", False)
   except Exception as e:
     print(f"[REQUIREMENTS_ACCEPT] Warning: Could not create evaluation record: {e}")
 
-  # Determine when to send evaluation email
-  try:
-    duration_end_ms = int(eventDetails.get("durationEnd", 0) or 0)
-  except (TypeError, ValueError):
-    duration_end_ms = 0
-
+  # Determine when to send evaluation email - use only evaluationSendTime
   try:
     eval_send_ms = int(eventDetails.get("evaluationSendTime", 0) or 0)
   except (TypeError, ValueError):
     eval_send_ms = 0
 
-  target_epoch_ms = max(duration_end_ms, eval_send_ms)
+  now_ms = int(time.time() * 1000)
 
-  if target_epoch_ms <= 0:
-    print("[REQUIREMENTS_ACCEPT] Warning: No valid durationEnd/evaluationSendTime; sending evaluation email immediately")
+  if eval_send_ms <= 0:
+    print("[REQUIREMENTS_ACCEPT] Warning: No valid evaluationSendTime; sending evaluation email immediately")
+    sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails)
+  elif eval_send_ms <= now_ms:
+    print("[REQUIREMENTS_ACCEPT] evaluationSendTime already passed; sending evaluation email immediately")
     sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails)
   else:
     executeDelayedAction(
-      target_epoch_ms,
+      eval_send_ms,
       lambda: sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails),
       execAnyway=False
     )
@@ -461,8 +560,12 @@ def createNewRequirement(eventId: int):
       fblink = (request.form.get("fblink") or "").strip()
       affiliation = (request.form.get("affiliation") or "N/A").strip()
 
-    if not email and not fullname:
-      return ({ "message": "Email or full name is required" }, 400)
+    if not fullname:
+      return ({ "message": "Full name is required" }, 400)
+    if not email:
+      return ({ "message": "Email is required to receive evaluation email" }, 400)
+    if "@" not in email or "." not in email.split("@")[-1]:
+      return ({ "message": "Please provide a valid email address" }, 400)
 
     # Duplicate check by email
     if email:
@@ -534,8 +637,13 @@ def sendRenderedEvaluationMail(requirementDetails: dict, eventDetails: dict):
   event_pin = (eventDetails.get("beneficiaryEvaluationPin") or "").strip()
   templateHtml = templateHtml.replace("[event-pin]", event_pin if event_pin else "Not set (beneficiary survey open without PIN)")
 
-  htmlMailer(
-    mailTo=requirementDetails.get("email"),
+  mail_to = (requirementDetails.get("email") or "").strip()
+  if not mail_to:
+    print(f"[EVALUATION_EMAIL] Missing recipient email for requirement {requirementDetails.get('id')}; skipped")
+    return False
+
+  return htmlMailer(
+    mailTo=mail_to,
     htmlRendered=templateHtml,
     subject="Evaluation Attendance"
   )

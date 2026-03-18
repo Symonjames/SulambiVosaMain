@@ -21,6 +21,8 @@ def createInternalReportParamCheck():
   missingParams = []
   missingParams += basicParamFormCheck([
     "narrative",
+    "approvedBudget",
+    "approvedBudgetSrc",
     "budgetUtilized",
     "budgetUtilizedSrc",
     "psAttribution",

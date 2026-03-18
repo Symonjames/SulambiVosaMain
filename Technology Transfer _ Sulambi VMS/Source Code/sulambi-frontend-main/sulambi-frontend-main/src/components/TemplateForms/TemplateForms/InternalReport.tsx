@@ -23,7 +23,6 @@ interface Props {
 const InternalReport: React.FC<Props> = ({ data, textAlign }) => {
   const [reportAnalytics, setReportAnalytics] =
     useState<InternalReportAnalytics>();
-  const [financialRequirement, setFinancialRequirement] = useState<any>({});
   const [evaluationMechanicsPlan, setEvaluationMechanicsPlan] = useState<any>({});
 
   const safeParseJsonObject = (raw: any): any => {
@@ -43,9 +42,31 @@ const InternalReport: React.FC<Props> = ({ data, textAlign }) => {
       getReportAnalytics(data.eventId.id, "internal").then((response) => {
         setReportAnalytics(response.data.data);
       });
-    setFinancialRequirement(safeParseJsonObject(data?.eventId?.financialRequirement));
     setEvaluationMechanicsPlan(safeParseJsonObject(data?.eventId?.evaluationMechanicsPlan));
   }, [data]);
+
+  const toSafeNumber = (value: unknown): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const financialRows = [
+    {
+      itemDescription: "Approved Budget as Proposed",
+      amount: toSafeNumber(data?.approvedBudget ?? data?.finance?.approvedBudget),
+      budgetSource: data?.approvedBudgetSrc ?? data?.finance?.approvedBudgetSource ?? "N/A",
+    },
+    {
+      itemDescription: "Actual Budget Utilized",
+      amount: toSafeNumber(data?.budgetUtilized ?? data?.finance?.budgetUtilized),
+      budgetSource: data?.budgetUtilizedSrc ?? data?.finance?.budgetUtilizedSource ?? "N/A",
+    },
+    {
+      itemDescription: "Personal Services (PS) Attribution",
+      amount: toSafeNumber(data?.psAttribution ?? data?.finance?.psAttribution),
+      budgetSource: data?.psAttributionSrc ?? data?.finance?.psAttributionSource ?? "N/A",
+    },
+  ];
 
   return (
     <BSUTemplateHeader
@@ -370,19 +391,11 @@ const InternalReport: React.FC<Props> = ({ data, textAlign }) => {
               <div style={{ width: "90%", margin: "0 auto" }}>
                 <InnerFormTableTemplate
                   textAlign="center"
-                  customColsize={7}
-                  customFlexSize={[3]}
-                  header={[
-                    "Item Description",
-                    "Quantity",
-                    "Unit",
-                    "Unit Cost",
-                    "Total",
-                  ]}
-                  dataKeys={["item", "qty", "unit", "unitCost", "total"]}
-                  data={Object.keys(financialRequirement).map((index) => {
-                    return financialRequirement[index];
-                  })}
+                  customColsize={3}
+                  customFlexSize={[2, 1, 2]}
+                  header={["Item Description", "Amount", "Budget Source"]}
+                  dataKeys={["itemDescription", "amount", "budgetSource"]}
+                  data={financialRows}
                 />
               </div>
               <div className="monitoring-evaluation-section">

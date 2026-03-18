@@ -14,6 +14,13 @@ RequirementDb = RequirementsModel()
 MembershipDb = MembershipModel()
 AccountDb = AccountModel()
 
+def _is_finalized_value(value) -> bool:
+  if value is True or value == 1:
+    return True
+  if isinstance(value, str):
+    return value.strip().lower() in ("1", "true", "yes")
+  return False
+
 def getAllEvaluation():
   return {
     "message": "Successfully retrieved all evaluation",
@@ -108,9 +115,13 @@ def evaluatable(requirementId):
   if len(matchedEvaluation) == 0:
     return False
   
-  # Only allow submission if not finalized yet
-  evaluation = matchedEvaluation[0]
-  return evaluation["finalized"] == 0 or evaluation["finalized"] == False
+  # Single-use token rule:
+  # - If ANY evaluation row for this requirement is already finalized, token is no longer evaluatable.
+  # - Otherwise, allow submit if there is at least one non-finalized template row.
+  has_finalized = any(_is_finalized_value(ev.get("finalized")) for ev in matchedEvaluation)
+  if has_finalized:
+    return False
+  return True
 
 def isEvaluatable(requirementId):
   matchedRequirement = RequirementDb.get(requirementId)
@@ -125,8 +136,7 @@ def isEvaluatable(requirementId):
   if len(matchedEvaluation) == 0:
     return ({"message": "No evaluation form available for this requirement"}, 404)
   
-  evaluation = matchedEvaluation[0]
-  isAlreadySubmitted = evaluation["finalized"] == 1 or evaluation["finalized"] == True
+  isAlreadySubmitted = any(_is_finalized_value(ev.get("finalized")) for ev in matchedEvaluation)
   
   if (evaluatable(requirementId)):
     return {
@@ -156,7 +166,15 @@ def evaluateByRequirement(requirementId):
   if (len(evaluationTemplates) == 0):
     return ({ "message": "No evaluation template found for this requirement" }, 404)
   
-  evaluationTemplate = evaluationTemplates[0]
+  # Pick a non-finalized template deterministically (if duplicates exist).
+  # evaluatable() already guarantees there is no finalized row at this point.
+  evaluationTemplate = None
+  for ev in evaluationTemplates:
+    if not _is_finalized_value(ev.get("finalized")):
+      evaluationTemplate = ev
+      break
+  if evaluationTemplate is None:
+    return ({ "message": "The provided requirement ID cannot be evaluated" }, 403)
 
   # Get requirement details
   requirement = RequirementDb.get(requirementId)
@@ -249,9 +267,9 @@ def evaluateByRequirement(requirementId):
     # Get event title
     event_title = ""
     try:
-      from ..database.connection import quote_identifier, convert_placeholders
+      from ..database.connection import table_name_for_query, convert_placeholders
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
-      quoted_table = quote_identifier(event_table)
+      quoted_table = table_name_for_query(event_table)
       query = f"SELECT title FROM {quoted_table} WHERE id = ?"
       query = convert_placeholders(query)
       cursor.execute(query, (event_id,))
@@ -262,13 +280,15 @@ def evaluateByRequirement(requirementId):
       pass
     
     # Check if already exists - handle both SQLite and PostgreSQL
-    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders, convert_boolean_value, is_postgresql_url
+    from ..database.connection import DATABASE_URL, table_name_for_query, convert_placeholders, convert_boolean_value, is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
     
+    table_name = table_name_for_query('satisfactionSurveys')
+
     if is_postgresql:
-      check_query = """
-        SELECT id FROM "satisfactionSurveys" 
-        WHERE requirementid = %s AND respondentemail = %s
+      check_query = f"""
+        SELECT id FROM {table_name}
+        WHERE "requirementId" = %s AND "respondentEmail" = %s
       """
     else:
       check_query = """
@@ -283,15 +303,14 @@ def evaluateByRequirement(requirementId):
       submitted_at = int(datetime.now().timestamp() * 1000)
       
       if is_postgresql:
-        # PostgreSQL: table name is quoted, but columns were created unquoted → stored lowercase.
-        insert_query = """
-          INSERT INTO "satisfactionSurveys" (
-            eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-            overallsatisfaction, volunteerrating, beneficiaryrating,
-            organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+        insert_query = f"""
+          INSERT INTO {table_name} (
+            "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+            "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+            "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
             q13, q14, comment, recommendations,
-            wouldrecommend, areasforimprovement, positiveaspects,
-            submittedat, finalized
+            "wouldRecommend", "areasForImprovement", "positiveAspects",
+            "submittedAt", finalized
           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         finalized_val = convert_boolean_value(True)
@@ -375,7 +394,7 @@ def validateBeneficiaryPin():
   Returns 200 with { "valid": true } if PIN matches and event ended within last 7 days, else 400.
   """
   try:
-    from ..database.connection import cursorInstance, quote_identifier
+    from ..database.connection import cursorInstance, table_name_for_query
     import os
     event_id = request.json.get("eventId")
     event_type = request.json.get("eventType", "external")
@@ -404,12 +423,9 @@ def validateBeneficiaryPin():
     from ..database.connection import is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
     event_table = "internalEvents" if event_type == "internal" else "externalEvents"
-    quoted_table = quote_identifier(event_table)
+    quoted_table = table_name_for_query(event_table)
     if is_postgresql:
-      # PostgreSQL folds unquoted identifiers to lowercase. Our production schema uses
-      # unquoted column definitions (e.g. durationStart -> durationstart), so quoting
-      # "durationStart" breaks. Use unquoted columns for compatibility.
-      query = f"SELECT beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = %s"
+      query = f'SELECT "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
     else:
       query = f"SELECT beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
     conn, cursor = cursorInstance()
@@ -610,18 +626,17 @@ def submitBeneficiaryEvaluation():
     event_title = ""
     event_required_pin = None
     try:
-      from ..database.connection import quote_identifier, convert_placeholders
+      from ..database.connection import table_name_for_query, convert_placeholders
       import os
       DATABASE_URL = os.getenv("DATABASE_URL")
       from ..database.connection import is_postgresql_url
       is_postgresql = is_postgresql_url(DATABASE_URL)
       
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
-      quoted_table = quote_identifier(event_table)
+      quoted_table = table_name_for_query(event_table)
       
       if is_postgresql:
-        # See validateBeneficiaryPin(): avoid quoted camelCase columns on PostgreSQL.
-        query = f"SELECT title, beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = %s"
+        query = f'SELECT title, "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
       else:
         query = f"SELECT title, beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
 
@@ -690,22 +705,21 @@ def submitBeneficiaryEvaluation():
     requirement_id = str(uuid.uuid4())
     
     # Check if PostgreSQL and use appropriate syntax
-    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders, convert_boolean_value, is_postgresql_url
+    from ..database.connection import DATABASE_URL, table_name_for_query, convert_placeholders, convert_boolean_value, is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
     
     # Get table name with proper quoting
-    table_name = quote_identifier('satisfactionSurveys')
+    table_name = table_name_for_query('satisfactionSurveys')
     
     if is_postgresql:
-      # PostgreSQL: Use lowercase unquoted column names (actual column names from database)
-      insert_query = """
-        INSERT INTO "satisfactionSurveys" (
-          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-          overallsatisfaction, volunteerrating, beneficiaryrating,
-          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+      insert_query = f"""
+        INSERT INTO {table_name} (
+          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
           q13, q14, comment, recommendations,
-          wouldrecommend, areasforimprovement, positiveaspects,
-          submittedat, finalized
+          "wouldRecommend", "areasForImprovement", "positiveAspects",
+          "submittedAt", finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:
@@ -885,14 +899,14 @@ def submitVolunteerEvaluation():
     # Verify event exists and evaluation window (ongoing or ended within 7 days)
     conn, cursor = cursorInstance()
     try:
-      from ..database.connection import quote_identifier
+      from ..database.connection import table_name_for_query
       DATABASE_URL = os.getenv("DATABASE_URL")
       from ..database.connection import is_postgresql_url
       is_postgresql = is_postgresql_url(DATABASE_URL)
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
-      quoted_table = quote_identifier(event_table)
+      quoted_table = table_name_for_query(event_table)
       if is_postgresql:
-        query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = %s"
+        query = f'SELECT title, "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
       else:
         query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
       cursor.execute(query, (event_id,))
@@ -921,19 +935,19 @@ def submitVolunteerEvaluation():
     import uuid
     requirement_id = str(uuid.uuid4())
 
-    from ..database.connection import DATABASE_URL, quote_identifier, convert_boolean_value, is_postgresql_url
+    from ..database.connection import DATABASE_URL, table_name_for_query, convert_boolean_value, is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
-    table_name = quote_identifier('satisfactionSurveys')
+    table_name = table_name_for_query('satisfactionSurveys')
 
     if is_postgresql:
-      insert_query = """
-        INSERT INTO "satisfactionSurveys" (
-          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-          overallsatisfaction, volunteerrating, beneficiaryrating,
-          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+      insert_query = f"""
+        INSERT INTO {table_name} (
+          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
           q13, q14, comment, recommendations,
-          wouldrecommend, areasforimprovement, positiveaspects,
-          submittedat, finalized
+          "wouldRecommend", "areasForImprovement", "positiveAspects",
+          "submittedAt", finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:

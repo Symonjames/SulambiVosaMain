@@ -17,6 +17,8 @@ class AccountModel(Model):
     return super().updateSpecific(id, ["password"], (password,))
 
   def authenticate(self, username: str, password: str):
+    username = (username or "").strip()
+    password = (password or "").strip()
     print(f"[AUTH_MODEL] Authenticating user: {username}")
     conn, cursor = connection.cursorInstance()
     
@@ -36,7 +38,10 @@ class AccountModel(Model):
       # SQLite: use integer 1
       active_value = 1
     
-    query = f"SELECT {','.join([self.primaryKey] + self.columns)} FROM {table_name} WHERE username=? AND password=? AND active=?"
+    columns_list = [self.primaryKey] + self.columns
+    normalized_columns = self._normalize_column_list(columns_list)
+    column_query = ",".join(normalized_columns)
+    query = f"SELECT {column_query} FROM {table_name} WHERE username=? AND password=? AND active=?"
     # Convert placeholders for PostgreSQL
     query = connection.convert_placeholders(query)
     print(f"[AUTH_MODEL] Executing query: SELECT ... FROM {table_name} WHERE username=? AND password=? AND active=?")
@@ -46,6 +51,15 @@ class AccountModel(Model):
     cursor.execute(query, (username, password, active_value))
     result = cursor.fetchone()
     print(f"[AUTH_MODEL] Query result: {result is not None}")
+
+    # Backward-compatibility fallback for rows accidentally saved with leading/trailing spaces.
+    if result is None:
+      trim_query = f"SELECT {column_query} FROM {table_name} WHERE TRIM(username)=? AND TRIM(password)=? AND active=?"
+      trim_query = connection.convert_placeholders(trim_query)
+      print(f"[AUTH_MODEL] Trying trimmed credential fallback query")
+      cursor.execute(trim_query, (username, password, active_value))
+      result = cursor.fetchone()
+      print(f"[AUTH_MODEL] Trimmed fallback result: {result is not None}")
     
     parsed = self.parseResponse(result)
 

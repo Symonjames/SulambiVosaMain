@@ -9,6 +9,7 @@ import PageLayout from "../PageLayout";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveRedEyeIcon from "@mui/icons-material/RemoveRedEye";
 import PublicIcon from "@mui/icons-material/Public";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 
 import {
   getAllEvents,
@@ -47,6 +48,7 @@ import SignatoriesForm from "../../components/Forms/SignatoriesForm";
 import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
 import LoadingSpinner from "../../components/Loading/LoadingSpinner";
 import { toJsonString } from "../../utils/looseJson";
+import { getFromSessionObfuscated } from "../../utils/storage";
 
 const EventProposal = () => {
   const { formData, setFormData } = useContext(FormDataContext);
@@ -55,9 +57,11 @@ const EventProposal = () => {
 
   const [showFormPreview, setShowFormPreview] = useState(false);
   const [searchVal, setSearchVal] = useState("");
+  const [debouncedSearchVal, setDebouncedSearchVal] = useState("");
   const [openUpdateSignatories, setOpenUpdateSignatories] = useState(false);
   const [signatoryId, setSignatoryId] = useState<number | null>(null);
 
+  const [allEventsData, setAllEventsData] = useState<any[]>([]);
   const [tableData, setTableData] = useState<any>([]);
   const [refreshTable, setRefreshTable] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -87,6 +91,18 @@ const EventProposal = () => {
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ id: number; type: "external" | "internal" } | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchVal(searchVal), 250);
+    return () => clearTimeout(timer);
+  }, [searchVal]);
+
+  const normalizeText = (value: unknown) =>
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
   const chipMap = {
     editing: <Chip bgcolor="blue" label="editing" color="white" />,
@@ -142,25 +158,6 @@ const EventProposal = () => {
     }
   };
 
-  const deleteMyEventsOnClick = async () => {
-    const ok = window.confirm(
-      "This will permanently delete ALL events you created (internal + external) from this database (local or production). Continue?"
-    );
-    if (!ok) return;
-
-    try {
-      const res = await deleteMyEvents();
-      const exCount = res?.data?.deletedExternalIds?.length ?? 0;
-      const inCount = res?.data?.deletedInternalIds?.length ?? 0;
-      showSnackbarMessage(`Deleted your events: ${exCount} external, ${inCount} internal`, "success");
-    } catch (err) {
-      console.error("Error deleting my events", err);
-      showSnackbarMessage("An error occurred while deleting your events", "error");
-    } finally {
-      setRefreshTable((r) => r + 1);
-    }
-  };
-
   const makePublicOnClick = async () => {
     try {
       if (selectedFormType === "external") {
@@ -179,6 +176,52 @@ const EventProposal = () => {
     }
   };
 
+  const deleteMyEventsOnClick = async () => {
+    const confirmed = window.confirm(
+      "This will permanently delete ALL events you created, including related reports, requirements, and evaluations. This cannot be undone. Continue?"
+    );
+    if (!confirmed) return;
+
+    try {
+      const response = await deleteMyEvents();
+      // Support multiple backend response shapes (older + newer)
+      const deletedExternalIds = response?.data?.deletedExternalIds;
+      const deletedInternalIds = response?.data?.deletedInternalIds;
+      const exCount = Array.isArray(deletedExternalIds) ? deletedExternalIds.length : 0;
+      const inCount = Array.isArray(deletedInternalIds) ? deletedInternalIds.length : 0;
+
+      const deletedObj = response?.data?.deleted ?? {};
+      const externalEventsCount = Number(deletedObj.externalEvents || 0);
+      const internalEventsCount = Number(deletedObj.internalEvents || 0);
+
+      const totalFromTopLevel = response?.data?.totalEventsDeleted;
+      const total =
+        typeof totalFromTopLevel === "number"
+          ? totalFromTopLevel
+          : exCount + inCount || externalEventsCount + internalEventsCount;
+
+      if (exCount || inCount) {
+        showSnackbarMessage(
+          `Deleted your events: ${exCount} external, ${inCount} internal`,
+          "success"
+        );
+      } else {
+        showSnackbarMessage(
+          `Deleted ${total} event(s) you created permanently.`,
+          "success"
+        );
+      }
+    } catch (err: any) {
+      const apiMessage = err?.response?.data?.message;
+      showSnackbarMessage(
+        apiMessage || "An error occurred while deleting your events.",
+        "error"
+      );
+    } finally {
+      setRefreshTable((prev) => prev + 1);
+    }
+  };
+
   useEffect(() => {
     (async function () {
       try {
@@ -188,30 +231,41 @@ const EventProposal = () => {
           | ExternalEventProposalType
           | InternalEventProposalType
         )[] = events.data.events;
+        setAllEventsData(sortedEventData);
+        setLoading(false);
+      } catch (err: any) {
+        console.log(err);
+        setAllEventsData([]);
+        setLoading(false);
+      }
+    })();
+  }, [refreshTable]);
 
-        // const externalEventData: ExternalEventProposalType[] =
-        //   events.data.external;
-        // const internalEventData: InternalEventProposalType[] =
-        //   events.data.internal;
-
-        setTableData(
-          sortedEventData
-            .filter((event) => {
-              if (searchVal === "") return true;
-              return (
-                event.title.toLowerCase().includes(searchVal) ||
-                event.status.toLowerCase().includes(searchVal)
-              );
-            })
-            .filter((event) => {
-              if (searchStatus === "") return true;
-              return event.status === searchStatus;
-            })
-            .filter((event: any) => {
-              if (searchFilter.type === "") return true;
-              return event.eventTypeIndicator === searchFilter.type;
-            })
-            .map((eventdata: any) => [
+  useEffect(() => {
+    const terms = normalizeText(debouncedSearchVal).split(" ").filter(Boolean);
+    setTableData(
+      allEventsData
+        .filter((event: any) => {
+          if (!terms.length) return true;
+          const haystack = normalizeText(
+            [
+              event.title,
+              event.status,
+              event.eventTypeIndicator,
+              event.createdBy?.username,
+            ].join(" ")
+          );
+          return terms.every((term) => haystack.includes(term));
+        })
+        .filter((event: any) => {
+          if (searchStatus === "") return true;
+          return event.status === searchStatus;
+        })
+        .filter((event: any) => {
+          if (searchFilter.type === "") return true;
+          return event.eventTypeIndicator === searchFilter.type;
+        })
+        .map((eventdata: any) => [
               eventdata.title,
               eventdata.eventTypeIndicator,
               chipMap[
@@ -337,14 +391,8 @@ const EventProposal = () => {
                 />
               ),
             ])
-        );
-        setLoading(false);
-      } catch (err: any) {
-        console.log(err);
-        setLoading(false);
-      }
-    })();
-  }, [refreshTable, searchFilter, searchVal, searchStatus]);
+    );
+  }, [allEventsData, debouncedSearchVal, searchFilter.type, searchStatus]);
 
   const ModRightComponents = [
     <CustomDropdown
@@ -401,14 +449,14 @@ const EventProposal = () => {
     />,
     <CustomButton
       label="Delete All My Events"
-      startIcon={<HistoryEduIcon />}
+      startIcon={<DeleteForeverIcon />}
       hoverSx={{
-        backgroundColor: "white",
-        color: "black",
+        backgroundColor: "#7f1d1d",
+        color: "white",
       }}
       sx={{
-        bgcolor: "#b71c1c",
-        border: "1px solid #b71c1c",
+        bgcolor: "#991b1b",
+        border: "1px solid #7f1d1d",
         borderRadius: "10px",
         color: "white",
         padding: "0px 20px",
@@ -436,7 +484,7 @@ const EventProposal = () => {
             <PrimaryButton
               label="Update"
               startIcon={<EditIcon />}
-              onClick={() => {
+              onClick={async () => {
                 if (eventType) {
                   if (eventType[1] == "external") {
                     // Process formData the same way as submitCallback - stringify objects
@@ -481,14 +529,67 @@ const EventProposal = () => {
                   }
 
                   if (eventType[1] == "internal") {
+                    // Flush any pending Gantt table updates synchronously before processing
+                    // This ensures workPlan is saved immediately, not waiting for debounce
+                    if (typeof window !== 'undefined') {
+                      const flushFn = (window as any)[`__flushGantt_workPlan`];
+                      if (flushFn && typeof flushFn === 'function') {
+                        console.log("[UPDATE_EVENT] Flushing workPlan updates synchronously");
+                        flushFn();
+                        // Small delay to let the flush complete
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                      }
+                    }
+                    
+                    // Get the latest formData - try reading from sessionStorage first since FormDataProvider saves there
+                    // This ensures we get the most up-to-date workPlan even if React state is stale
+                    let latestFormData = formData;
+                    try {
+                      const storedFormData = getFromSessionObfuscated<Record<string, any>>('formData', null);
+                      if (storedFormData && storedFormData.workPlan) {
+                        // If sessionStorage has workPlan data, check if it's more up-to-date
+                        const storedWorkPlan = storedFormData.workPlan;
+                        const currentWorkPlan = latestFormData.workPlan;
+                        
+                        // If stored workPlan is an object with data, or if current is empty/undefined, use stored
+                        if ((typeof storedWorkPlan === 'object' && Object.keys(storedWorkPlan).length > 0) ||
+                            (!currentWorkPlan || currentWorkPlan === "{}" || (typeof currentWorkPlan === 'object' && Object.keys(currentWorkPlan).length === 0))) {
+                          latestFormData = { ...latestFormData, workPlan: storedWorkPlan };
+                          console.log("[UPDATE_EVENT] Using workPlan from sessionStorage (more up-to-date)", Object.keys(storedWorkPlan).length, "rows");
+                        }
+                      }
+                    } catch (e) {
+                      console.warn("[UPDATE_EVENT] Could not read from sessionStorage:", e);
+                    }
+                    
+                    // Debug logging
+                    console.log("[UPDATE_EVENT] formData.workPlan before processing:", typeof latestFormData.workPlan, latestFormData.workPlan ? (typeof latestFormData.workPlan === 'object' ? Object.keys(latestFormData.workPlan).length + ' keys' : latestFormData.workPlan.substring(0, 100)) : 'undefined');
+                    
                     // Process formData the same way as submitCallback - stringify objects
-                    const processedFormData = { ...formData };
+                    const processedFormData = { ...latestFormData };
                     if (processedFormData.eventProposalType && typeof processedFormData.eventProposalType === "object") {
                       processedFormData.eventProposalType = toJsonString(processedFormData.eventProposalType, "[]");
                     }
-                    if (processedFormData.workPlan && typeof processedFormData.workPlan === 'object') {
-                      processedFormData.workPlan = JSON.stringify(processedFormData.workPlan);
+                    // Always ensure workPlan is included and properly stringified
+                    // Handle both object and string cases, and ensure it's never undefined
+                    if (processedFormData.workPlan) {
+                      if (typeof processedFormData.workPlan === 'object') {
+                        processedFormData.workPlan = JSON.stringify(processedFormData.workPlan);
+                        console.log("[UPDATE_EVENT] workPlan was object, stringified. Length:", processedFormData.workPlan.length);
+                      } else if (typeof processedFormData.workPlan === 'string') {
+                        // Already a string, use as-is
+                        console.log("[UPDATE_EVENT] workPlan was already string. Length:", processedFormData.workPlan.length);
+                      } else {
+                        // Fallback to empty object if invalid type
+                        processedFormData.workPlan = "{}";
+                        console.log("[UPDATE_EVENT] workPlan had invalid type, set to {}");
+                      }
+                    } else {
+                      // If workPlan is missing, set to empty object string
+                      processedFormData.workPlan = "{}";
+                      console.log("[UPDATE_EVENT] workPlan was missing/undefined, set to {}");
                     }
+                    console.log("[UPDATE_EVENT] Final workPlan being sent:", processedFormData.workPlan.substring(0, 100));
                     if (processedFormData.financialRequirement && typeof processedFormData.financialRequirement === 'object') {
                       processedFormData.financialRequirement = JSON.stringify(processedFormData.financialRequirement);
                     }
@@ -665,7 +766,7 @@ const EventProposal = () => {
             searchPlaceholder="Search name of event"
             searchOnSubmitOnly
             onSearch={(key) => {
-              setSearchVal(key.toLowerCase().trim());
+              setSearchVal(key);
             }}
           />
         )}
