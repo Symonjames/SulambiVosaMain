@@ -111,6 +111,10 @@ def deleteInternalEventRoute(id):
 def deleteAllEventsRoute():
   return events.deleteAllEvents()
 
+@EventsBlueprint.delete("/admin/finished")
+def deleteFinishedEventsRoute():
+  return events.deleteFinishedEvents()
+
 @EventsBlueprint.before_request
 def eventsMiddleware():
   # Auth + RBAC handled by global_api_auth; only param validation here
