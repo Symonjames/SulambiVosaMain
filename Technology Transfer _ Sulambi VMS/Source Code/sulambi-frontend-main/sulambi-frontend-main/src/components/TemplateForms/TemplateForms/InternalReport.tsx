@@ -49,6 +49,11 @@ const InternalReport: React.FC<Props> = ({ data, textAlign }) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
   };
+  const formatPhpAmount = (value: number) =>
+    `Php ${value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
 
   const financialRows = [
     {
@@ -401,14 +406,49 @@ const InternalReport: React.FC<Props> = ({ data, textAlign }) => {
                 ]}
               />
               <div style={{ width: "90%", margin: "0 auto" }}>
-                <InnerFormTableTemplate
-                  textAlign="center"
-                  customColsize={3}
-                  customFlexSize={[2, 1, 2]}
-                  header={["Item Description", "Amount", "Budget Source"]}
-                  dataKeys={["itemDescription", "amount", "budgetSource"]}
-                  data={financialRows}
-                />
+                <table
+                  className="bsuFormChild financial-plan"
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    tableLayout: "fixed",
+                    borderTop: "1px solid black",
+                  }}
+                >
+                  <colgroup>
+                    <col style={{ width: "48%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "28%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <td className="fontSet" style={{ textAlign: "center", fontWeight: "normal", padding: "3px 6px", verticalAlign: "middle" }}>
+                        Item Description
+                      </td>
+                      <td className="fontSet" style={{ textAlign: "center", fontWeight: "normal", padding: "3px 6px", verticalAlign: "middle" }}>
+                        Amount
+                      </td>
+                      <td className="fontSet" style={{ textAlign: "center", fontWeight: "normal", padding: "3px 6px", verticalAlign: "middle" }}>
+                        Budget Source
+                      </td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {financialRows.map((row, index) => (
+                      <tr key={index}>
+                        <td className="fontSet" style={{ textAlign: "left", padding: "3px 6px", verticalAlign: "middle" }}>
+                          {row.itemDescription}
+                        </td>
+                        <td className="fontSet" style={{ textAlign: "center", padding: "3px 6px", verticalAlign: "middle" }}>
+                          {formatPhpAmount(row.amount)}
+                        </td>
+                        <td className="fontSet" style={{ textAlign: "center", padding: "3px 6px", verticalAlign: "middle" }}>
+                          {row.budgetSource || "N/A"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
               <div className="monitoring-evaluation-section">
                 <div className="monitoring-evaluation-title">
