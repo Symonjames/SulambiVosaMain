@@ -20,38 +20,45 @@ SignatoriesDb = SignatoriesModel()
 
 def _normalize_numeric_input(value):
   """
-  Accept numeric-like input and normalize to an integer string.
+  Accept currency-like input (e.g., "PHP 1,234.50") and normalize to an integer string.
   Returns None when invalid.
   """
-  raw = str(value or "").strip().replace(",", "")
+  raw = str(value or "").strip()
   if raw == "":
     return "0"
   try:
-    parsed = float(raw)
-    # Internal report finance columns are stored as INTEGER; reject non-whole values.
-    if not parsed.is_integer():
+    import re
+    # Keep digits, decimal point and sign; strip currency labels/symbols and spaces.
+    cleaned = re.sub(r"[^0-9.\-]", "", raw.replace(",", ""))
+    if cleaned in ("", "-", ".", "-."):
       return None
-    return str(int(parsed))
+    parsed = float(cleaned)
+    # DB columns are INTEGER; accept decimal-style input and coerce to nearest whole value.
+    return str(int(round(parsed)))
   except Exception:
     return None
 
 def _validate_internal_financial_fields(form):
-  numeric_fields = [
+  amount_fields = [
     "approvedBudget",
-    "approvedBudgetSrc",
     "budgetUtilized",
-    "budgetUtilizedSrc",
     "psAttribution",
+  ]
+  source_fields = [
+    "approvedBudgetSrc",
+    "budgetUtilizedSrc",
     "psAttributionSrc",
   ]
   cleaned = {}
   invalid = []
-  for field in numeric_fields:
+  for field in amount_fields:
     normalized = _normalize_numeric_input(form.get(field))
     if normalized is None:
       invalid.append(field)
     else:
       cleaned[field] = normalized
+  for field in source_fields:
+    cleaned[field] = str(form.get(field) or "").strip()
   return cleaned, invalid
 
 def getAllReports():
@@ -591,7 +598,7 @@ def createReport(eventId: int, eventType: str):
     if invalidFinancial:
       return ({
         "fieldError": invalidFinancial,
-        "message": "Financial fields must contain numeric values only"
+        "message": "Financial amount fields must contain valid numbers"
       }, 400)
 
     createdReport = InternalReportDb.create(
@@ -670,7 +677,7 @@ def updateReport(reportId: int, reportType: str):
       if invalidFinancial:
         return ({
           "fieldError": invalidFinancial,
-          "message": "Financial fields must contain numeric values only"
+          "message": "Financial amount fields must contain valid numbers"
         }, 400)
 
       # Update specific fields

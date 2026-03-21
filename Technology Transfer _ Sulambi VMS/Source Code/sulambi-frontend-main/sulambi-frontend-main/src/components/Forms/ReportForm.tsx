@@ -81,7 +81,10 @@ const ReportForm: React.FC<Props> = (props) => {
     }
   }, [open, isEditMode, initialData]);
 
-  const submitAction = () => {
+  const submitAction = (event?: React.MouseEvent<HTMLButtonElement>) => {
+    // Prevent parent <form> native submit from interfering with modal open behavior.
+    event?.preventDefault();
+    event?.stopPropagation();
     console.log("[REPORT_FORM] Submit clicked", {
       isEditMode,
       eventId,
@@ -89,13 +92,7 @@ const ReportForm: React.FC<Props> = (props) => {
       type,
       hasFormData: !!formData,
     });
-    // For edit mode, submit immediately (confirmation modal was not visible for some users)
-    if (isEditMode) {
-      confirmedSubmitAction();
-    } else {
-      // For new reports, still show confirmation
-      setOpenConfirmModal(true);
-    }
+    setOpenConfirmModal(true);
   };
 
   const confirmedSubmitAction = () => {
@@ -231,36 +228,36 @@ const ReportForm: React.FC<Props> = (props) => {
       [
         {
           id: "approvedBudget",
-          type: "number",
+          type: "text",
           message: "Approved Budget as Proposed",
         },
         {
           id: "approvedBudgetSrc",
-          type: "number",
+          type: "text",
           message: "Budget Source",
         },
       ],
       [
         {
           id: "budgetUtilized",
-          type: "number",
+          type: "text",
           message: "Actual Budget Utilized",
         },
         {
           id: "budgetUtilizedSrc",
-          type: "number",
+          type: "text",
           message: "Budget Source",
         },
       ],
       [
         {
           id: "psAttribution",
-          type: "number",
+          type: "text",
           message: "Personal Services (PS) Attribution",
         },
         {
           id: "psAttributionSrc",
-          type: "number",
+          type: "text",
           message: "Budget Source",
         },
       ],
@@ -326,6 +323,7 @@ const ReportForm: React.FC<Props> = (props) => {
                 label={isEditMode ? "Update" : "Submit"}
                 icon={<SendIcon />}
                 size="small"
+                type="button"
                 onClick={submitAction}
               />
             )}
