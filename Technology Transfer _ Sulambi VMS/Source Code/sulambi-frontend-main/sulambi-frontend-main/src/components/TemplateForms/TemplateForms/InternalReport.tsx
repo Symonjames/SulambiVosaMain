@@ -360,6 +360,18 @@ const InternalReport: React.FC<Props> = ({ data, textAlign }) => {
                   );
                 })()}
               </div>
+              <div style={{ width: "90%", margin: "8px auto 0 auto", fontSize: "10pt" }}>
+                <b>Total Survey Ratings:</b>{" "}
+                Excellent {reportAnalytics?.ratingTotals?.excellent ?? 0},{" "}
+                Very Satisfactory {reportAnalytics?.ratingTotals?.verySatisfactory ?? 0},{" "}
+                Satisfactory {reportAnalytics?.ratingTotals?.satisfactory ?? 0},{" "}
+                Fair {reportAnalytics?.ratingTotals?.fair ?? 0},{" "}
+                Poor {reportAnalytics?.ratingTotals?.poor ?? 0}
+                <br />
+                <b>Participants Joined:</b>{" "}
+                Total {reportAnalytics?.participantStats?.totalJoined ?? 0}{" "}
+                (Male {reportAnalytics?.participantStats?.maleJoined ?? 0}, Female {reportAnalytics?.participantStats?.femaleJoined ?? 0})
+              </div>
               <RomanListValues
                 romaize
                 marginBetween="10px"

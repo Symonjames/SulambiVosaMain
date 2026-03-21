@@ -742,6 +742,19 @@ const ExternalReport: React.FC<Props> = ({ data, textAlign }) => {
                   </tr>
                 </tbody>
               </table>
+              <br />
+              <span className="fontSet">
+                <b>Total Survey Ratings:</b>{" "}
+                Excellent {reportAnalytics?.ratingTotals?.excellent ?? 0},{" "}
+                Very Satisfactory {reportAnalytics?.ratingTotals?.verySatisfactory ?? 0},{" "}
+                Satisfactory {reportAnalytics?.ratingTotals?.satisfactory ?? 0},{" "}
+                Fair {reportAnalytics?.ratingTotals?.fair ?? 0},{" "}
+                Poor {reportAnalytics?.ratingTotals?.poor ?? 0}
+                <br />
+                <b>Participants Joined:</b>{" "}
+                Total {reportAnalytics?.participantStats?.totalJoined ?? 0}{" "}
+                (BatStateU {reportAnalytics?.participantStats?.insiderJoined ?? 0}, Other Institutions {reportAnalytics?.participantStats?.outsiderJoined ?? 0})
+              </span>
             </td>
           </tr>
           <tr>

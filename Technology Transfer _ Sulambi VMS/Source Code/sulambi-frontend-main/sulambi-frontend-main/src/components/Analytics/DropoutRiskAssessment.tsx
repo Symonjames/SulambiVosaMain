@@ -118,6 +118,18 @@ const DropoutRiskAssessment: React.FC = () => {
     }
   };
 
+  const highInactivityCount = atRiskVolunteers.filter(
+    (v) => capDays(v?.inactivityDays) >= MAX_DISPLAY_INACTIVITY_DAYS
+  ).length;
+  const hasHighRiskSignal = riskLevel === 'High' || highInactivityCount > 0;
+  const statusLabel = hasHighRiskSignal ? 'High Risk' : `${riskLevel} Risk`;
+  const conditionLabel = hasHighRiskSignal
+    ? '40+ days inactive'
+    : `${capDays(averageInactivity)} days inactive`;
+  const riskLabel = hasHighRiskSignal
+    ? '100% dropout risk (next event)'
+    : `${Math.max(0, Math.round(100 - retentionRate))}% dropout risk (next event)`;
+
   // Summary view component
   const SummaryView = () => (
     <FlexBox
@@ -160,72 +172,44 @@ const DropoutRiskAssessment: React.FC = () => {
         sx={{ mb: 2 }}
       >
         <Typography variant="body2">
-          Overall Risk Level: <strong>{riskLevel}</strong> | Retention Rate: <strong>{retentionRate}%</strong>
+          Status: <strong>{statusLabel}</strong>
         </Typography>
       </Alert>
 
-      {/* Key Metrics Summary */}
-      <Box mb={2}>
-        <Typography variant="subtitle2" gutterBottom>
-          Key Metrics:
+      <Box
+        sx={{
+          border: '1px solid #e0e0e0',
+          borderRadius: '8px',
+          padding: '12px',
+          backgroundColor: '#fafafa',
+          mb: 2,
+        }}
+      >
+        <Typography variant="body2" sx={{ mb: 0.75 }}>
+          <strong>Status:</strong> {statusLabel}
         </Typography>
-        <FlexBox gap={2} mb={1} flexWrap="wrap">
-          <Chip 
-            label={`${averageEngagement} events/volunteer`} 
-            color="primary" 
-            size="small"
-          />
-          <Chip 
-            label={`${retentionRate}% retention`} 
-            color={retentionRate > 90 ? 'success' : retentionRate > 80 ? 'warning' : 'error'}
-            size="small"
-          />
-          <FlexBox alignItems="center" gap={0.5}>
-            {getTrendIcon(dropoutTrend)}
-            <Typography variant="caption" color="text.secondary">
-              {dropoutTrend} trend
-            </Typography>
-          </FlexBox>
-        </FlexBox>
+        <Typography variant="body2" sx={{ mb: 0.75 }}>
+          <strong>Condition:</strong> {conditionLabel}
+        </Typography>
+        <Typography variant="body2">
+          <strong>Risk Level:</strong> {riskLabel}
+        </Typography>
       </Box>
 
-      {/* Mini Chart Preview removed per request */}
-
-      {/* At-Risk Volunteers Preview */}
-      <Box>
-        <Typography variant="subtitle2" gutterBottom>
-          At-Risk Volunteers ({atRiskVolunteers.length}):
+      {hasHighRiskSignal && (
+        <Typography
+          variant="body2"
+          color="error"
+          sx={{ fontWeight: 600 }}
+        >
+          Immediate intervention is recommended to re-engage inactive volunteers.
         </Typography>
-        {atRiskVolunteers
-          .sort((a, b) => b.riskScore - a.riskScore)
-          .slice(0, 3)
-          .map((volunteer, index) => (
-          <FlexBox key={index} justifyContent="space-between" alignItems="center" mb={0.5}>
-            <Typography variant="body2" sx={{ flex: 1, fontSize: '0.875rem' }}>
-              {volunteer.name}
-            </Typography>
-            <Box>
-              <Chip 
-                label={`${volunteer.riskScore}% risk`} 
-                size="small" 
-                color={volunteer.riskScore > 80 ? 'error' : volunteer.riskScore > 60 ? 'warning' : 'success'}
-                sx={{ fontSize: '0.6rem', mr: 0.5 }}
-              />
-              <Chip 
-                label={`${capDays(volunteer.inactivityDays)} days`} 
-                size="small" 
-                color={capDays(volunteer.inactivityDays) > 30 ? 'error' : 'warning'}
-                sx={{ fontSize: '0.7rem' }}
-              />
-            </Box>
-          </FlexBox>
-        ))}
-        {atRiskVolunteers.length > 3 && (
-          <Typography variant="caption" color="text.secondary" textAlign="center">
-            +{atRiskVolunteers.length - 3} more volunteers
-          </Typography>
-        )}
-      </Box>
+      )}
+      {!hasHighRiskSignal && (
+        <Typography variant="body2" color="text.secondary">
+          Volunteer engagement is currently stable.
+        </Typography>
+      )}
     </FlexBox>
   );
 
@@ -237,9 +221,6 @@ const DropoutRiskAssessment: React.FC = () => {
 
   // Prediction should be "bad" when many volunteers are dropping out OR many are at max inactivity (40 days).
   // Otherwise it can be stable/good.
-  const highInactivityCount = atRiskVolunteers.filter(
-    (v) => capDays(v?.inactivityDays) >= MAX_DISPLAY_INACTIVITY_DAYS
-  ).length;
   const highInactivityRatio = atRiskVolunteers.length > 0 ? highInactivityCount / atRiskVolunteers.length : 0;
 
   // Recompute latest dropout rate (mirrors earlier logic, but keeps prediction deterministic)

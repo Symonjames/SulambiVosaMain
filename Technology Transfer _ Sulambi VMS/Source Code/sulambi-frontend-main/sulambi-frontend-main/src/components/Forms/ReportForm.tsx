@@ -236,7 +236,7 @@ const ReportForm: React.FC<Props> = (props) => {
         },
         {
           id: "approvedBudgetSrc",
-          type: "text",
+          type: "number",
           message: "Budget Source",
         },
       ],
@@ -248,7 +248,7 @@ const ReportForm: React.FC<Props> = (props) => {
         },
         {
           id: "budgetUtilizedSrc",
-          type: "text",
+          type: "number",
           message: "Budget Source",
         },
       ],
@@ -260,7 +260,7 @@ const ReportForm: React.FC<Props> = (props) => {
         },
         {
           id: "psAttributionSrc",
-          type: "text",
+          type: "number",
           message: "Budget Source",
         },
       ],

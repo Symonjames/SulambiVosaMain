@@ -293,6 +293,20 @@ export interface ReportAnalytics {
       };
     };
   };
+  ratingTotals?: {
+    excellent: number;
+    verySatisfactory: number;
+    satisfactory: number;
+    fair: number;
+    poor: number;
+  };
+  participantStats?: {
+    totalJoined: number;
+    maleJoined: number;
+    femaleJoined: number;
+    insiderJoined: number;
+    outsiderJoined: number;
+  };
 }
 
 export interface InternalReportAnalytics {
@@ -315,5 +329,19 @@ export interface InternalReportAnalytics {
       fair: number;
       poor: number;
     };
+  };
+  ratingTotals?: {
+    excellent: number;
+    verySatisfactory: number;
+    satisfactory: number;
+    fair: number;
+    poor: number;
+  };
+  participantStats?: {
+    totalJoined: number;
+    maleJoined: number;
+    femaleJoined: number;
+    insiderJoined: number;
+    outsiderJoined: number;
   };
 }

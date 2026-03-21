@@ -18,6 +18,42 @@ InternalReportDb = InternalReportModel()
 RequirementsDb = RequirementsModel()
 SignatoriesDb = SignatoriesModel()
 
+def _normalize_numeric_input(value):
+  """
+  Accept numeric-like input and normalize to an integer string.
+  Returns None when invalid.
+  """
+  raw = str(value or "").strip().replace(",", "")
+  if raw == "":
+    return "0"
+  try:
+    parsed = float(raw)
+    # Internal report finance columns are stored as INTEGER; reject non-whole values.
+    if not parsed.is_integer():
+      return None
+    return str(int(parsed))
+  except Exception:
+    return None
+
+def _validate_internal_financial_fields(form):
+  numeric_fields = [
+    "approvedBudget",
+    "approvedBudgetSrc",
+    "budgetUtilized",
+    "budgetUtilizedSrc",
+    "psAttribution",
+    "psAttributionSrc",
+  ]
+  cleaned = {}
+  invalid = []
+  for field in numeric_fields:
+    normalized = _normalize_numeric_input(form.get(field))
+    if normalized is None:
+      invalid.append(field)
+    else:
+      cleaned[field] = normalized
+  return cleaned, invalid
+
 def getAllReports():
   externalReports = ExternalReportDb.getAll()
   internalReports = InternalReportDb.getAll()
@@ -85,6 +121,161 @@ def getReportCalculations(eventId: int, eventType: str):
     matchedEvent = InternalEventDb.get(eventId)
     signId = matchedEvent.get("signatoriesId")
     signatoriesData = SignatoriesDb.get(signId)
+
+  # Participant stats based on accepted/joined requirements.
+  participantStats = {
+    "totalJoined": len(registeredUsers),
+    "maleJoined": 0,
+    "femaleJoined": 0,
+    "insiderJoined": 0,   # BatStateU / with affiliation
+    "outsiderJoined": 0,  # outside institutions / N/A affiliation
+  }
+  for req in registeredUsers:
+    sex = str(req.get("sex") or "").lower().strip()
+    affiliation = req.get("affiliation")
+    if sex == "male":
+      participantStats["maleJoined"] += 1
+    elif sex == "female":
+      participantStats["femaleJoined"] += 1
+    if affiliation == "N/A" or affiliation is None or str(affiliation).strip() == "":
+      participantStats["outsiderJoined"] += 1
+    else:
+      participantStats["insiderJoined"] += 1
+
+  # Prefer analytics from satisfactionSurveys (new survey flow), fallback to evaluation table logic below.
+  try:
+    from ..database.connection import (
+      table_name_for_query,
+      convert_placeholders,
+      DATABASE_URL,
+      is_postgresql_url,
+    )
+    is_postgresql = is_postgresql_url(DATABASE_URL)
+    conn, cursor = connection.cursorInstance()
+
+    sat_table = table_name_for_query("satisfactionSurveys")
+    req_table = table_name_for_query("requirements")
+    sat_event_col = '"eventId"' if is_postgresql else "eventId"
+    sat_type_col = '"eventType"' if is_postgresql else "eventType"
+    sat_finalized_col = "finalized"
+    sat_score_col = '"overallSatisfaction"' if is_postgresql else "overallSatisfaction"
+    sat_req_id_col = '"requirementId"' if is_postgresql else "requirementId"
+    req_id_col = "id"
+    req_sex_col = "sex"
+    req_aff_col = "affiliation"
+
+    finalized_true = convert_boolean_value(True)
+    sat_query = convert_placeholders(
+      f"""
+      SELECT ss.{sat_score_col}, ss.{sat_req_id_col}, r.{req_sex_col}, r.{req_aff_col}
+      FROM {sat_table} ss
+      LEFT JOIN {req_table} r ON ss.{sat_req_id_col} = r.{req_id_col}
+      WHERE ss.{sat_event_col} = ? AND ss.{sat_type_col} = ? AND ss.{sat_finalized_col} = ?
+      """
+    )
+    cursor.execute(sat_query, (eventId, eventType, finalized_true))
+    survey_rows = cursor.fetchall() or []
+    conn.close()
+
+    def _score_to_bucket(score):
+      try:
+        val = float(score)
+      except Exception:
+        return None
+      if val >= 4.5:
+        return "excellent"
+      if val >= 3.5:
+        return "verySatisfactory"
+      if val >= 2.5:
+        return "satisfactory"
+      if val >= 1.5:
+        return "fair"
+      if val > 0:
+        return "poor"
+      return None
+
+    if len(survey_rows) > 0:
+      if eventType == "external":
+        def _blank_eval():
+          return {
+            "excellent": 0,
+            "verySatisfactory": 0,
+            "satisfactory": 0,
+            "fair": 0,
+            "poor": 0,
+          }
+
+        response = {
+          "outsider": {
+            "sex": {"male": 0, "female": 0},
+            "evaluation": {"overall": _blank_eval(), "timeline": _blank_eval()},
+          },
+          "insider": {
+            "sex": {"male": 0, "female": 0},
+            "evaluation": {"overall": _blank_eval(), "timeline": _blank_eval()},
+          },
+          "signatoriesData": signatoriesData,
+        }
+
+        for score, _req_id, sex, affiliation in survey_rows:
+          bucket = _score_to_bucket(score)
+          if not bucket:
+            continue
+          grp = "outsider" if (affiliation == "N/A" or affiliation is None or str(affiliation).strip() == "") else "insider"
+          sx = (str(sex or "").lower().strip())
+          if sx in ["male", "female"]:
+            response[grp]["sex"][sx] += 1
+          response[grp]["evaluation"]["overall"][bucket] += 1
+          # No dedicated timeline score in satisfactionSurveys; mirror overall bucket for continuity.
+          response[grp]["evaluation"]["timeline"][bucket] += 1
+
+        response["ratingTotals"] = {
+          "excellent": response["insider"]["evaluation"]["overall"]["excellent"] + response["outsider"]["evaluation"]["overall"]["excellent"],
+          "verySatisfactory": response["insider"]["evaluation"]["overall"]["verySatisfactory"] + response["outsider"]["evaluation"]["overall"]["verySatisfactory"],
+          "satisfactory": response["insider"]["evaluation"]["overall"]["satisfactory"] + response["outsider"]["evaluation"]["overall"]["satisfactory"],
+          "fair": response["insider"]["evaluation"]["overall"]["fair"] + response["outsider"]["evaluation"]["overall"]["fair"],
+          "poor": response["insider"]["evaluation"]["overall"]["poor"] + response["outsider"]["evaluation"]["overall"]["poor"],
+        }
+        response["participantStats"] = participantStats
+
+        return {
+          "data": response,
+          "message": "Successfully retrieved event report analytics (from surveys)"
+        }
+
+      if eventType == "internal":
+        response = {
+          "sex": {"male": 0, "female": 0},
+          "evalResult": {
+            "male": {"excellent": 0, "verySatisfactory": 0, "satisfactory": 0, "fair": 0, "poor": 0},
+            "female": {"excellent": 0, "verySatisfactory": 0, "satisfactory": 0, "fair": 0, "poor": 0},
+          },
+          "signatoriesData": signatoriesData,
+        }
+
+        for score, _req_id, sex, _affiliation in survey_rows:
+          bucket = _score_to_bucket(score)
+          sx = str(sex or "").lower().strip()
+          if not bucket or sx not in ["male", "female"]:
+            continue
+          response["sex"][sx] += 1
+          response["evalResult"][sx][bucket] += 1
+
+        response["ratingTotals"] = {
+          "excellent": response["evalResult"]["male"]["excellent"] + response["evalResult"]["female"]["excellent"],
+          "verySatisfactory": response["evalResult"]["male"]["verySatisfactory"] + response["evalResult"]["female"]["verySatisfactory"],
+          "satisfactory": response["evalResult"]["male"]["satisfactory"] + response["evalResult"]["female"]["satisfactory"],
+          "fair": response["evalResult"]["male"]["fair"] + response["evalResult"]["female"]["fair"],
+          "poor": response["evalResult"]["male"]["poor"] + response["evalResult"]["female"]["poor"],
+        }
+        response["participantStats"] = participantStats
+
+        return {
+          "data": response,
+          "message": "Successfully retrieved report analytics (from surveys)"
+        }
+  except Exception as survey_error:
+    print(f"[REPORT_ANALYTICS] satisfactionSurveys query failed, using fallback: {survey_error}")
 
   if (eventType == "external"):
     # users sex details
@@ -233,7 +424,15 @@ def getReportCalculations(eventId: int, eventType: str):
             }
           }
         },
-        "signatoriesData": signatoriesData
+        "signatoriesData": signatoriesData,
+        "ratingTotals": {
+          "excellent": outsiderExcellent + bsuExcellent,
+          "verySatisfactory": outsiderVerySatisfactory + bsuVerySatisfactory,
+          "satisfactory": outsiderSatisfactory + bsuSatisfactory,
+          "fair": outsiderFair + bsuFair,
+          "poor": outsiderPoor + bsuPoor,
+        },
+        "participantStats": participantStats
       },
       "message": "Successfully retrieved event report analytics"
     }
@@ -291,6 +490,15 @@ def getReportCalculations(eventId: int, eventType: str):
           responseFormat["evalResult"]["female"]["fair"] += 1
         if (evalCriteriaDict.get("overall").lower() == "poor"):
           responseFormat["evalResult"]["female"]["poor"] += 1
+
+    responseFormat["ratingTotals"] = {
+      "excellent": responseFormat["evalResult"]["male"]["excellent"] + responseFormat["evalResult"]["female"]["excellent"],
+      "verySatisfactory": responseFormat["evalResult"]["male"]["verySatisfactory"] + responseFormat["evalResult"]["female"]["verySatisfactory"],
+      "satisfactory": responseFormat["evalResult"]["male"]["satisfactory"] + responseFormat["evalResult"]["female"]["satisfactory"],
+      "fair": responseFormat["evalResult"]["male"]["fair"] + responseFormat["evalResult"]["female"]["fair"],
+      "poor": responseFormat["evalResult"]["male"]["poor"] + responseFormat["evalResult"]["female"]["poor"],
+    }
+    responseFormat["participantStats"] = participantStats
 
     return {
       "data": responseFormat,
@@ -379,15 +587,22 @@ def createReport(eventId: int, eventType: str):
     if (len(matchedReport) > 0):
       return ({"message": "A report for this event has already been submitted"}, 403)
 
+    cleanedFinancial, invalidFinancial = _validate_internal_financial_fields(request.form)
+    if invalidFinancial:
+      return ({
+        "fieldError": invalidFinancial,
+        "message": "Financial fields must contain numeric values only"
+      }, 400)
+
     createdReport = InternalReportDb.create(
       eventId=eventId,
       narrative=request.form.get("narrative"),
-      approvedBudget=request.form.get("approvedBudget") or "",
-      approvedBudgetSrc=request.form.get("approvedBudgetSrc") or "",
-      budgetUtilized=request.form.get("budgetUtilized") or "",
-      budgetUtilizedSrc=request.form.get("budgetUtilizedSrc") or "",
-      psAttribution=request.form.get("psAttribution") or "",
-      psAttributionSrc=request.form.get("psAttributionSrc") or "",
+      approvedBudget=cleanedFinancial["approvedBudget"],
+      approvedBudgetSrc=cleanedFinancial["approvedBudgetSrc"],
+      budgetUtilized=cleanedFinancial["budgetUtilized"],
+      budgetUtilizedSrc=cleanedFinancial["budgetUtilizedSrc"],
+      psAttribution=cleanedFinancial["psAttribution"],
+      psAttributionSrc=cleanedFinancial["psAttributionSrc"],
       photos=photoNames,
       photoCaptions=photoCaptionsStr,
       signatoriesId=matchedEvent.get("signatoriesId")
@@ -451,6 +666,13 @@ def updateReport(reportId: int, reportType: str):
         print(f"Internal report with ID {reportId} not found")
         return ({"message": "Internal report not found"}, 404)
       
+      cleanedFinancial, invalidFinancial = _validate_internal_financial_fields(request.form)
+      if invalidFinancial:
+        return ({
+          "fieldError": invalidFinancial,
+          "message": "Financial fields must contain numeric values only"
+        }, 400)
+
       # Update specific fields
       updateFields = [
         "narrative",
@@ -463,12 +685,12 @@ def updateReport(reportId: int, reportType: str):
       ]
       updateValues = [
         request.form.get("narrative"),
-        request.form.get("approvedBudget") or "",
-        request.form.get("approvedBudgetSrc") or "",
-        request.form.get("budgetUtilized") or "",
-        request.form.get("budgetUtilizedSrc") or "",
-        request.form.get("psAttribution") or "",
-        request.form.get("psAttributionSrc") or ""
+        cleanedFinancial["approvedBudget"],
+        cleanedFinancial["approvedBudgetSrc"],
+        cleanedFinancial["budgetUtilized"],
+        cleanedFinancial["budgetUtilizedSrc"],
+        cleanedFinancial["psAttribution"],
+        cleanedFinancial["psAttributionSrc"]
       ]
       
       # Only update photos if new photos were uploaded

@@ -38,6 +38,24 @@ const NarrativeReportDetail: React.FC<Props> = (props) => {
     return `₱${amount.toLocaleString()}`;
   };
 
+  const financialRows = [
+    {
+      itemDescription: "Approved Budget as Proposed",
+      amount: approvedBudget,
+      budgetSource: approvedBudgetSource,
+    },
+    {
+      itemDescription: "Actual Budget Utilized",
+      amount: budgetUtilized,
+      budgetSource: budgetUtilizedSource,
+    },
+    {
+      itemDescription: "Personal Services (PS) Attribution",
+      amount: psAttribution,
+      budgetSource: psAttributionSource,
+    },
+  ];
+
   return (
     <PopupModal
       open={open}
@@ -117,30 +135,34 @@ const NarrativeReportDetail: React.FC<Props> = (props) => {
             <Typography variant="h6" fontWeight="bold" gutterBottom>
               Financial Information
             </Typography>
-            <Typography>
-              <b>Approved Budget as Proposed: </b>
-              {formatCurrency(approvedBudget)}
-            </Typography>
-            <Typography>
-              <b>Approved Budget Source: </b>
-              {approvedBudgetSource}
-            </Typography>
-            <Typography>
-              <b>Budget Utilized: </b>
-              {formatCurrency(budgetUtilized)}
-            </Typography>
-            <Typography>
-              <b>Budget Source: </b>
-              {budgetUtilizedSource}
-            </Typography>
-            <Typography>
-              <b>PS Attribution: </b>
-              {formatCurrency(psAttribution)}
-            </Typography>
-            <Typography>
-              <b>PS Attribution Source: </b>
-              {psAttributionSource}
-            </Typography>
+            <Box
+              sx={{
+                border: "1px solid #d0d0d0",
+                borderRadius: "6px",
+                overflow: "hidden",
+                marginTop: "8px",
+              }}
+            >
+              <Box sx={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", backgroundColor: "#f3f4f6", borderBottom: "1px solid #d0d0d0" }}>
+                <Box sx={{ padding: "8px", fontWeight: 700, fontSize: "0.9rem" }}>Item Description</Box>
+                <Box sx={{ padding: "8px", fontWeight: 700, fontSize: "0.9rem", borderLeft: "1px solid #d0d0d0" }}>Amount</Box>
+                <Box sx={{ padding: "8px", fontWeight: 700, fontSize: "0.9rem", borderLeft: "1px solid #d0d0d0" }}>Budget Source</Box>
+              </Box>
+              {financialRows.map((row, index) => (
+                <Box
+                  key={row.itemDescription}
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "2fr 1fr 1fr",
+                    borderBottom: index < financialRows.length - 1 ? "1px solid #e5e7eb" : "none",
+                  }}
+                >
+                  <Box sx={{ padding: "8px", fontSize: "0.9rem" }}>{row.itemDescription}</Box>
+                  <Box sx={{ padding: "8px", fontSize: "0.9rem", borderLeft: "1px solid #e5e7eb" }}>{formatCurrency(row.amount)}</Box>
+                  <Box sx={{ padding: "8px", fontSize: "0.9rem", borderLeft: "1px solid #e5e7eb" }}>{row.budgetSource || "N/A"}</Box>
+                </Box>
+              ))}
+            </Box>
           </>
         )}
       </Box>
