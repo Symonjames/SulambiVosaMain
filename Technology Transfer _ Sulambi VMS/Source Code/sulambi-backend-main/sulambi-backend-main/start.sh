@@ -23,6 +23,8 @@ else
 fi
 
 # Start the server with Gunicorn
+# Short TMPDIR avoids "AF_UNIX path too long" on hosts with very long cwd paths (e.g. Render).
+export TMPDIR="${TMPDIR:-/tmp}"
 echo "Starting Gunicorn server..."
 gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 server:app
 
