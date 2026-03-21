@@ -97,7 +97,7 @@ const PopupModal: React.FC<PopUpModalProps> = ({
             boxShadow="0 0 10px 1px gray"
             borderRadius="10px"
             overflow="auto"
-            zIndex={10000}
+            zIndex={(zval ?? 9999) + 1}
             onClick={(e) => {
               // Prevent modal from closing when clicking inside the content area
               e.stopPropagation();

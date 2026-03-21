@@ -871,6 +871,7 @@ const FormGeneratorTemplate = ({
                   endIcon={value.endIcon}
                   disabled={viewOnly ?? value.disabled}
                   type="number"
+                  inputProps={value.inputProps}
                   value={
                     value.fromFieldRepeater
                       ? (value.value ?? "")

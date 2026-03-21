@@ -279,7 +279,7 @@ const ReportForm: React.FC<Props> = (props) => {
         declineText="No"
         open={openConfirmModal}
         setOpen={setOpenConfirmModal}
-        zindex={10}
+        zindex={12000}
         onAccept={() => confirmedSubmitAction()}
       />
       <PopupModal

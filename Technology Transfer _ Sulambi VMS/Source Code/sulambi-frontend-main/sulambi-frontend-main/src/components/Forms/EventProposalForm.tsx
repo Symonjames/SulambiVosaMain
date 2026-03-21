@@ -380,10 +380,10 @@ const EventProposalForm: React.FC<Props> = ({
         required: true,
         message: "Beneficiary evaluation PIN (required). Exactly 5 digits. All beneficiaries use this PIN to submit feedback for this event.",
         placeholder: "5 digits",
-        inputProps: { maxLength: 5, inputMode: "numeric" as const },
+        inputProps: { maxLength: 5, inputMode: "numeric" as const, autoComplete: "off" },
         onUse: (e: { target: { value: string } }) => {
           const v = (e.target.value || "").replace(/\D/g, "").slice(0, 5);
-          if (v !== e.target.value) immutableSetFormData({ beneficiaryEvaluationPin: v });
+          immutableSetFormData({ beneficiaryEvaluationPin: v });
         },
       },
     ],
@@ -439,6 +439,7 @@ const EventProposalForm: React.FC<Props> = ({
         type: "number",
         required: true,
         message: "Total Male",
+        inputProps: { min: 0, max: 99, step: 1 },
         onUse: (event) => {
           // Enforce max 2 digits (0-99) and digits only
           const raw = String(event?.target?.value ?? "");
@@ -451,6 +452,7 @@ const EventProposalForm: React.FC<Props> = ({
         type: "number",
         required: true,
         message: "Total Female",
+        inputProps: { min: 0, max: 99, step: 1 },
         onUse: (event) => {
           // Enforce max 2 digits (0-99) and digits only
           const raw = String(event?.target?.value ?? "");
@@ -614,10 +616,10 @@ const EventProposalForm: React.FC<Props> = ({
         required: true,
         message: "Beneficiary evaluation PIN (required). Exactly 5 digits. All beneficiaries use this PIN to submit feedback for this event.",
         placeholder: "5 digits",
-        inputProps: { maxLength: 5, inputMode: "numeric" as const },
+        inputProps: { maxLength: 5, inputMode: "numeric" as const, autoComplete: "off" },
         onUse: (e: { target: { value: string } }) => {
           const v = (e.target.value || "").replace(/\D/g, "").slice(0, 5);
-          if (v !== e.target.value) immutableSetFormData({ beneficiaryEvaluationPin: v });
+          immutableSetFormData({ beneficiaryEvaluationPin: v });
         },
       },
     ],
