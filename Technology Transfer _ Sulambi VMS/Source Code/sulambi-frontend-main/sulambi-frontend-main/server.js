@@ -18,7 +18,8 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, () => {
+// Bind to 0.0.0.0 so Render / Docker / cloud can reach the process (not only localhost).
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Serving static files from: ${path.join(__dirname, 'dist')}`);
 });

@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Box, Typography, styled } from "@mui/material";
 import BrokenImageIcon from "@mui/icons-material/BrokenImage";
 import SafeHtmlRenderer from "../../Inputs/SafeHtmlRenderer";
-
-const BASE_API_URL = import.meta.env.VITE_API_URI ?? "http://localhost:8000/api";
+import {
+  normalizeCaptionList,
+  normalizePhotoList,
+  resolveReportImageUrl,
+} from "../../../utils/uploadUrl";
 
 const PhotoSectionWrapper = styled(Box)({
   width: "100%",
@@ -186,53 +189,26 @@ const AdminPhotoDisplay: React.FC<AdminPhotoDisplayProps> = ({
   const [loadingStates, setLoadingStates] = useState<boolean[]>([]);
   const [errorStates, setErrorStates] = useState<boolean[]>([]);
 
+  const photoList = useMemo(() => normalizePhotoList(photos), [photos]);
+  const captionList = useMemo(() => normalizeCaptionList(captions), [captions]);
+
   // Initialize photo data and states
   useEffect(() => {
-    // Debug logging to help identify caption data issues
-    console.log('AdminPhotoDisplay - Received data:', {
-      photos,
-      captions,
-      captionsType: typeof captions,
-      maxPhotos
-    });
-
-    const processedPhotos = photos.slice(0, maxPhotos).map((photo, index) => {
-      // Ensure caption is properly processed from submitted data
+    const processedPhotos = photoList.slice(0, maxPhotos).map((photo, index) => {
       let caption = "";
-      
-      if (captions) {
-        let captionArray = captions;
-        
-        // Handle case where captions might be a string (comma-separated)
-        if (typeof captions === 'string') {
-          captionArray = captions.split(',').map((c: string) => c.trim());
-        }
-        
-        // Ensure it's an array and has the caption for this index
-        if (Array.isArray(captionArray) && captionArray[index] !== undefined && captionArray[index] !== null) {
-          const rawCaption = captionArray[index];
-          if (typeof rawCaption === 'string' && rawCaption.trim() !== '') {
-            caption = rawCaption.trim();
-          }
-        }
+      if (captionList[index] != null && String(captionList[index]).trim() !== "") {
+        caption = String(captionList[index]).trim();
       }
-      
-      console.log(`AdminPhotoDisplay - Photo ${index}:`, {
-        filename: photo,
-        caption: caption,
-        rawCaption: captions && Array.isArray(captions) ? captions[index] : 'N/A'
-      });
-      
       return {
         filename: photo,
-        caption: caption,
+        caption,
       };
     });
 
     setPhotoData(processedPhotos);
     setLoadingStates(new Array(processedPhotos.length).fill(true));
     setErrorStates(new Array(processedPhotos.length).fill(false));
-  }, [photos, captions, maxPhotos]);
+  }, [photoList, captionList, maxPhotos]);
 
   const handleImageLoad = (index: number) => {
     setLoadingStates(prev => {
@@ -255,34 +231,8 @@ const AdminPhotoDisplay: React.FC<AdminPhotoDisplayProps> = ({
     });
   };
 
-  const validateImageSource = (filename: string): string => {
-    if (!filename) return "";
-    
-    // Clean the filename - remove any existing uploads/ prefix and backslashes
-    let cleanFilename = filename.trim();
-    if (!cleanFilename) return "";
-    
-    // Check if it's already a Cloudinary URL or other full URL
-    if (cleanFilename.startsWith("http://") || cleanFilename.startsWith("https://")) {
-      // Use Cloudinary URL or other full URL directly
-      console.log('Image URL (Cloudinary):', { original: filename, final: cleanFilename });
-      return cleanFilename;
-    }
-    
-    // Remove any existing uploads/ prefix to avoid double paths
-    cleanFilename = cleanFilename.replace(/^uploads[\/\\]/, "");
-    // Convert Windows backslashes to forward slashes
-    cleanFilename = cleanFilename.replace(/\\/g, "/");
-    
-    // Construct the full URL - use the base URL without /api for static files
-    const baseUrl = BASE_API_URL.replace("/api", "");
-    const fullUrl = `${baseUrl}/uploads/${cleanFilename}`;
-    
-    console.log('Image URL constructed:', { original: filename, cleaned: cleanFilename, final: fullUrl });
-    
-    // Return URL without cache busting for better reliability
-    return fullUrl;
-  };
+  const validateImageSource = (filename: string): string =>
+    resolveReportImageUrl(filename);
 
   // Always render the layout, but show appropriate content based on state
 
@@ -327,7 +277,6 @@ const AdminPhotoDisplay: React.FC<AdminPhotoDisplayProps> = ({
                         display: loadingStates[index] ? "none" : "block",
                       }}
                       loading="eager"
-                      crossOrigin="anonymous"
                       onLoadStart={() => console.log(`Loading image ${index}:`, photo.filename)}
                     />
                     {loadingStates[index] && (

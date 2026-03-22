@@ -3,6 +3,10 @@ import PopupModal from "../Modal/PopupModal";
 import CustomDivider from "../Divider/CustomDivider";
 import dayjs from "dayjs";
 import { ExternalReportType, InternalReportType } from "../../interface/types";
+import {
+  normalizePhotoList,
+  resolveReportImageUrl,
+} from "../../utils/uploadUrl";
 
 interface Props {
   open: boolean;
@@ -37,6 +41,8 @@ const NarrativeReportDetail: React.FC<Props> = (props) => {
     const amount = Number.isFinite(parsed) ? parsed : 0;
     return `₱${amount.toLocaleString()}`;
   };
+
+  const reportPhotos = normalizePhotoList((reportData as any)?.photos);
 
   const financialRows = [
     {
@@ -114,15 +120,36 @@ const NarrativeReportDetail: React.FC<Props> = (props) => {
           />
         </Box>
 
-        {/* Photos Section */}
-        {reportData.photos && reportData.photos.length > 0 && (
+        {/* Photos Section — same URL rules as AdminPhotoDisplay / news carousel */}
+        {reportPhotos.length > 0 && (
           <>
             <Typography variant="h6" fontWeight="bold" gutterBottom>
-              Event Photos ({reportData.photos.length})
+              Event Photos ({reportPhotos.length})
             </Typography>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              Photos are available in the full report view.
-            </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 2,
+                mb: 2,
+              }}
+            >
+              {reportPhotos.map((src, idx) => (
+                <Box
+                  key={`${src}-${idx}`}
+                  component="img"
+                  src={resolveReportImageUrl(src)}
+                  alt={`Report photo ${idx + 1}`}
+                  sx={{
+                    maxWidth: { xs: "100%", sm: 280 },
+                    maxHeight: 220,
+                    objectFit: "cover",
+                    borderRadius: 1,
+                    border: "1px solid #e0e0e0",
+                  }}
+                />
+              ))}
+            </Box>
           </>
         )}
 
