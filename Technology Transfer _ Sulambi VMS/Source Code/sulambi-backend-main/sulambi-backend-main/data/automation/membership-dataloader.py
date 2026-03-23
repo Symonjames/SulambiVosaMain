@@ -122,4 +122,4 @@ for index, data in loadData.iterrows():
   }
 
   # print("[+] Registering: ", dataFormat["username"], ":", dataFormat["password"])
-  insertData(dataFormat)
+  insertData(dataFormat)  

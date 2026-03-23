@@ -5,7 +5,7 @@ import SafeHtmlRenderer from "../../Inputs/SafeHtmlRenderer";
 import {
   normalizeCaptionList,
   normalizePhotoList,
-  resolveReportImageUrl,
+  resolveReportImageUrlVariants,
 } from "../../../utils/uploadUrl";
 
 const PhotoSectionWrapper = styled(Box)({
@@ -231,9 +231,6 @@ const AdminPhotoDisplay: React.FC<AdminPhotoDisplayProps> = ({
     });
   };
 
-  const validateImageSource = (filename: string): string =>
-    resolveReportImageUrl(filename);
-
   // Always render the layout, but show appropriate content based on state
 
   return (
@@ -255,29 +252,39 @@ const AdminPhotoDisplay: React.FC<AdminPhotoDisplayProps> = ({
                   </FallbackContainer>
                 ) : errorStates[index] ? (
                   <FallbackContainer>
-                    <BrokenImageIcon sx={{ fontSize: 40, color: "#f44336" }} />
-                    <Typography variant="caption" color="#f44336">
-                      Image not found
+                    <BrokenImageIcon sx={{ fontSize: 36, color: "#bdbdbd" }} />
+                    <Typography variant="caption" color="text.secondary">
+                      Photo unavailable
                     </Typography>
-                    <Typography variant="caption" color="#666" style={{ fontSize: "10px" }}>
-                      {photo.filename}
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: "10px", textAlign: "center", px: 1 }}>
+                      File may be missing on the server or the link expired.
                     </Typography>
                   </FallbackContainer>
                 ) : (
                   <>
                     <StyledImage
-                      src={validateImageSource(photo.filename)}
+                      src={resolveReportImageUrlVariants(photo.filename)[0] ?? ""}
                       alt={`Report Photo ${index + 1}${photo.caption ? `: ${photo.caption}` : ''}`}
                       onLoad={() => handleImageLoad(index)}
                       onError={(e) => {
-                        console.error(`Failed to load image ${index}:`, photo.filename, e);
+                        const el = e.currentTarget;
+                        const urls = resolveReportImageUrlVariants(photo.filename);
+                        const v = parseInt(el.getAttribute("data-v-try") || "0", 10);
+                        const next = v + 1;
+                        if (next < urls.length) {
+                          el.setAttribute("data-v-try", String(next));
+                          el.src = urls[next];
+                          return;
+                        }
+                        if (import.meta.env.DEV) {
+                          console.debug("[AdminPhotoDisplay] image failed", index, photo.filename);
+                        }
                         handleImageError(index);
                       }}
                       style={{
                         display: loadingStates[index] ? "none" : "block",
                       }}
                       loading="eager"
-                      onLoadStart={() => console.log(`Loading image ${index}:`, photo.filename)}
                     />
                     {loadingStates[index] && (
                       <FallbackContainer>

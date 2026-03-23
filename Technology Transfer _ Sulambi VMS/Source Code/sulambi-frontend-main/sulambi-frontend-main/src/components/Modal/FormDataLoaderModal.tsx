@@ -1057,9 +1057,11 @@ const FormDataLoaderModal: React.FC<Props> = ({
     let isMounted = true;
     (async () => {
       try {
-        // Validate data exists
-        if (!data) {
-          console.warn("FormDataLoaderModal: No data provided");
+        if (!open) {
+          return;
+        }
+        // Avoid noisy logs / empty flash: evaluation form needs no payload; others wait for data
+        if (!data && formType !== "evaluation") {
           setFormTemplate(<></>);
           return;
         }
@@ -1212,7 +1214,7 @@ const FormDataLoaderModal: React.FC<Props> = ({
     return () => {
       isMounted = false;
     };
-  }, [formType, data, textAlign]);
+  }, [formType, data, textAlign, open]);
 
   return (
     <PopupModal header="Form Preview" open={open} setOpen={setOpen} minWidth="7in" maxWidth="7in">
