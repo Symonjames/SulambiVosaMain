@@ -21,6 +21,8 @@ PUBLIC_PATHS = [
     ("GET", "/api"),   # API index / health check
     ("POST", "/api/auth/login"),
     ("POST", "/api/auth/register"),
+    # Session probe: must not 403 when cookie absent (avoids noisy console; cookie still required for protected routes)
+    ("GET", "/api/auth/me"),
     ("GET", "/api/events/public"),
     ("GET", "/api/events/beneficiary-eligible"),
     ("GET", "/api/reports/public"),  # Landing page "Latest News" carousel

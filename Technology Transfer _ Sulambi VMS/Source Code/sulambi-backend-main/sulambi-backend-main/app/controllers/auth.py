@@ -101,9 +101,16 @@ def login():
     # Production (Render / HTTPS): always use SameSite=None; Secure so cookie is sent from any frontend origin
     is_production = not is_local and (is_secure or "onrender.com" in (request.host or "").lower() or os.getenv("FRONTEND_URL"))
 
-    # COOKIE_DOMAIN (e.g. .sulambi-vosa.com): same-site cookie, Lax is enough
+    # COOKIE_DOMAIN (e.g. .sulambi-vosa.com) only when the API is served on that domain.
+    # If the API runs on *.onrender.com, setting Domain=.sulambi-vosa.com makes the cookie
+    # NOT attach to requests to onrender.com → /api/auth/me and all APIs get 403 after login.
     cookie_domain = os.getenv("COOKIE_DOMAIN", "").strip()
-    if cookie_domain and cookie_domain.startswith("."):
+    api_on_render = "onrender.com" in (request.host or "").lower()
+    if (
+        cookie_domain
+        and cookie_domain.startswith(".")
+        and not api_on_render
+    ):
       attrs = cookie_attrs_same_site(is_secure)
       resp.set_cookie(
         key=SESSION_COOKIE_NAME,
@@ -154,16 +161,22 @@ def _clear_session_cookie(response):
   """Clear the session cookie on the response."""
   is_secure = _is_secure_for_cookie()
   cookie_domain = os.getenv("COOKIE_DOMAIN", "").strip()
+  api_on_render = "onrender.com" in (request.host or "").lower()
+  use_domain = (
+      cookie_domain
+      and cookie_domain.startswith(".")
+      and not api_on_render
+  )
   kwargs = dict(
     key=SESSION_COOKIE_NAME,
     value="",
     httponly=True,
     secure=is_secure,
-    samesite="Lax" if cookie_domain else ("None" if is_secure else "Lax"),
+    samesite="Lax" if use_domain else ("None" if is_secure else "Lax"),
     max_age=0,
     path="/",
   )
-  if cookie_domain and cookie_domain.startswith("."):
+  if use_domain:
     kwargs["domain"] = cookie_domain
   response.set_cookie(**kwargs)
 
@@ -172,17 +185,36 @@ def me():
   """Return current session info from httpOnly cookie. Used by frontend to restore accountDetails without storing token."""
   token = request.cookies.get(SESSION_COOKIE_NAME)
   if not token:
-    return ({ "message": "Not authenticated" }, 403)
+    return {
+      "authenticated": False,
+      "message": "Not authenticated",
+      "username": "",
+      "accountType": "",
+      "memberData": None,
+    }
   sessionInfo = SessionDb.get(token)
   if sessionInfo is None:
-    return ({ "message": "Session invalid or expired" }, 403)
+    return {
+      "authenticated": False,
+      "message": "Session invalid or expired",
+      "username": "",
+      "accountType": "",
+      "memberData": None,
+    }
   accountSessionInfo = AccountDb.get(sessionInfo.get("userid"))
   if accountSessionInfo is None:
-    return ({ "message": "Account not found" }, 403)
+    return {
+      "authenticated": False,
+      "message": "Account not found",
+      "username": "",
+      "accountType": "",
+      "memberData": None,
+    }
   membershipData = None
   if accountSessionInfo.get("accountType") == "member" and accountSessionInfo.get("membershipId"):
     membershipData = MembershipDb.get(accountSessionInfo["membershipId"])
   return {
+    "authenticated": True,
     "message": "OK",
     "username": accountSessionInfo.get("username", ""),
     "accountType": accountSessionInfo.get("accountType", ""),

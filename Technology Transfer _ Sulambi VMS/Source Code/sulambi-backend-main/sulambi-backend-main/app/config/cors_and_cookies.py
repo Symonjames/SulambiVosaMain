@@ -34,21 +34,29 @@ def get_cors_origins():
     "http://127.0.0.1:5174",
     "http://127.0.0.1:3000",
   ]
+  # Always allow known production frontends (even if FRONTEND_URL is mis-set to localhost on Render).
+  production_frontends = [
+    "https://www.sulambi-vosa.com",
+    "https://sulambi-vosa.com",
+    "https://sulambi-frontend1.onrender.com",
+    "https://sulambi-vosa.onrender.com",
+  ]
+  for o in production_frontends:
+    if o not in origins:
+      origins.append(o)
+
   if FRONTEND_URL:
-    origins.append(FRONTEND_URL)
+    if FRONTEND_URL not in origins:
+      origins.append(FRONTEND_URL)
     # Often both www and non-www are used
     if FRONTEND_URL.startswith("https://www."):
-      origins.append(FRONTEND_URL.replace("https://www.", "https://", 1))
+      alt = FRONTEND_URL.replace("https://www.", "https://", 1)
+      if alt not in origins:
+        origins.append(alt)
     elif FRONTEND_URL.startswith("https://") and "www." not in FRONTEND_URL:
-      origins.append(FRONTEND_URL.replace("https://", "https://www.", 1))
-  else:
-    # Fallback when FRONTEND_URL not set (e.g. old Render default)
-    origins.extend([
-      "https://sulambi-frontend1.onrender.com",
-      "https://sulambi-vosa.onrender.com",
-      "https://www.sulambi-vosa.com",
-      "https://sulambi-vosa.com",
-    ])
+      alt = FRONTEND_URL.replace("https://", "https://www.", 1)
+      if alt not in origins:
+        origins.append(alt)
   return origins
 
 

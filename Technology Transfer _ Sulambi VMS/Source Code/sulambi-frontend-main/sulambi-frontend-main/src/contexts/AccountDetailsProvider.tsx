@@ -51,13 +51,21 @@ const AccountDetailsProvider = ({ children }: { children: ReactNode }) => {
     }
     getMe()
       .then((res) => {
-        const d = res.data;
-        const next: AccountDetails = {
-          username: d.username || "",
-          accountType: (d.accountType as "admin" | "officer" | "member") || "admin",
-          details: d.memberData,
+        const d = res.data as {
+          authenticated?: boolean;
+          username?: string;
+          accountType?: string;
+          memberData?: MembershipType;
         };
-        if (next.username) {
+        const ok =
+          d.authenticated !== false &&
+          (d.authenticated === true || Boolean(d.username));
+        if (ok && d.username) {
+          const next: AccountDetails = {
+            username: d.username,
+            accountType: (d.accountType as "admin" | "officer" | "member") || "admin",
+            details: d.memberData,
+          };
           setAccountDetails(next);
           saveToSessionObfuscated("accountDetails", next);
         }
