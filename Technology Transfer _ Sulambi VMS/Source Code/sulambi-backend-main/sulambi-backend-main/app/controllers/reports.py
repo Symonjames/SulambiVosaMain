@@ -1,4 +1,5 @@
-from ..utils.multipartFileWriter import basicFileWriter
+from ..utils.multipartFileWriter import cloudinaryFileWriter
+from werkzeug.exceptions import BadRequest
 from ..models.ExternalEventModel import ExternalEventModel
 from ..models.ExternalReportModel import ExternalReportModel
 from ..models.InternalEventModel import InternalEventModel
@@ -543,8 +544,13 @@ def getReportByEventId(eventId: int, eventType: str):
     }
 
 def createReport(eventId: int, eventType: str):
-  photoPath = basicFileWriter([])
-  photoNames = ",".join([photoPath[key] for key in photoPath])
+  try:
+    photoPath = cloudinaryFileWriter(["photo_0", "photo_1", "photos"], folder="reports")
+  except BadRequest as e:
+    return ({"message": str(e)}, 400)
+  except Exception as e:
+    return ({"message": f"Failed to upload photos: {str(e)}"}, 500)
+  photoNames = ",".join([photoPath[key] for key in sorted(photoPath)])
   
   # Extract photo captions from form data
   photoCaptions = []
@@ -626,8 +632,13 @@ def updateReport(reportId: int, reportType: str):
   try:
     print(f"Attempting to update {reportType} report with ID: {reportId}")
     
-    photoPath = basicFileWriter([])
-    photoNames = ",".join([photoPath[key] for key in photoPath])
+    try:
+      photoPath = cloudinaryFileWriter(["photo_0", "photo_1", "photos"], folder="reports")
+    except BadRequest as e:
+      return ({"message": str(e)}, 400)
+    except Exception as e:
+      return ({"message": f"Failed to upload photos: {str(e)}"}, 500)
+    photoNames = ",".join([photoPath[key] for key in sorted(photoPath)])
     
     # Extract photo captions from form data
     photoCaptions = []
