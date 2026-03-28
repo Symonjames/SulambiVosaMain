@@ -289,12 +289,12 @@ def migrate_uploads_to_cloudinary():
         configure_cloudinary()
     except Exception as e:
         print(f"[ERROR] {e}")
-        return
+        return 1
     
     # Check if uploads folder exists
     if not os.path.exists(UPLOADS_DIR):
         print(f"[ERROR] Uploads folder not found: {UPLOADS_DIR}")
-        return
+        return 1
     
     # Initialize mapping file
     if os.path.exists(MAPPING_FILE):
@@ -305,26 +305,28 @@ def migrate_uploads_to_cloudinary():
     # Connect to database (supports both SQLite and PostgreSQL)
     try:
         conn, cursor = cursorInstance()
-        from app.database.connection import DATABASE_URL
-        is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+        from app.database.connection import DATABASE_URL, is_postgresql_url
+        is_postgresql = is_postgresql_url(DATABASE_URL)
         print(f"[OK] Connected to {'PostgreSQL' if is_postgresql else 'SQLite'} database")
     except Exception as e:
         print(f"[ERROR] Error connecting to database: {e}")
-        return
+        return 1
     
-    # Get all files from uploads folder
+    # Get all files from uploads folder (skip docs / git placeholders)
+    skip_names = {"readme.md", ".gitkeep", ".ds_store"}
     upload_files = []
     for root, dirs, files in os.walk(UPLOADS_DIR):
         for file in files:
+            if file.lower() in skip_names:
+                continue
             file_path = os.path.join(root, file)
-            # Get relative path from uploads folder
             rel_path = os.path.relpath(file_path, UPLOADS_DIR).replace("\\", "/")
             upload_files.append((rel_path, file_path))
     
     if not upload_files:
-        print("[WARNING] No files found in uploads folder")
+        print("[WARNING] No files found in uploads folder (add legacy binaries, or run export_legacy_upload_paths.py).")
         conn.close()
-        return
+        return 2
     
     print(f"Found {len(upload_files)} file(s) to migrate\n")
     
@@ -425,6 +427,8 @@ def migrate_uploads_to_cloudinary():
         print()
     
     conn.close()
+    return 1 if error_count else 0
 
 if __name__ == "__main__":
-    migrate_uploads_to_cloudinary()
+    import sys
+    sys.exit(migrate_uploads_to_cloudinary() or 0)

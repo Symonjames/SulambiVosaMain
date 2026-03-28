@@ -3,16 +3,10 @@ import { Box, Typography, styled, IconButton } from "@mui/material";
 import ArrowBackIosIcon from "@mui/icons-material/ArrowBackIos";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import { getPublicReports } from "../api/reports";
-import { API_BASE_URL } from "../api/init";
 import { InternalReportType, ExternalReportType } from "../interface/types";
+import { resolveReportImageUrl } from "../utils/uploadUrl";
 import FormDataLoaderModal from "./Modal/FormDataLoaderModal";
 import NewsFeedEventModal from "./Popups/NewsFeedEventModal";
-
-// Uploads live on the backend; use same origin as API (handles production when frontend ≠ backend)
-const UPLOADS_BASE =
-  (import.meta as any).env.DEV && API_BASE_URL === "/api"
-    ? "http://localhost:8000"
-    : (API_BASE_URL.replace(/\/api\/?$/, "") || window.location.origin);
 
 // Nation-style news grid container
 const Section = styled(Box)({ 
@@ -219,16 +213,12 @@ const Excerpt = styled(Typography)({
 
 type CombinedReport = (InternalReportType | ExternalReportType) & Record<string, any>;
 
-const buildImageUrl = (filename?: string) => {
-  if (!filename) return "";
-  let clean = filename.trim();
-  try { clean = decodeURIComponent(clean); } catch {}
-  clean = clean.trim();
-  const isFullUrl = clean.startsWith("http://") || clean.startsWith("https://") || clean.startsWith("//");
-  if (isFullUrl) return clean;
-  clean = clean.replace(/\\/g, "/");
-  clean = clean.replace(/^uploads[\/\\]/, "");
-  return `${UPLOADS_BASE}/uploads/${clean}?t=${Date.now()}`;
+const thumbnailSrc = (stored?: string) => {
+  if (!stored) return "";
+  const url = resolveReportImageUrl(stored);
+  if (!url) return "";
+  if (url.startsWith("https://") || url.startsWith("http://")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
 };
 
 const truncate = (t?: string, n = 120) => {
@@ -359,7 +349,7 @@ const NewsThumbnailCarousel: React.FC<Props> = ({ title = "Latest News", limit =
         // Map external reports
         const extMapped = ext.map((r, i) => {
           const firstPhoto = Array.isArray(r.photos) && r.photos.length > 0 ? r.photos[0] : undefined;
-          const img = buildImageUrl(firstPhoto);
+          const img = thumbnailSrc(firstPhoto);
           const eventName = r?.eventId?.title || r.event_name || `External Report ${i + 1}`;
           const narrative = r.narrative || r.narrative_report || "";
           
@@ -377,7 +367,7 @@ const NewsThumbnailCarousel: React.FC<Props> = ({ title = "Latest News", limit =
         // Map internal reports
         const intrMapped = intr.map((r, i) => {
           const firstPhoto = Array.isArray(r.photos) && r.photos.length > 0 ? r.photos[0] : undefined;
-          const img = buildImageUrl(firstPhoto);
+          const img = thumbnailSrc(firstPhoto);
           const eventName = r?.eventId?.title || r.event_name || `Internal Report ${i + 1}`;
           const narrative = r.narrative || r.narrative_report || "";
           

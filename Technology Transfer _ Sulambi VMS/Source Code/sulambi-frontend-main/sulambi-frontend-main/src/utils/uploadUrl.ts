@@ -1,10 +1,10 @@
 import { API_BASE_URL } from "../api/init";
 
 /**
- * Backend static files live at {origin}/uploads/...
- * Must match logic used in NewsThumbnailCarousel / HomeNewsSection so report photos
- * resolve correctly in dev (Vite proxy), production (separate frontend + API domains),
- * and for full URLs (e.g. Cloudinary).
+ * Report/form file fields may store a full HTTPS URL (Cloudinary) or a legacy relative
+ * path (`uploads/...`). Full URLs are returned as-is; legacy paths resolve against the
+ * API origin `{API_BASE_URL without /api}/uploads/...` for local/dev only—production on
+ * Render has no persistent disk, so migrate old rows or re-upload so values are Cloudinary URLs.
  */
 export function getUploadsBase(): string {
   if (import.meta.env.DEV && API_BASE_URL === "/api") {

@@ -1,169 +1,192 @@
-from flask import request
+"""
+Multipart uploads: in-memory only (no disk), then Cloudinary.
+
+Flask/Werkzeug FileStorage already buffers uploads in memory or temp files;
+we read into bytes and upload via Cloudinary (same idea as Multer memoryStorage).
+The Python cloudinary SDK used here exposes upload(); we buffer to BytesIO
+for a clean in-memory path to the API.
+"""
+from __future__ import annotations
+
+import io
+import logging
 from uuid import uuid4
-import os
-from dotenv import load_dotenv
-import cloudinary
+
 import cloudinary.uploader
+from dotenv import load_dotenv
+from flask import request
+from werkzeug.datastructures import FileStorage
 from werkzeug.exceptions import BadRequest
+
+from ..config.cloudinary_setup import (
+    configure_cloudinary,
+    cloudinary_credentials_ok,
+    missing_cloudinary_message,
+)
 
 load_dotenv()
 
-BASIC_WRITER_PATH = "uploads"
+logger = logging.getLogger(__name__)
 
 # Allowed file extensions for requirements documents (PDF, DOC/DOCX, images)
 ALLOWED_EXTENSIONS = {
-    'pdf',
-    'doc', 'docx',
-    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif'
+    "pdf",
+    "doc",
+    "docx",
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "bmp",
+    "webp",
+    "svg",
+    "ico",
+    "tiff",
+    "tif",
 }
 
-# MIME types for validation
 ALLOWED_MIME_TYPES = {
-    'application/pdf',
-    'application/msword',  # .doc
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # .docx
-    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
-    'image/bmp', 'image/webp', 'image/svg+xml', 'image/x-icon',
-    'image/tiff', 'image/x-tiff'
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "image/bmp",
+    "image/webp",
+    "image/svg+xml",
+    "image/x-icon",
+    "image/tiff",
+    "image/x-tiff",
 }
+
 
 def is_allowed_file(filename: str, content_type: str) -> bool:
-    """
-    Check if file is allowed based on extension and MIME type.
-    Allows PDF, DOC, DOCX, and image files.
-    """
     if not filename:
         return False
-    
-    # Check file extension
-    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    ext = filename.rsplit(".", 1)[1].lower() if "." in filename else ""
     if ext not in ALLOWED_EXTENSIONS:
         return False
-    
-    # Check MIME type
-    if content_type and content_type.lower() not in ALLOWED_MIME_TYPES:
-        return False
-    
-    return True
+    ct = (content_type or "").strip().lower()
+    if not ct:
+        return True
+    if ct in ALLOWED_MIME_TYPES:
+        return True
+    # Mobile/some clients send application/octet-stream for camera picks — allow if extension is allowed
+    if ct == "application/octet-stream":
+        return True
+    return False
 
-def cloudinaryFileWriter(keys: list[str], folder: str = "requirements"):
+
+def _filestorage_to_bytes(fs: FileStorage) -> bytes:
+    """Read entire upload into memory (no save to disk)."""
+    try:
+        fs.stream.seek(0)
+    except (OSError, ValueError, io.UnsupportedOperation):
+        pass
+    data = fs.read()
+    if not data:
+        raise BadRequest("Empty file upload.")
+    return data
+
+
+def _upload_buffer_to_cloudinary(
+    data: bytes,
+    *,
+    folder: str,
+    public_id_base: str,
+    resource_type: str = "auto",
+) -> dict:
     """
-    Upload files to Cloudinary with validation.
-    Only allows PDF and image file formats.
-    
-    REQUIRES Cloudinary configuration - will NOT fall back to local storage.
-    All files MUST be uploaded to Cloudinary.
-    
-    Args:
-        keys: List of file field names to process
-        folder: Cloudinary folder to store files in (default: "requirements")
-    
-    Returns:
-        dict: Dictionary mapping file keys to Cloudinary URLs
-    
-    Raises:
-        BadRequest: If Cloudinary is not configured, file type is not allowed, or upload fails
+    Upload bytes to Cloudinary (in-memory buffer; no local file).
+    Returns the API result dict (includes secure_url).
     """
-    keyPaths = {}
-    filenames = list(request.files)
-    
-    # Configure Cloudinary
-    cloudinary.config(
-        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-        api_key=os.getenv("CLOUDINARY_API_KEY"),
-        api_secret=os.getenv("CLOUDINARY_API_SECRET")
-    )
-    
-    # STRICT: Check if Cloudinary is configured - NO FALLBACK TO LOCAL STORAGE
-    cloudinary_cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
-    cloudinary_api_key = os.getenv("CLOUDINARY_API_KEY")
-    cloudinary_api_secret = os.getenv("CLOUDINARY_API_SECRET")
-    
-    if not all([cloudinary_cloud_name, cloudinary_api_key, cloudinary_api_secret]):
-        error_msg = (
-            "Cloudinary configuration is missing. "
-            "All file uploads must use Cloudinary. "
-            "Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables. "
-            "Local file storage is disabled for security and scalability."
+    configure_cloudinary()
+    buffer = io.BytesIO(data)
+    buffer.seek(0)
+    try:
+        return cloudinary.uploader.upload(
+            buffer,
+            folder=folder,
+            public_id=public_id_base,
+            resource_type=resource_type,
+            overwrite=False,
+            use_filename=False,
+            unique_filename=True,
         )
-        print(f"[CLOUDINARY_UPLOAD] ❌ ERROR: {error_msg}")
-        raise BadRequest(error_msg)
-    
-    print(f"[CLOUDINARY_UPLOAD] ✅ Cloudinary configured. Cloud: {cloudinary_cloud_name}")
-    
+    except Exception as e:
+        raise BadRequest(f"Cloudinary upload failed: {e!s}") from e
+
+
+def cloudinaryFileWriter(keys: list[str], folder: str = "requirements") -> dict[str, str]:
+    """
+    Upload selected form file fields to Cloudinary.
+
+    - Reads each FileStorage fully into memory (no disk).
+    - Stores secure_url per field key in the returned dict.
+
+    Raises:
+        BadRequest: missing config, validation failure, or upload error.
+    """
+    if not cloudinary_credentials_ok():
+        raise BadRequest(missing_cloudinary_message())
+
+    key_paths: dict[str, str] = {}
+    filenames = list(request.files)
+
     for k in filenames:
         if k not in keys:
             continue
-            
         file = request.files.get(k)
-        if file is None:
+        if file is None or file.filename == "":
             continue
-        if file.filename == "":
-            continue
-        
-        # Validate file type
-        if not is_allowed_file(file.filename, file.content_type):
+
+        if not is_allowed_file(file.filename, file.content_type or ""):
             raise BadRequest(
                 f"File '{file.filename}' is not allowed. "
-                f"Only PDF, DOC, DOCX, and image files (jpg, jpeg, png, gif, bmp, webp, svg, ico, tiff) are allowed."
+                "Allowed: PDF, DOC, DOCX, and common image types."
             )
-        
+
+        unique_name = f"{uuid4()}_{file.filename}"
+        public_id_base = unique_name.rsplit(".", 1)[0]
+
         try:
-            # Generate unique filename
-            unique_filename = f"{str(uuid4())}_{file.filename}"
-            
-            print(f"[CLOUDINARY_UPLOAD] Uploading {k}: {file.filename} to Cloudinary folder '{folder}'...")
-            
-            # Upload to Cloudinary - NO FALLBACK TO LOCAL STORAGE
-            result = cloudinary.uploader.upload(
-                file,
+            data = _filestorage_to_bytes(file)
+            result = _upload_buffer_to_cloudinary(
+                data,
                 folder=folder,
-                public_id=unique_filename.rsplit('.', 1)[0],  # Remove extension for public_id
-                resource_type="auto",  # Auto-detect resource type (image, pdf, etc.)
-                overwrite=False,
-                use_filename=False,
-                unique_filename=True
+                public_id_base=public_id_base,
+                resource_type="auto",
             )
-            
-            # Store the secure URL (or regular URL if secure is not available)
-            cloudinary_url = result.get('secure_url') or result.get('url')
-            
-            if not cloudinary_url:
-                raise Exception("Cloudinary upload succeeded but no URL was returned")
-            
-            # Verify it's a Cloudinary URL (not a local path)
-            if not cloudinary_url.startswith('http://') and not cloudinary_url.startswith('https://'):
-                raise Exception(f"Invalid Cloudinary URL format: {cloudinary_url}")
-            
-            keyPaths[k] = cloudinary_url
-            
-            print(f"[CLOUDINARY_UPLOAD] ✅ Successfully uploaded {k}: {file.filename}")
-            print(f"[CLOUDINARY_UPLOAD]    URL: {cloudinary_url[:80]}...")
-            
+        except BadRequest:
+            raise
         except Exception as e:
-            error_msg = f"Failed to upload file '{file.filename}' to Cloudinary: {str(e)}"
-            print(f"[CLOUDINARY_UPLOAD] ❌ ERROR: {error_msg}")
-            print(f"[CLOUDINARY_UPLOAD] ❌ Local storage fallback is disabled. Upload must succeed in Cloudinary.")
-            raise BadRequest(error_msg)
-    
-    return keyPaths
+            raise BadRequest(f"Failed to upload '{file.filename}': {e!s}") from e
 
-def basicFileWriter(keys: list[str]):
-    """
-    Legacy function for local file storage.
-    Kept for backward compatibility, but consider using cloudinaryFileWriter for production.
-    """
-    keyPaths = {}
-    filenames = list(request.files)
+        url = result.get("secure_url") or result.get("url")
+        if not url or not (url.startswith("http://") or url.startswith("https://")):
+            raise BadRequest("Upload succeeded but no valid URL was returned.")
 
-    for k in filenames:
-        file = request.files.get(k)
-        if (file == None): continue
-        if (file.filename == ""): continue
+        key_paths[k] = url
+        try:
+            from urllib.parse import urlparse
 
-        # generate unique filenames to prevent overwrites (underscore avoids uuid+name collisions in DB strings)
-        fwpath = os.path.join(BASIC_WRITER_PATH, f"{uuid4()}_{file.filename}")
-        file.save(fwpath)
-        keyPaths[k] = fwpath
+            host = urlparse(url).hostname or ""
+            logger.info(
+                "[CLOUDINARY_UPLOAD] ok folder=%s field=%s file=%s public_id=%s host=%s",
+                folder,
+                k,
+                file.filename,
+                result.get("public_id", ""),
+                host,
+            )
+        except Exception:
+            logger.info(
+                "[CLOUDINARY_UPLOAD] ok folder=%s field=%s file=%s",
+                folder,
+                k,
+                file.filename,
+            )
 
-    return keyPaths
+    return key_paths

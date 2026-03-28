@@ -30,6 +30,17 @@ This guide explains how to migrate all files from the local `uploads` folder to 
 
 ## Running the Migration
 
+### One command (recommended)
+
+From the backend root (same folder as `server.py`), with `.env` containing `DATABASE_URL` or `DB_PATH` and all `CLOUDINARY_*` variables:
+
+```bash
+python export_legacy_upload_paths.py    # if uploads/ is empty: lists filenames still in DB
+python run_full_cloudinary_migration.py # uploads each file, updates DB, then updates frontend src
+```
+
+Use `python run_full_cloudinary_migration.py --skip-frontend` if you do not want the frontend replacer. Use `--export-only` to only write `legacy_upload_manifest.txt`.
+
 ### Step 1: Test the Script (Optional)
 
 Review what will be migrated:

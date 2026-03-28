@@ -20,6 +20,7 @@ import { ImageViewerContext } from "../../contexts/ImageViewerProvider";
 import RichTextEditor from "../Inputs/RichTextEditor";
 import SafeHtmlRenderer from "../Inputs/SafeHtmlRenderer";
 import EditableGanttTable from "../Tables/EditableGanttTable";
+import { resolveReportImageUrl } from "../../utils/uploadUrl";
 
 const BASE_API_URL = import.meta.env.VITE_API_URI ?? "http://localhost:8000/api";
 
@@ -625,13 +626,11 @@ const FormGeneratorTemplate = ({
                           isPdf = (lower.includes("pdf") && !hasImageExt) || false;
                         }
                       } else {
-                        const base = (BASE_API_URL as string).replace("/api", "");
-                        const rootUri = `${base}/uploads`;
-                        const normalized = raw.replace(/\\/g, "/");
+                        fileSource = resolveReportImageUrl(String(raw));
+                        const normalized = String(raw).replace(/\\/g, "/");
                         const relative = normalized.startsWith("uploads/")
                           ? normalized.slice("uploads/".length)
                           : normalized;
-                        fileSource = `${rootUri}/${relative}`;
                         const lower = relative.toLowerCase();
                         isPdf = lower.endsWith(".pdf");
                       }

@@ -4,29 +4,14 @@ import CustomDivider from "../Divider/CustomDivider";
 import dayjs from "dayjs";
 import { ExternalReportType, InternalReportType } from "../../interface/types";
 import { useMediaQuery } from "react-responsive";
+import { resolveReportImageUrl } from "../../utils/uploadUrl";
 
-const getBaseUrl = (): string => {
-  const apiUri = (import.meta as any).env.VITE_API_URI as string | undefined;
-  if (apiUri) return apiUri.replace("/api", "");
-  if ((import.meta as any).env.DEV) return "http://localhost:8000";
-  return window.location.origin;
-};
-const BASE_URL = getBaseUrl();
-
-const buildImageUrl = (filename?: string) => {
-  if (!filename) return "";
-  let clean = filename.trim();
-  try { clean = decodeURIComponent(clean); } catch {}
-  
-  // Check if it's already a Cloudinary URL or other full URL
-  if (clean.startsWith("http://") || clean.startsWith("https://")) {
-    // Use Cloudinary URL or other full URL directly
-    return clean;
-  }
-  
-  clean = clean.replace(/\\/g, "/");
-  clean = clean.replace(/^uploads[\/\\]/, "");
-  return `${BASE_URL}/uploads/${clean}?t=${Date.now()}`;
+const thumbnailSrc = (stored?: string) => {
+  if (!stored) return "";
+  const url = resolveReportImageUrl(stored);
+  if (!url) return "";
+  if (url.startsWith("https://") || url.startsWith("http://")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
 };
 
 interface Props {
@@ -76,7 +61,7 @@ const NewsFeedEventModal: React.FC<Props> = (props) => {
         {photos.length > 0 && (
           <Box sx={{ marginBottom: "24px" }}>
             <img
-              src={buildImageUrl(photos[0])}
+              src={thumbnailSrc(photos[0])}
               alt="Event photo"
               style={{
                 width: "100%",

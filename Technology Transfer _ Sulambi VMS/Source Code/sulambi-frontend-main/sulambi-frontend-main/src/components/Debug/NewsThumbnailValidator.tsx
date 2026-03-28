@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Typography, Chip, Stack } from "@mui/material";
 import { getAllReports } from "../../api/reports";
+import { resolveReportImageUrl } from "../../utils/uploadUrl";
 
 const BASE_URL = (import.meta as any).env.VITE_API_URI
   ? (import.meta as any).env.VITE_API_URI.replace("/api", "")
@@ -37,10 +38,9 @@ const NewsThumbnailValidator: React.FC = () => {
           results.push({ label: `Has narrative`, ok: typeof narrative === 'string', details: narrative ? narrative.slice(0, 60) : "" });
 
           if (hasPhotos) {
-            const filename = String(first.photos[0]).trim().replace(/^uploads[\\/]/, "");
-            const url = `${BASE_URL}/uploads/${filename}?t=${Date.now()}`;
+            const url = resolveReportImageUrl(String(first.photos[0]).trim());
             setSampleImage(url);
-            results.push({ label: `Image URL constructed`, ok: true, details: url });
+            results.push({ label: `Image URL resolved`, ok: !!url, details: url || "(empty)" });
           }
         } else {
           results.push({ label: `No reports returned`, ok: false });

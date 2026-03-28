@@ -7,5 +7,5 @@ numpy
 joblib
 psycopg2-binary
 gunicorn
-cloudinary
+cloudinary>=1.36.0
 resend

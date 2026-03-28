@@ -10,6 +10,7 @@ from ..models.SignatoriesModel import SignatoriesModel
 
 from flask import request
 import json
+import re
 
 ExternalEventDb = ExternalEventModel()
 ExternalReportDb = ExternalReportModel()
@@ -18,6 +19,36 @@ InternalEventDb = InternalEventModel()
 InternalReportDb = InternalReportModel()
 RequirementsDb = RequirementsModel()
 SignatoriesDb = SignatoriesModel()
+
+
+def _photo_caption_for_field_key(key: str) -> str:
+  """Align caption with photo_N field index from the frontend."""
+  m = re.match(r"^photo_(\d+)$", key)
+  if m:
+    return (request.form.get(f"photo_caption_{m.group(1)}", "") or "").strip()
+  return (request.form.get("photo_caption_0", "") or "").strip()
+
+
+def _photo_names_and_captions_from_cloudinary(photo_path: dict) -> tuple[str, str]:
+  keys_sorted = sorted(photo_path.keys())
+  names = ",".join([photo_path[k] for k in keys_sorted])
+  captions = ",".join([_photo_caption_for_field_key(k) for k in keys_sorted])
+  return names, captions
+
+
+def _warn_if_non_https_photo_urls(photo_names: str, context: str) -> None:
+  """Legacy DB rows used uploads/...; new rows must be Cloudinary https URLs."""
+  if not (photo_names and str(photo_names).strip()):
+    return
+  for i, part in enumerate(str(photo_names).split(",")):
+    p = part.strip()
+    if not p or p.startswith("http://") or p.startswith("https://"):
+      continue
+    print(
+      f"[REPORT_PHOTOS] WARN [{context}] segment {i} is not an absolute URL — "
+      f"expect 404 without local /uploads: {p[:180]!r}"
+    )
+
 
 def _normalize_numeric_input(value):
   """
@@ -550,15 +581,8 @@ def createReport(eventId: int, eventType: str):
     return ({"message": str(e)}, 400)
   except Exception as e:
     return ({"message": f"Failed to upload photos: {str(e)}"}, 500)
-  photoNames = ",".join([photoPath[key] for key in sorted(photoPath)])
-  
-  # Extract photo captions from form data
-  photoCaptions = []
-  for key in photoPath:
-    captionKey = f"photo_caption_{list(photoPath.keys()).index(key)}"
-    caption = request.form.get(captionKey, "")
-    photoCaptions.append(caption)
-  photoCaptionsStr = ",".join(photoCaptions)
+  photoNames, photoCaptionsStr = _photo_names_and_captions_from_cloudinary(photoPath)
+  _warn_if_non_https_photo_urls(photoNames, "createReport")
 
   # checks if report has been submitted to the event id
   if (eventType == "external"):
@@ -638,16 +662,9 @@ def updateReport(reportId: int, reportType: str):
       return ({"message": str(e)}, 400)
     except Exception as e:
       return ({"message": f"Failed to upload photos: {str(e)}"}, 500)
-    photoNames = ",".join([photoPath[key] for key in sorted(photoPath)])
-    
-    # Extract photo captions from form data
-    photoCaptions = []
-    for key in photoPath:
-      captionKey = f"photo_caption_{list(photoPath.keys()).index(key)}"
-      caption = request.form.get(captionKey, "")
-      photoCaptions.append(caption)
-    photoCaptionsStr = ",".join(photoCaptions)
-    
+    photoNames, photoCaptionsStr = _photo_names_and_captions_from_cloudinary(photoPath)
+    _warn_if_non_https_photo_urls(photoNames, "updateReport")
+
     if reportType == "external":
       # Check if report exists
       existingReport = ExternalReportDb.get(reportId)

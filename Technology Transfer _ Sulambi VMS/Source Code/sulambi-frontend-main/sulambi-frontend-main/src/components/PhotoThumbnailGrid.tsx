@@ -2,14 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Box, Typography, styled } from "@mui/material";
 import { getPublicReports } from "../api/reports";
 import { InternalReportType, ExternalReportType } from "../interface/types";
-
-const getBaseUrl = (): string => {
-  const apiUri = (import.meta as any).env.VITE_API_URI as string | undefined;
-  if (apiUri) return apiUri.replace("/api", "");
-  if ((import.meta as any).env.DEV) return "http://localhost:8000";
-  return window.location.origin;
-};
-const BASE_URL = getBaseUrl();
+import { resolveReportImageUrl } from "../utils/uploadUrl";
 
 const Section = styled(Box)({ width: "100%" });
 const Header = styled(Box)({ marginBottom: "16px" });
@@ -67,20 +60,12 @@ type CombinedReport = (InternalReportType | ExternalReportType) & {
   eventId?: any;
 };
 
-const buildImageUrl = (filename?: string) => {
-  if (!filename) return "";
-  let clean = filename.trim();
-  try { clean = decodeURIComponent(clean); } catch {}
-  
-  // Check if it's already a Cloudinary URL or other full URL
-  if (clean.startsWith("http://") || clean.startsWith("https://")) {
-    // Use Cloudinary URL or other full URL directly
-    return clean;
-  }
-  
-  clean = clean.replace(/\\\\/g, "/");
-  if (clean.startsWith("uploads/")) clean = clean.replace(/^uploads[\\/\\\\]/, "");
-  return `${BASE_URL}/uploads/${clean}?t=${Date.now()}`;
+const thumbnailSrc = (stored?: string) => {
+  if (!stored) return "";
+  const url = resolveReportImageUrl(stored);
+  if (!url) return "";
+  if (url.startsWith("https://") || url.startsWith("http://")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
 };
 const truncate = (t?: string, n = 110) => {
   if (!t) return "";
@@ -115,7 +100,7 @@ const PhotoThumbnailGrid: React.FC<Props> = ({ limit = 8, title = "Latest News",
       .map((r, idx) => ({
         raw: r,
         id: `${idx}`,
-        img: buildImageUrl(Array.isArray(r.photos) && r.photos.length > 0 ? r.photos[0] : undefined),
+        img: thumbnailSrc(Array.isArray(r.photos) && r.photos.length > 0 ? r.photos[0] : undefined),
         title: r?.eventId?.title || `Report ${idx + 1}`,
         desc: truncate(r?.narrative, 120),
       }))

@@ -2,6 +2,8 @@ __pycache__
 app/database/database.db
 *.bak
 uploads/*
+!uploads/README.md
+legacy_upload_manifest.txt
 .env
 .env.local
 *.pyc

@@ -1,4 +1,4 @@
-from flask import Flask, send_from_directory, request
+from flask import Flask, request
 from flask_cors import CORS
 from app.blueprint import ApiBlueprint
 from app.config.cors_and_cookies import get_cors_origins
@@ -7,6 +7,24 @@ import sys
 import os
 
 load_dotenv()
+
+
+def _log_upload_backend_status():
+    try:
+        from app.config.cloudinary_setup import cloudinary_credentials_ok
+        if cloudinary_credentials_ok():
+            print("[startup] Cloudinary env OK — new uploads store https:// URLs (not uploads/).")
+        else:
+            print(
+                "[startup] WARNING: CLOUDINARY_* not set — requirement/report file uploads will fail "
+                "until CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET are configured."
+            )
+    except Exception as e:
+        print(f"[startup] Could not check Cloudinary config: {e}")
+
+
+_log_upload_backend_status()
+
 
 def testFunction():
   import data.automation.eventTableMigrator
@@ -91,14 +109,7 @@ def handle_error(error):
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
-@Server.route("/uploads/<path:path>")
-def staticFileHost(path):
-  response = send_from_directory("uploads", path)
-  response.headers['Access-Control-Allow-Origin'] = '*'
-  response.headers['Access-Control-Allow-Methods'] = 'GET'
-  response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-  response.headers['Cache-Control'] = 'public, max-age=3600'
-  return response
+# Local /uploads static hosting removed: Render disk is ephemeral; use Cloudinary URLs in DB.
 
 Server.register_blueprint(ApiBlueprint)
 
