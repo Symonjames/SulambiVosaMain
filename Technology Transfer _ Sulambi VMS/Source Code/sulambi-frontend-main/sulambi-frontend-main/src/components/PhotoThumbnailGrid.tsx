@@ -121,7 +121,7 @@ const PhotoThumbnailGrid: React.FC<Props> = ({ limit = 8, title = "Latest News",
         <Grid>
           {items.map((it) => (
             <Card key={it.id} onClick={() => onOpenReport && onOpenReport(it.raw)}>
-              <Thumb src={it.img} alt="report" loading="lazy" crossOrigin="anonymous" />
+              <Thumb src={it.img} alt="report" loading="lazy" />
               <Body>
                 <Headline>{it.title}</Headline>
                 {it.desc && <Excerpt>{it.desc}</Excerpt>}

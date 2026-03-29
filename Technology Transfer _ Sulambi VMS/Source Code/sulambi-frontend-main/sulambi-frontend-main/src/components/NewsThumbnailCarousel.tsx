@@ -465,8 +465,7 @@ const NewsThumbnailCarousel: React.FC<Props> = ({ title = "Latest News", limit =
                   <Thumb 
                     src={item.img} 
                     alt={item.title} 
-                    loading="lazy" 
-                    crossOrigin="anonymous"
+                    loading="lazy"
                     onError={(e) => {
                       // Fallback for broken images - show placeholder
                       const target = e.target as HTMLImageElement;

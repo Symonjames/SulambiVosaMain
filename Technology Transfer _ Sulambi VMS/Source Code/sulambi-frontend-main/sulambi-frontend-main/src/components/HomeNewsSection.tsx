@@ -158,7 +158,7 @@ const HomeNewsSection: React.FC = () => {
       <Grid>
         {items.map((item) => (
           <Card key={item.id}>
-            {item.imageUrl && <Thumbnail src={item.imageUrl} alt="report" loading="lazy" crossOrigin="anonymous" />}
+            {item.imageUrl && <Thumbnail src={item.imageUrl} alt="report" loading="lazy" />}
             <CardBody>
               <Headline>{item.title}</Headline>
               {item.desc && <Excerpt>{item.desc}</Excerpt>}

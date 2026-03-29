@@ -177,9 +177,9 @@ const ReportForm: React.FC<Props> = (props) => {
               question="Photo Documentation"
               required={true}
               error={fieldErrors.includes("photos")}
-              value={formData.photos || []}
+              value={formData.photos}
               onChange={(photos) => {
-                setFormData({ ...formData, photos });
+                setFormData((prev: any) => ({ ...prev, photos }));
               }}
             />
           ),
@@ -205,9 +205,9 @@ const ReportForm: React.FC<Props> = (props) => {
               question="Photo Documentation"
               required={true}
               error={fieldErrors.includes("photos")}
-              value={formData.photos || []}
+              value={formData.photos}
               onChange={(photos) => {
-                setFormData({ ...formData, photos });
+                setFormData((prev: any) => ({ ...prev, photos }));
               }}
             />
           ),

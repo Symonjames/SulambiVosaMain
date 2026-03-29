@@ -124,16 +124,16 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
   question,
   required = false,
   error = false,
-  value = [],
+  value,
   onChange,
   flex = 1,
 }) => {
-  const [photos, setPhotos] = useState<PhotoWithCaption[]>(value);
+  const [photos, setPhotos] = useState<PhotoWithCaption[]>(value ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync with external value changes (for state persistence)
   useEffect(() => {
-    if (value && value !== photos) {
+    if (value !== undefined && value !== photos) {
       setPhotos(value);
     }
   }, [value]);
