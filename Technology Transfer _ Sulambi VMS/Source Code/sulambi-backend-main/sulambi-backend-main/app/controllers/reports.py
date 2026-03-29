@@ -37,6 +37,39 @@ def _photo_names_and_captions_from_cloudinary(photo_path: dict) -> tuple[str, st
   return names, captions
 
 
+def _parse_json_list(raw: str | None) -> list[str]:
+  """Best-effort parse for JSON array payloads from multipart form fields."""
+  if raw is None:
+    return []
+  try:
+    parsed = json.loads(raw)
+    if isinstance(parsed, list):
+      return [str(v).strip() for v in parsed if str(v).strip()]
+  except Exception:
+    pass
+  return []
+
+
+def _merge_existing_and_new_photos(existing_urls: list[str], existing_captions: list[str], photo_path: dict) -> tuple[str, str]:
+  """
+  Combine kept existing photos with newly uploaded Cloudinary photos.
+  Returns CSV strings aligned by index for DB storage.
+  """
+  existing_urls_clean = [str(v).strip() for v in existing_urls if str(v).strip()]
+  existing_caps_clean = [str(v) for v in existing_captions]
+  if len(existing_caps_clean) < len(existing_urls_clean):
+    existing_caps_clean.extend([""] * (len(existing_urls_clean) - len(existing_caps_clean)))
+  existing_caps_clean = existing_caps_clean[: len(existing_urls_clean)]
+
+  keys_sorted = sorted(photo_path.keys())
+  new_urls = [photo_path[k] for k in keys_sorted]
+  new_caps = [_photo_caption_for_field_key(k) for k in keys_sorted]
+
+  merged_urls = existing_urls_clean + new_urls
+  merged_caps = existing_caps_clean + new_caps
+  return ",".join(merged_urls), ",".join(merged_caps)
+
+
 def _warn_if_non_https_photo_urls(photo_names: str, context: str) -> None:
   """Legacy DB rows used uploads/...; new rows must be Cloudinary https URLs."""
   if not (photo_names and str(photo_names).strip()):
@@ -683,7 +716,15 @@ def updateReport(reportId: int, reportType: str):
     except Exception as e:
       print(f"[REPORT_UPLOAD][update] Unexpected upload error: {e}")
       return ({"message": f"Failed to upload photos: {str(e)}"}, 500)
-    photoNames, photoCaptionsStr = _photo_names_and_captions_from_cloudinary(photoPath)
+    existingPhotos = _parse_json_list(request.form.get("existingPhotos"))
+    existingPhotoCaptions = _parse_json_list(request.form.get("existingPhotoCaptions"))
+    hasPhotoEditPayload = (request.form.get("existingPhotos") is not None) or bool(photoPath)
+    photoNames = ""
+    photoCaptionsStr = ""
+    if hasPhotoEditPayload:
+      photoNames, photoCaptionsStr = _merge_existing_and_new_photos(
+        existingPhotos, existingPhotoCaptions, photoPath
+      )
     _warn_if_non_https_photo_urls(photoNames, "updateReport")
 
     if reportType == "external":
@@ -693,12 +734,11 @@ def updateReport(reportId: int, reportType: str):
         print(f"External report with ID {reportId} not found")
         return ({"message": "External report not found"}, 404)
       
-      # Update specific fields - only update photos/captions if new photos were uploaded
+      # Update specific fields - include photos/captions when edit payload provided
       updateFields = ["narrative"]
       updateValues = [request.form.get("narrative")]
       
-      # Only update photos if new photos were uploaded
-      if photoNames:
+      if hasPhotoEditPayload:
         updateFields.extend(["photos", "photoCaptions"])
         updateValues.extend([photoNames, photoCaptionsStr])
       
@@ -750,8 +790,8 @@ def updateReport(reportId: int, reportType: str):
         cleanedFinancial["psAttributionSrc"]
       ]
       
-      # Only update photos if new photos were uploaded
-      if photoNames:
+      # Include photos/captions when edit payload provided
+      if hasPhotoEditPayload:
         updateFields.extend(["photos", "photoCaptions"])
         updateValues.extend([photoNames, photoCaptionsStr])
       

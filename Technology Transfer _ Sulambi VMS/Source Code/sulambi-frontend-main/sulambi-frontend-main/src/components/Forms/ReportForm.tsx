@@ -56,6 +56,7 @@ const ReportForm: React.FC<Props> = (props) => {
             photosWithCaptions.push({
               file: null, // Existing photos don't have File objects
               url: photo, // URL to existing photo
+              preview: photo, // Keep existing photo visible/editable in upload grid
               caption: captions[index] || "",
             });
           });
@@ -113,6 +114,24 @@ const ReportForm: React.FC<Props> = (props) => {
         totalPhotoEntries: formData.photos.length,
         uploadableCount: formData.photos.filter((p: any) => !!p?.file).length,
       });
+
+      // Persist existing edited photo list (kept/removed + captions) during report update.
+      if (isEditMode) {
+        const existingPhotos = formData.photos
+          .filter((p: any) => !p?.file && !!(p?.url || p?.preview))
+          .map((p: any) => String(p.url || p.preview).trim())
+          .filter(Boolean);
+        const existingPhotoCaptions = formData.photos
+          .filter((p: any) => !p?.file && !!(p?.url || p?.preview))
+          .map((p: any) => String(p.caption || ""));
+        formUploadable.append("existingPhotos", JSON.stringify(existingPhotos));
+        formUploadable.append("existingPhotoCaptions", JSON.stringify(existingPhotoCaptions));
+        console.log("[REPORT_FORM] Existing photos payload for update", {
+          existingCount: existingPhotos.length,
+          existingPhotos,
+        });
+      }
+
       formData.photos.forEach((photoWithCaption: any, index: number) => {
         // Only upload if it's a new file (not an existing URL)
         if (photoWithCaption.file) {

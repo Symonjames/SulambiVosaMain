@@ -30,7 +30,6 @@ import ActiveMembersDashboard from "../components/Popups/ActiveMembersDashboard"
 import { useNavigate } from "react-router-dom";
 import PredictiveSatisfactionRatings from "../components/Analytics/PredictiveSatisfactionRatings";
 import DropoutRiskAssessment from "../components/Analytics/DropoutRiskAssessment";
-import VolunteerStatusAlert from "../components/Analytics/VolunteerStatusAlert";
 import FloatingCalendarButton from "../components/FloatingCalendar/FloatingCalendarButton";
 import ProjectSearchBar from "../components/Search/ProjectSearchBar";
 import { useCachedFetch } from "../hooks/useCachedFetch";
@@ -617,7 +616,6 @@ const Dashboard = () => {
             }}
           >
             <PredictiveSatisfactionRatings />
-            <VolunteerStatusAlert />
             <DropoutRiskAssessment />
           </FlexBox>
         )}

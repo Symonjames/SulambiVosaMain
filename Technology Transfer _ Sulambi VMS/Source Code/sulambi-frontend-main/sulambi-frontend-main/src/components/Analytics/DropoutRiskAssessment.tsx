@@ -2,9 +2,13 @@ import React, { useState, useEffect } from 'react';
 import FlexBox from '../FlexBox';
 import { Typography, Box, Chip, Alert, List, ListItem, ListItemText, CircularProgress, Button } from '@mui/material';
 import { BarChart } from '@mui/x-charts';
-import { CheckCircle, TrendingDown, TrendingUp, Visibility } from '@mui/icons-material';
+import { CheckCircle, TrendingDown, TrendingUp, Visibility, WarningAmber, AccessTime, ReportProblem, PanToolAlt } from '@mui/icons-material';
 import { getDropoutRiskAnalytics } from '../../api/analytics';
 import CurtainPanel from '../Curtain/CurtainPanel';
+
+const MAROON = "#6d2e2e";
+const HIGHLIGHT_BG = "#fff8e6";
+const METRIC_BORDER = "#e8dfd0";
 
 const DropoutRiskAssessment: React.FC = () => {
   const MAX_DISPLAY_INACTIVITY_DAYS = 40;
@@ -135,81 +139,151 @@ const DropoutRiskAssessment: React.FC = () => {
     <FlexBox
       flexDirection="column"
       borderRadius="10px"
-      padding="16px"
-      boxShadow="0 0 10px 1px gray"
-      minHeight="300px"
+      padding="0"
+      boxShadow="0 0 10px 1px rgba(0,0,0,0.15)"
+      overflow="hidden"
       flex="1"
       sx={{
-        minWidth: '500px',
+        minWidth: { xs: "100%", md: "400px" },
         flex: '1 1 0',
-        maxWidth: 'none',
-        '@media (max-width: 768px)': {
-          minWidth: '100%',
-          maxWidth: '100%',
-        }
+        maxWidth: { lg: "520px" },
+        bgcolor: "#fff",
       }}
     >
-      <FlexBox justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography textAlign="center" fontWeight="bold" gutterBottom>
-          Dropout Risk Assessment
-        </Typography>
+      <FlexBox
+        justifyContent="space-between"
+        alignItems="center"
+        sx={{
+          px: 2,
+          py: 1.25,
+          borderBottom: "1px solid #eee",
+          bgcolor: "#fffdfb",
+        }}
+      >
+        <FlexBox alignItems="center" gap={1}>
+          <WarningAmber sx={{ color: "#f9a825", fontSize: 28 }} />
+          <Typography fontWeight={800} sx={{ color: MAROON, fontSize: "1.05rem" }}>
+            Dropout Risk Assessment
+          </Typography>
+        </FlexBox>
         <Button
           variant="outlined"
           size="small"
-          startIcon={<Visibility />}
+          startIcon={<Visibility sx={{ fontSize: 18 }} />}
           onClick={() => setCurtainOpen(true)}
-          sx={{ minWidth: '120px' }}
+          sx={{
+            textTransform: "none",
+            fontWeight: 700,
+            borderColor: MAROON,
+            color: MAROON,
+            "&:hover": { borderColor: MAROON, bgcolor: "rgba(109,46,46,0.06)" },
+          }}
         >
-          View Details
+          VIEW DETAILS
         </Button>
       </FlexBox>
-      
-      
-      {/* Risk Level Alert */}
-      <Alert 
-        severity={riskLevel === 'High' ? 'error' : riskLevel === 'Medium' ? 'warning' : 'success'}
-        icon={false}
-        sx={{ mb: 2 }}
-      >
-        <Typography variant="body2">
-          Status: <strong>{statusLabel}</strong>
-        </Typography>
-      </Alert>
 
-      <Box
-        sx={{
-          border: '1px solid #e0e0e0',
-          borderRadius: '8px',
-          padding: '12px',
-          backgroundColor: '#fafafa',
-          mb: 2,
-        }}
-      >
-        <Typography variant="body2" sx={{ mb: 0.75 }}>
-          <strong>Status:</strong> {statusLabel}
-        </Typography>
-        <Typography variant="body2" sx={{ mb: 0.75 }}>
-          <strong>Condition:</strong> {conditionLabel}
-        </Typography>
-        <Typography variant="body2">
-          <strong>Risk Level:</strong> {riskLabel}
-        </Typography>
-      </Box>
-
-      {hasHighRiskSignal && (
-        <Typography
-          variant="body2"
-          color="error"
-          sx={{ fontWeight: 600 }}
+      <Box sx={{ px: 2, py: 1.5 }}>
+        <Box
+          sx={{
+            bgcolor: HIGHLIGHT_BG,
+            border: "1px solid #ffe082",
+            borderRadius: "8px",
+            px: 1.5,
+            py: 1,
+            mb: 1.5,
+          }}
         >
-          Immediate intervention is recommended to re-engage inactive volunteers.
-        </Typography>
-      )}
-      {!hasHighRiskSignal && (
-        <Typography variant="body2" color="text.secondary">
-          Volunteer engagement is currently stable.
-        </Typography>
-      )}
+          <Typography variant="body2" sx={{ color: "#5d4037" }}>
+            Current volunteer retention indicates{" "}
+            <strong>{hasHighRiskSignal ? "urgent attention is needed" : "stable engagement patterns"}</strong>.
+          </Typography>
+        </Box>
+
+        <FlexBox gap={1.5} flexWrap="wrap" mb={1.5}>
+          <Box
+            sx={{
+              flex: 1,
+              minWidth: { xs: "100%", sm: "140px" },
+              border: `1px solid ${METRIC_BORDER}`,
+              borderRadius: "10px",
+              p: 1.5,
+              bgcolor: "#faf8f5",
+            }}
+          >
+            <FlexBox alignItems="center" gap={0.75}>
+              <AccessTime sx={{ color: MAROON, fontSize: 22 }} />
+              <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.3 }}>
+                Condition
+              </Typography>
+            </FlexBox>
+            <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.35, mt: 0.75 }}>
+              {conditionLabel}
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              flex: 1,
+              minWidth: { xs: "100%", sm: "140px" },
+              border: `1px solid ${METRIC_BORDER}`,
+              borderRadius: "10px",
+              p: 1.5,
+              bgcolor: "#faf8f5",
+            }}
+          >
+            <FlexBox alignItems="center" gap={0.75}>
+              <ReportProblem sx={{ color: MAROON, fontSize: 22 }} />
+              <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.3 }}>
+                Risk level
+              </Typography>
+            </FlexBox>
+            <Typography
+              variant="body2"
+              fontWeight={600}
+              sx={{
+                lineHeight: 1.35,
+                mt: 0.75,
+                color: hasHighRiskSignal ? "#c62828" : riskLevel === "Medium" ? "#ef6c00" : undefined,
+              }}
+            >
+              {statusLabel}
+            </Typography>
+          </Box>
+        </FlexBox>
+
+        <Box
+          sx={{
+            border: '1px solid #e0e0e0',
+            borderRadius: '8px',
+            padding: '12px',
+            backgroundColor: '#fafafa',
+            mb: 1.5,
+          }}
+        >
+          <Typography variant="body2">
+            <strong>Risk Forecast:</strong> {riskLabel}
+          </Typography>
+        </Box>
+
+        <FlexBox
+          alignItems="flex-start"
+          gap={1}
+          sx={{
+            mt: 0.5,
+            pt: 1.5,
+            borderTop: "1px solid #eee",
+          }}
+        >
+          <PanToolAlt sx={{ color: MAROON, fontSize: 20, mt: 0.25 }} />
+          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+            <strong style={{ color: MAROON }}>
+              {hasHighRiskSignal ? "Immediate intervention is recommended" : "Keep monitoring volunteer engagement"}
+            </strong>{" "}
+            to prevent future dropouts.
+          </Typography>
+        </FlexBox>
+      </Box>
     </FlexBox>
   );
 

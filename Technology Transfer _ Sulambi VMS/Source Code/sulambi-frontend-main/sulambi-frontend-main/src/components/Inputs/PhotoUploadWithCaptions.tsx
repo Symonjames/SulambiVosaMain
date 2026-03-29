@@ -104,7 +104,8 @@ const StyledDeleteButton = styled(IconButton)({
 });
 
 interface PhotoWithCaption {
-  file: File;
+  file?: File | null;
+  url?: string;
   caption: string;
   preview: string;
   isValid?: boolean;
@@ -119,6 +120,26 @@ interface PhotoUploadWithCaptionsProps {
   onChange?: (photos: PhotoWithCaption[]) => void;
   flex?: number;
 }
+
+const IMAGE_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".bmp",
+  ".svg",
+  ".heic",
+  ".heif",
+  ".avif",
+];
+
+const isImageLikeFile = (file: File): boolean => {
+  const mime = String(file.type || "").toLowerCase();
+  if (mime.startsWith("image/")) return true;
+  const name = String(file.name || "").toLowerCase();
+  return IMAGE_EXTENSIONS.some((ext) => name.endsWith(ext));
+};
 
 const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
   question,
@@ -190,7 +211,12 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
     });
 
     for (const file of filesToProcess) {
-      if (file.type.startsWith("image/")) {
+      console.log("[REPORT_PHOTO_UPLOAD] Checking selected file", {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      });
+      if (isImageLikeFile(file)) {
         const isValid = await validateImage(file);
         const preview = URL.createObjectURL(file);
         console.log("[REPORT_PHOTO_UPLOAD] Validated image", {
@@ -206,6 +232,11 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
           preview,
           isValid,
           hasError: !isValid,
+        });
+      } else {
+        console.warn("[REPORT_PHOTO_UPLOAD] Skipping non-image file", {
+          name: file.name,
+          type: file.type,
         });
       }
     }
