@@ -113,7 +113,7 @@ def _upload_buffer_to_cloudinary(
             resource_type=resource_type,
             overwrite=False,
             use_filename=False,
-            unique_filename=True,
+            unique_filename=False,
         )
     except Exception as e:
         raise BadRequest(f"Cloudinary upload failed: {e!s}") from e

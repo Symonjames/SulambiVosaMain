@@ -1,4 +1,5 @@
 from ..utils.multipartFileWriter import cloudinaryFileWriter
+from ..utils.legacy_media_url import rewrite_report_photos_in_place
 from werkzeug.exceptions import BadRequest
 from ..models.ExternalEventModel import ExternalEventModel
 from ..models.ExternalReportModel import ExternalReportModel
@@ -108,6 +109,7 @@ def getAllReports():
     report["signatoriesId"] = SignatoriesDb.get(report["signatoriesId"])
     report["photos"] = report["photos"].split(",") if report["photos"] else []
     report["photoCaptions"] = report["photoCaptions"].split(",") if report.get("photoCaptions") else []
+    rewrite_report_photos_in_place(report)
     returnableExternal.append(report)
 
   # manual join the internal event details
@@ -118,6 +120,7 @@ def getAllReports():
     report["signatoriesId"] = SignatoriesDb.get(report["signatoriesId"])
     report["photos"] = report["photos"].split(",") if report["photos"] else []
     report["photoCaptions"] = report["photoCaptions"].split(",") if report.get("photoCaptions") else []
+    rewrite_report_photos_in_place(report)
     returnableInternal.append(report)
 
   return {
@@ -551,10 +554,12 @@ def getReportByEventId(eventId: int, eventType: str):
     if (matchedEvent == None):
       return ({"message": "Event ID does not exist"}, 404)
 
-    matchedReport = ExternalReportDb.getAndSearch(["eventId"], [id])
+    matchedReport = ExternalReportDb.getAndSearch(["eventId"], [eventId])
     if (matchedReport == None):
       return ({"message": "No report submitted for this event"}, 404)
 
+    for row in matchedReport or []:
+      rewrite_report_photos_in_place(row)
     return {
       "data": matchedReport,
       "message": "Successfully retrieved report"
@@ -565,10 +570,12 @@ def getReportByEventId(eventId: int, eventType: str):
     if (matchedEvent == None):
       return ({"message": "Event ID does not exist"}, 404)
 
-    matchedReport = InternalEventDb.getAndSearch(["eventId"], [id])
+    matchedReport = InternalReportDb.getAndSearch(["eventId"], [eventId])
     if (matchedReport == None):
       return ({"message": "No report submitted for this event"}, 403)
 
+    for row in matchedReport or []:
+      rewrite_report_photos_in_place(row)
     return {
       "data": matchedReport,
       "message": "Successfully retrieved report"
@@ -688,6 +695,7 @@ def updateReport(reportId: int, reportType: str):
       updatedReport["signatoriesId"] = SignatoriesDb.get(updatedReport["signatoriesId"])
       updatedReport["photos"] = updatedReport["photos"].split(",") if updatedReport["photos"] else []
       updatedReport["photoCaptions"] = updatedReport["photoCaptions"].split(",") if updatedReport.get("photoCaptions") else []
+      rewrite_report_photos_in_place(updatedReport)
       
       return {
         "data": updatedReport,
@@ -740,6 +748,7 @@ def updateReport(reportId: int, reportType: str):
       updatedReport["signatoriesId"] = SignatoriesDb.get(updatedReport["signatoriesId"])
       updatedReport["photos"] = updatedReport["photos"].split(",") if updatedReport["photos"] else []
       updatedReport["photoCaptions"] = updatedReport["photoCaptions"].split(",") if updatedReport.get("photoCaptions") else []
+      rewrite_report_photos_in_place(updatedReport)
       
       return {
         "data": updatedReport,

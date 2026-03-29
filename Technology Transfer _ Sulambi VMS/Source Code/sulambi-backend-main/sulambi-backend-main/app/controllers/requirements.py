@@ -9,6 +9,7 @@ from ..models.AccountModel import AccountModel
 from ..modules.CallbackTimer import executeDelayedAction
 from ..modules.Mailer import threadedHtmlMailer, htmlMailer
 from ..database import connection as db_connection
+from ..utils.legacy_media_url import rewrite_requirement_files_in_place
 
 from dotenv import load_dotenv
 import os
@@ -289,6 +290,7 @@ def getAllRequirements():
         req["accepted"] = 0
       else:
         req["accepted"] = None
+      rewrite_requirement_files_in_place(req)
 
     total_time = time.time() - start_time
     print(f"[REQUIREMENTS_GET_ALL] ✅ Successfully processed {len(requirements)} requirements")
@@ -383,6 +385,7 @@ def acceptRequirements(id):
   RequirementsDb.updateSpecific(id, ["accepted"], (accepted_db_value,))
   updatedData = RequirementsDb.get(id)
   updatedData = _normalize_accepted_for_response(updatedData)
+  rewrite_requirement_files_in_place(updatedData)
 
   # Get event details only for mailing (optional)
   if (existence["type"] == "external"):
@@ -452,6 +455,7 @@ def rejectRequirements(id):
   RequirementsDb.updateSpecific(id, ["accepted"], (rejected_db_value,))
   updatedData = RequirementsDb.get(id)
   updatedData = _normalize_accepted_for_response(updatedData)
+  rewrite_requirement_files_in_place(updatedData)
 
   if (existence["type"] == "external"):
     eventDetails = ExternalEventDb.get(existence["eventId"])
