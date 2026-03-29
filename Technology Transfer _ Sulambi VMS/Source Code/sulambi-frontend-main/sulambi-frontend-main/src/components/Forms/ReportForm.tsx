@@ -109,11 +109,28 @@ const ReportForm: React.FC<Props> = (props) => {
 
     // Handle photos with captions - only include new photos (with file property)
     if (formData.photos && Array.isArray(formData.photos)) {
+      console.log("[REPORT_FORM] Preparing photos for upload", {
+        totalPhotoEntries: formData.photos.length,
+        uploadableCount: formData.photos.filter((p: any) => !!p?.file).length,
+      });
       formData.photos.forEach((photoWithCaption: any, index: number) => {
         // Only upload if it's a new file (not an existing URL)
         if (photoWithCaption.file) {
+          console.log("[REPORT_FORM] Appending photo to FormData", {
+            field: `photo_${index}`,
+            captionField: `photo_caption_${index}`,
+            name: photoWithCaption.file.name,
+            size: photoWithCaption.file.size,
+            type: photoWithCaption.file.type,
+            captionLength: String(photoWithCaption.caption || "").length,
+          });
           formUploadable.append(`photo_${index}`, photoWithCaption.file);
           formUploadable.append(`photo_caption_${index}`, photoWithCaption.caption || "");
+        } else {
+          console.log("[REPORT_FORM] Skipping photo entry without File object", {
+            index,
+            hasUrl: !!photoWithCaption?.url,
+          });
         }
       });
     }

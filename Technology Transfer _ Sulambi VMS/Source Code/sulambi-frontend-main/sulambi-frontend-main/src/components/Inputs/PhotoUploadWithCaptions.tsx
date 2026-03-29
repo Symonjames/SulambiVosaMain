@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useId } from "react";
 import { Typography, Box, IconButton, TextField } from "@mui/material";
 import FlexBox from "../FlexBox";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -130,6 +130,7 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
 }) => {
   const [photos, setPhotos] = useState<PhotoWithCaption[]>(value ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputId = `report-photo-upload-${useId()}`;
 
   // Sync with external value changes (for state persistence)
   useEffect(() => {
@@ -171,17 +172,33 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
+    console.log("[REPORT_PHOTO_UPLOAD] File picker changed", {
+      selectedCount: files.length,
+      currentPhotoCount: photos.length,
+      names: Array.from(files).map((f) => f.name),
+    });
 
     const newPhotos: PhotoWithCaption[] = [];
     
     // Limit to 2 images total
     const remainingSlots = 2 - photos.length;
     const filesToProcess = Array.from(files).slice(0, remainingSlots);
+    console.log("[REPORT_PHOTO_UPLOAD] Processing selected files", {
+      remainingSlots,
+      processingCount: filesToProcess.length,
+      skippedCount: Math.max(files.length - filesToProcess.length, 0),
+    });
 
     for (const file of filesToProcess) {
       if (file.type.startsWith("image/")) {
         const isValid = await validateImage(file);
         const preview = URL.createObjectURL(file);
+        console.log("[REPORT_PHOTO_UPLOAD] Validated image", {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          isValid,
+        });
         
         newPhotos.push({
           file,
@@ -196,6 +213,10 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
     const updatedPhotos = [...photos, ...newPhotos];
     setPhotos(updatedPhotos);
     onChange?.(updatedPhotos);
+    console.log("[REPORT_PHOTO_UPLOAD] Updated photo list", {
+      totalPhotos: updatedPhotos.length,
+      previews: updatedPhotos.map((p, idx) => ({ index: idx, hasError: !!p.hasError })),
+    });
 
     // Reset file input
     if (fileInputRef.current) {
@@ -207,6 +228,10 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
     const updatedPhotos = photos.filter((_, i) => i !== index);
     setPhotos(updatedPhotos);
     onChange?.(updatedPhotos);
+    console.log("[REPORT_PHOTO_UPLOAD] Removed photo", {
+      removedIndex: index,
+      remaining: updatedPhotos.length,
+    });
   };
 
   const handleCaptionChange = (index: number, caption: string) => {
@@ -218,6 +243,7 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
   };
 
   const handleAddPhoto = () => {
+    console.log("[REPORT_PHOTO_UPLOAD] Opening file picker");
     fileInputRef.current?.click();
   };
 
@@ -327,7 +353,12 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
         {photos.length < 2 && (
           <PhotoItemContainer>
             <StyledImageContainer
+              component="label"
+              htmlFor={inputId}
               onClick={handleAddPhoto}
+              onMouseDown={() => {
+                console.log("[REPORT_PHOTO_UPLOAD] Add photo area mousedown");
+              }}
               sx={{
                 cursor: "pointer",
                 flexDirection: "column",
@@ -349,6 +380,7 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
 
       {/* Hidden File Input */}
       <input
+        id={inputId}
         ref={fileInputRef}
         type="file"
         accept="image/*"

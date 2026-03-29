@@ -582,11 +582,18 @@ def getReportByEventId(eventId: int, eventType: str):
     }
 
 def createReport(eventId: int, eventType: str):
+  print("[REPORT_UPLOAD][create] ----------------------------------------")
+  print(f"[REPORT_UPLOAD][create] eventType={eventType} eventId={eventId}")
+  print(f"[REPORT_UPLOAD][create] request.files keys={list(request.files.keys())}")
+  print(f"[REPORT_UPLOAD][create] request.form keys={list(request.form.keys())}")
   try:
     photoPath = cloudinaryFileWriter(["photo_0", "photo_1", "photos"], folder="reports")
+    print(f"[REPORT_UPLOAD][create] cloudinaryFileWriter result keys={list(photoPath.keys())}")
   except BadRequest as e:
+    print(f"[REPORT_UPLOAD][create] BadRequest while uploading photos: {e}")
     return ({"message": str(e)}, 400)
   except Exception as e:
+    print(f"[REPORT_UPLOAD][create] Unexpected upload error: {e}")
     return ({"message": f"Failed to upload photos: {str(e)}"}, 500)
   photoNames, photoCaptionsStr = _photo_names_and_captions_from_cloudinary(photoPath)
   _warn_if_non_https_photo_urls(photoNames, "createReport")
@@ -662,12 +669,19 @@ def updateReport(reportId: int, reportType: str):
   """Update a report by ID and type"""
   try:
     print(f"Attempting to update {reportType} report with ID: {reportId}")
+    print("[REPORT_UPLOAD][update] ----------------------------------------")
+    print(f"[REPORT_UPLOAD][update] reportType={reportType} reportId={reportId}")
+    print(f"[REPORT_UPLOAD][update] request.files keys={list(request.files.keys())}")
+    print(f"[REPORT_UPLOAD][update] request.form keys={list(request.form.keys())}")
     
     try:
       photoPath = cloudinaryFileWriter(["photo_0", "photo_1", "photos"], folder="reports")
+      print(f"[REPORT_UPLOAD][update] cloudinaryFileWriter result keys={list(photoPath.keys())}")
     except BadRequest as e:
+      print(f"[REPORT_UPLOAD][update] BadRequest while uploading photos: {e}")
       return ({"message": str(e)}, 400)
     except Exception as e:
+      print(f"[REPORT_UPLOAD][update] Unexpected upload error: {e}")
       return ({"message": f"Failed to upload photos: {str(e)}"}, 500)
     photoNames, photoCaptionsStr = _photo_names_and_captions_from_cloudinary(photoPath)
     _warn_if_non_https_photo_urls(photoNames, "updateReport")
