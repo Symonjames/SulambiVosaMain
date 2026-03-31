@@ -144,11 +144,32 @@ def allAnalyticsRoute():
 def seedEvaluationsRoute():
     """Seed demo evaluation records for testing analytics"""
     count_param = request.args.get('count', default='100')
+    years_param = request.args.get('years', default='2025,2026')
+    event_id_param = request.args.get('eventId', default=None)
+    event_type_param = request.args.get('eventType', default=None)
     try:
         count = int(count_param)
     except:
         count = 100
-    result = seedDemoEvaluations(count)
+
+    years: list[int] = []
+    try:
+        years = [int(y.strip()) for y in str(years_param).split(',') if str(y).strip()]
+    except:
+        years = [2025, 2026]
+
+    event_id = None
+    if event_id_param not in (None, ""):
+        try:
+            event_id = int(event_id_param)
+        except:
+            event_id = None
+
+    event_type = (event_type_param or "").strip().lower() or None
+    if event_type not in (None, "internal", "external"):
+        event_type = None
+
+    result = seedDemoEvaluations(count, years=years, event_id=event_id, event_type=event_type)
     return result, 200 if result.get("success") else 500
 
 @AnalyticsBlueprint.route("/analytics/dev/clear", methods=["POST", "OPTIONS"])

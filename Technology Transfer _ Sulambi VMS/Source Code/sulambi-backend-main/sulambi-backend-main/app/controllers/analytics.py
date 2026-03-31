@@ -1797,12 +1797,20 @@ def deleteDummyVolunteersData():
     finally:
         conn.close()
 
-def seedDemoEvaluations(count: int = 100):
+def seedDemoEvaluations(
+    count: int = 100,
+    years: list[int] | None = None,
+    event_id: int | None = None,
+    event_type: str | None = None
+):
     """
-    Insert demo satisfaction survey records to drive analytics visuals.
-    Uses satisfactionSurveys so analytics can read seeded volunteer/beneficiary ratings directly.
+    Insert demo satisfaction survey records tied to real events.
+    Defaults to seeding years 2025 and 2026 so predictive ratings has volunteer and beneficiary data.
     """
     try:
+        if years is None or len(years) == 0:
+            years = [2025, 2026]
+
         seeded = 0
         issue_pool = [
             'communication', 'resource', 'scheduling', 'training', 'support',
@@ -1810,61 +1818,96 @@ def seedDemoEvaluations(count: int = 100):
             'feedback', 'coordination', 'preparation'
         ]
 
-        for i in range(count):
-            # Simulate realistic ratings in 1-5 range
-            overall = max(1.0, min(5.0, round(random.gauss(4.2, 0.5), 1)))
-            volunteer_rating = max(1.0, min(5.0, round(overall + random.uniform(-0.3, 0.2), 1)))
-            beneficiary_rating = max(1.0, min(5.0, round(overall + random.uniform(-0.2, 0.3), 1)))
+        # Build candidate events (real events only) for requested years.
+        all_internal = InternalEventDb.getAll() or []
+        all_external = ExternalEventDb.getAll() or []
+        candidate_events: list[tuple[int, str, int]] = []
 
-            issues_in_comment = random.sample(issue_pool, k=random.randint(0, 2))
-            comment_text = "Seeded survey response for analytics dashboard. "
-            if issues_in_comment:
-                comment_text += "Some concerns: " + ", ".join(issues_in_comment) + "."
+        def _event_year(evt: dict) -> int | None:
+            dt = _timestamp_to_datetime(evt.get("durationStart"))
+            return dt.year if dt else None
 
-            respondent_type = "Volunteer" if i % 2 == 0 else "Beneficiary"
-            q13 = str(volunteer_rating) if respondent_type == "Volunteer" else ""
-            q14 = str(beneficiary_rating) if respondent_type == "Beneficiary" else ""
-            requirement_id = f"seed_req_{int(time.time()*1000)}_{i}"
+        if event_id is not None and event_type in ("internal", "external"):
+            source = all_internal if event_type == "internal" else all_external
+            matched = next((e for e in source if int(e.get("id", -1)) == int(event_id)), None)
+            if matched:
+                ts = int(matched.get("durationStart") or int(time.time() * 1000))
+                candidate_events = [(int(event_id), event_type, ts)]
+        else:
+            for ev in all_internal:
+                y = _event_year(ev)
+                if y in years:
+                    ts = int(ev.get("durationStart") or int(time.time() * 1000))
+                    candidate_events.append((int(ev.get("id")), "internal", ts))
+            for ev in all_external:
+                y = _event_year(ev)
+                if y in years:
+                    ts = int(ev.get("durationStart") or int(time.time() * 1000))
+                    candidate_events.append((int(ev.get("id")), "external", ts))
 
-            # Spread seeded data across recent semesters using submittedAt timestamp.
-            now = datetime.now()
-            month = 3 if i % 2 == 0 else 9  # semester 1 / semester 2
-            year = max(2025, now.year - (i % 2))
-            submitted_at = int(datetime(year, month, 15).timestamp() * 1000)
+        if not candidate_events:
+            return {
+                'success': False,
+                'message': f'No events found for years {years}. Create events first or pass eventId/eventType.'
+            }
 
-            inserted = SatisfactionSurveyDb.create(
-                eventId=0,  # event-less seeded surveys still counted via submittedAt fallback
-                eventType="internal",
-                requirementId=requirement_id,
-                respondentType=respondent_type,
-                respondentEmail=f"seeded_{i}@example.com",
-                respondentName=f"Seeded User {i+1}",
-                overallSatisfaction=overall,
-                volunteerRating=volunteer_rating if respondent_type == "Volunteer" else None,
-                beneficiaryRating=beneficiary_rating if respondent_type == "Beneficiary" else None,
-                organizationRating=overall,
-                communicationRating=overall,
-                venueRating=overall,
-                materialsRating=overall,
-                supportRating=overall,
-                q13=q13,
-                q14=q14,
-                comment=comment_text,
-                recommendations='Keep improving community engagement.',
-                wouldRecommend=True,
-                areasForImprovement=", ".join(issues_in_comment) if issues_in_comment else "",
-                positiveAspects="Community impact and organization",
-                submittedAt=submitted_at,
-                finalized=True,
-            )
+        # Create balanced volunteer/beneficiary samples distributed across candidate events.
+        per_event = max(2, count // max(1, len(candidate_events)))
+        sample_index = 0
+        for evt_id, evt_type, evt_start in candidate_events:
+            for _ in range(per_event):
+                overall = max(1.0, min(5.0, round(random.gauss(4.2, 0.5), 1)))
+                volunteer_rating = max(1.0, min(5.0, round(overall + random.uniform(-0.3, 0.2), 1)))
+                beneficiary_rating = max(1.0, min(5.0, round(overall + random.uniform(-0.2, 0.3), 1)))
+                issues_in_comment = random.sample(issue_pool, k=random.randint(0, 2))
+                comment_text = "Seeded survey response for analytics dashboard. "
+                if issues_in_comment:
+                    comment_text += "Some concerns: " + ", ".join(issues_in_comment) + "."
 
-            if inserted:
-                seeded += 1
+                for respondent_type in ("Volunteer", "Beneficiary"):
+                    sample_index += 1
+                    q13 = str(volunteer_rating) if respondent_type == "Volunteer" else ""
+                    q14 = str(beneficiary_rating) if respondent_type == "Beneficiary" else ""
+                    requirement_id = f"seed_req_{evt_type}_{evt_id}_{int(time.time()*1000)}_{sample_index}"
+                    submitted_at = int(evt_start) + random.randint(1, 7) * 24 * 60 * 60 * 1000
+
+                    inserted = SatisfactionSurveyDb.create(
+                        eventId=evt_id,
+                        eventType=evt_type,
+                        requirementId=requirement_id,
+                        respondentType=respondent_type,
+                        respondentEmail=f"seeded_{evt_type}_{evt_id}_{sample_index}@example.com",
+                        respondentName=f"Seeded {respondent_type} {sample_index}",
+                        overallSatisfaction=overall,
+                        volunteerRating=volunteer_rating if respondent_type == "Volunteer" else None,
+                        beneficiaryRating=beneficiary_rating if respondent_type == "Beneficiary" else None,
+                        organizationRating=overall,
+                        communicationRating=overall,
+                        venueRating=overall,
+                        materialsRating=overall,
+                        supportRating=overall,
+                        q13=q13,
+                        q14=q14,
+                        comment=comment_text,
+                        recommendations='Keep improving community engagement.',
+                        wouldRecommend=True,
+                        areasForImprovement=", ".join(issues_in_comment) if issues_in_comment else "",
+                        positiveAspects="Community impact and organization",
+                        submittedAt=submitted_at,
+                        finalized=True,
+                    )
+                    if inserted:
+                        seeded += 1
 
         return {
             'success': True,
-            'message': f'Seeded {seeded} demo evaluations',
-            'data': { 'seeded': seeded }
+            'message': f'Seeded {seeded} demo satisfaction surveys',
+            'data': {
+                'seeded': seeded,
+                'years': years,
+                'eventsUsed': len(candidate_events),
+                'eventScope': {'eventId': event_id, 'eventType': event_type}
+            }
         }
     except Exception as e:
         return {

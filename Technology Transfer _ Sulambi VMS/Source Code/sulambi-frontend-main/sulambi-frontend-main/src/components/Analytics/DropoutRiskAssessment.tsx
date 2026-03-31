@@ -147,7 +147,8 @@ const DropoutRiskAssessment: React.FC = () => {
         minWidth: { xs: "100%", md: "400px" },
         flex: '1 1 0',
         maxWidth: { lg: "520px" },
-        bgcolor: "#fff",
+        // Match the warm card tone used by neighboring analytics cards.
+        bgcolor: "#faf8f5",
       }}
     >
       <FlexBox
@@ -157,7 +158,7 @@ const DropoutRiskAssessment: React.FC = () => {
           px: 2,
           py: 1.25,
           borderBottom: "1px solid #eee",
-          bgcolor: "#fffdfb",
+          bgcolor: "#faf8f5",
         }}
       >
         <FlexBox alignItems="center" gap={1}>
