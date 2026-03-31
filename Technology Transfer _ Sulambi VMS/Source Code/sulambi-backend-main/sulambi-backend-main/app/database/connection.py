@@ -78,6 +78,7 @@ def convert_boolean_condition(condition):
     return condition
 
 def cursorInstance():
+  global IS_POSTGRESQL
   # Use PostgreSQL if DATABASE_URL is provided (production)
   if IS_POSTGRESQL:
     try:
@@ -96,9 +97,13 @@ def cursorInstance():
     except ImportError:
       print("Warning: psycopg2 not installed. Install with: pip install psycopg2-binary")
       print("Falling back to SQLite...")
+      # Keep SQL placeholder style consistent with actual fallback engine.
+      IS_POSTGRESQL = False
     except Exception as e:
       print(f"Error connecting to PostgreSQL: {e}")
       print("Falling back to SQLite...")
+      # Keep SQL placeholder style consistent with actual fallback engine.
+      IS_POSTGRESQL = False
   
   # Fallback to SQLite (local development)
   db_path = DB_PATH or os.getenv("DB_PATH") or "app/database/database.db"
