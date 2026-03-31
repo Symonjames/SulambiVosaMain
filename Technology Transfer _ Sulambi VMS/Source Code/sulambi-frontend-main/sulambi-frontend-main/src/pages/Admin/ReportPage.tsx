@@ -193,6 +193,11 @@ const ReportPage = () => {
                     onClick: () => viewExternalReportAction(report),
                   },
                   {
+                    label: "Edit Report",
+                    icon: <EditIcon />,
+                    onClick: () => editExternalReportAction(report),
+                  },
+                  {
                     label: "Delete Report",
                     icon: <DeleteForeverIcon />,
                     onClick: () => handleDeleteReport(report, "external"),
@@ -221,8 +226,13 @@ const ReportPage = () => {
                     icon: <RemoveRedEyeIcon />,
                     onClick: () => viewInternalReportAction(report),
                   },
-                  { 
-                    label: "Delete Report", 
+                  {
+                    label: "Edit Report",
+                    icon: <EditIcon />,
+                    onClick: () => editInternalReportAction(report),
+                  },
+                  {
+                    label: "Delete Report",
                     icon: <DeleteForeverIcon />,
                     onClick: () => handleDeleteReport(report, "internal"),
                   },

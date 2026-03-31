@@ -24,12 +24,9 @@ class AccountModel(Model):
     
     table_name = self._get_table_name()
     
-    # For PostgreSQL, use boolean literal in query; for SQLite use integer
-    # psycopg2 handles Python True/False correctly, so we can use Python boolean
-    # But we need to ensure the query uses proper boolean comparison
-    from ..database.connection import DATABASE_URL
-    from ..database.connection import is_postgresql_url
-    is_postgresql = is_postgresql_url(DATABASE_URL)
+    # Decide DB flavor from the *active* connection, not only env vars.
+    # This avoids '%s' placeholder usage when PostgreSQL env exists but runtime falls back to SQLite.
+    is_postgresql = connection.is_postgresql_connection(conn)
     
     if is_postgresql:
       # PostgreSQL: use boolean True directly (psycopg2 handles it)
@@ -42,8 +39,8 @@ class AccountModel(Model):
     normalized_columns = self._normalize_column_list(columns_list)
     column_query = ",".join(normalized_columns)
     query = f"SELECT {column_query} FROM {table_name} WHERE username=? AND password=? AND active=?"
-    # Convert placeholders for PostgreSQL
-    query = connection.convert_placeholders(query)
+    if is_postgresql:
+      query = query.replace('?', '%s')
     print(f"[AUTH_MODEL] Executing query: SELECT ... FROM {table_name} WHERE username=? AND password=? AND active=?")
     print(f"[AUTH_MODEL] Query: {query}")
     print(f"[AUTH_MODEL] Query parameters: username={username}, password={'*' * len(password)}, active={active_value} (type: {type(active_value).__name__})")
@@ -55,7 +52,8 @@ class AccountModel(Model):
     # Backward-compatibility fallback for rows accidentally saved with leading/trailing spaces.
     if result is None:
       trim_query = f"SELECT {column_query} FROM {table_name} WHERE TRIM(username)=? AND TRIM(password)=? AND active=?"
-      trim_query = connection.convert_placeholders(trim_query)
+      if is_postgresql:
+        trim_query = trim_query.replace('?', '%s')
       print(f"[AUTH_MODEL] Trying trimmed credential fallback query")
       cursor.execute(trim_query, (username, password, active_value))
       result = cursor.fetchone()

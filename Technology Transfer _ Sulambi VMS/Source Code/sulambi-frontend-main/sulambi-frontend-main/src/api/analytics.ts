@@ -141,6 +141,17 @@ export const rebuildSatisfactionAnalytics = async (year?: string) => {
   }
 };
 
+// Seed demo satisfaction surveys (admin/officer) so predictive ratings has real DB-backed values
+export const seedSatisfactionDemoData = async (count: number = 80) => {
+  try {
+    const response = await axios.get(`/analytics/dev/seed?count=${count}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error seeding satisfaction demo data:', error);
+    throw error;
+  }
+};
+
 // Process evaluation data to extract satisfaction ratings
 const processSatisfactionData = (evaluations: any[], year?: string) => {
   const satisfactionBySemester: { [key: string]: { volunteers: number[], beneficiaries: number[] } } = {};

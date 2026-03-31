@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import FlexBox from '../FlexBox';
 import { Typography, Box, Chip, LinearProgress, Select, MenuItem, FormControl, InputLabel, CircularProgress, Alert, Button } from '@mui/material';
 import { TrendingUp, TrendingDown, TrendingFlat, Visibility } from '@mui/icons-material';
-import { getSatisfactionAnalytics, getEventSatisfactionAnalytics } from '../../api/analytics';
+import { getSatisfactionAnalytics, getEventSatisfactionAnalytics, seedSatisfactionDemoData } from '../../api/analytics';
 import { getAllEvents } from '../../api/events';
 import { AccountDetailsContext } from '../../contexts/AccountDetailsProvider';
 import CurtainPanel from '../Curtain/CurtainPanel';
@@ -48,6 +48,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   const [selectedEventForAnalytics, setSelectedEventForAnalytics] = useState<string>('');
   const [eventAnalytics, setEventAnalytics] = useState<any>(null);
   const [eventAnalyticsLoading, setEventAnalyticsLoading] = useState(false);
+  const seededRequestYearsRef = useRef<Set<string>>(new Set());
+  const [seedInProgress, setSeedInProgress] = useState(false);
 
   // Removed buildFallbackData - no longer generating fake data
 
@@ -187,6 +189,31 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     };
   }, [refetchSatisfaction]);
 
+  // If analytics has no rows yet, seed backend demo surveys once per selected year context.
+  useEffect(() => {
+    const maybeSeed = async () => {
+      if (!satisfactionResponse?.success || seedInProgress) return;
+      const raw = satisfactionResponse?.data?.satisfactionData || [];
+      if (raw.length > 0) return;
+
+      const yearKey = selectedYear && selectedYear !== 'all' ? selectedYear : 'all';
+      if (seededRequestYearsRef.current.has(yearKey)) return;
+      seededRequestYearsRef.current.add(yearKey);
+
+      try {
+        setSeedInProgress(true);
+        await seedSatisfactionDemoData(80);
+        await refetchSatisfaction();
+      } catch (error) {
+        console.error('[Satisfaction Analytics] Failed to seed backend demo surveys:', error);
+      } finally {
+        setSeedInProgress(false);
+      }
+    };
+
+    maybeSeed();
+  }, [satisfactionResponse, selectedYear, refetchSatisfaction, seedInProgress]);
+
   // Process satisfaction data when response changes
   useEffect(() => {
     const loadSatisfactionData = () => {
@@ -314,7 +341,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             setAvailableYears(allYears.length > 0 ? allYears : [String(currentYear)]);
             // Don't change selectedYear if user already selected one - this was causing infinite loops
           } else {
-            // No data available - show empty state but keep years available
+            // No data available - show empty state while backend seeding/refetch runs
             setSatisfactionData([]);
             setTopIssues([]);
             setAverageScore(0);
@@ -336,7 +363,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             }
           }
         } else if (responseData) {
-          // Response exists but no data - backend returned empty (could be 500 handled gracefully)
+          // Response exists but no data yet
           setSatisfactionData([]);
           setTopIssues([]);
           setAverageScore(0);
@@ -389,7 +416,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       if (!is500Error) {
         setError('Error loading satisfaction data. Please try again.');
       } else {
-        // 500 errors are handled in fetchFn - don't show error, just show empty state
+        // 500 errors are handled in fetchFn - show empty while retry/seed may run
         setError(null);
         setSatisfactionData([]);
         setTopIssues([]);

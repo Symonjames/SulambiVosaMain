@@ -4,6 +4,7 @@ from ..models.ExternalEventModel import ExternalEventModel
 from ..models.MembershipModel import MembershipModel
 from ..models.EvaluationModel import EvaluationModel
 from ..models.FeedbackModel import FeedbackModel
+from ..models.SatisfactionSurveyModel import SatisfactionSurveyModel
 import random
 import math
 import json
@@ -29,6 +30,7 @@ ExternalEventDb = ExternalEventModel()
 MembershipDb = MembershipModel()
 EvaluationDb = EvaluationModel()
 FeedbackDb = FeedbackModel()
+SatisfactionSurveyDb = SatisfactionSurveyModel()
 
 def getEventSuccessAnalytics():
     """
@@ -1797,8 +1799,8 @@ def deleteDummyVolunteersData():
 
 def seedDemoEvaluations(count: int = 100):
     """
-    Insert demo evaluation records to drive analytics visuals.
-    Note: evaluation table has no createdAt/type columns; satisfaction analytics will still compute averages.
+    Insert demo satisfaction survey records to drive analytics visuals.
+    Uses satisfactionSurveys so analytics can read seeded volunteer/beneficiary ratings directly.
     """
     try:
         seeded = 0
@@ -1809,45 +1811,52 @@ def seedDemoEvaluations(count: int = 100):
         ]
 
         for i in range(count):
-            # Simulate a satisfaction score 1-5 with a realistic distribution around 4.0
-            base = random.gauss(4.0, 0.7)
-            overall = max(1.0, min(5.0, round(base, 1)))
+            # Simulate realistic ratings in 1-5 range
+            overall = max(1.0, min(5.0, round(random.gauss(4.2, 0.5), 1)))
+            volunteer_rating = max(1.0, min(5.0, round(overall + random.uniform(-0.3, 0.2), 1)))
+            beneficiary_rating = max(1.0, min(5.0, round(overall + random.uniform(-0.2, 0.3), 1)))
 
-            # Randomly compose a comment with some issues sprinkled in
             issues_in_comment = random.sample(issue_pool, k=random.randint(0, 2))
-            comment_text = "Great event overall. "
+            comment_text = "Seeded survey response for analytics dashboard. "
             if issues_in_comment:
                 comment_text += "Some concerns: " + ", ".join(issues_in_comment) + "."
 
-            # Build criteria payload expected by analytics
-            criteria = {
-                'overall': overall,
-                'comment': comment_text,
-                # include some alternate keys analytics may look for
-                'satisfaction': overall,
-            }
+            respondent_type = "Volunteer" if i % 2 == 0 else "Beneficiary"
+            q13 = str(volunteer_rating) if respondent_type == "Volunteer" else ""
+            q14 = str(beneficiary_rating) if respondent_type == "Beneficiary" else ""
+            requirement_id = f"seed_req_{int(time.time()*1000)}_{i}"
 
-            # Required evaluation fields
-            q13 = 'N/A'
-            q14 = 'N/A'
-            recommendations = 'Keep improving community engagement.'
+            # Spread seeded data across recent semesters using submittedAt timestamp.
+            now = datetime.now()
+            month = 3 if i % 2 == 0 else 9  # semester 1 / semester 2
+            year = max(2025, now.year - (i % 2))
+            submitted_at = int(datetime(year, month, 15).timestamp() * 1000)
 
-            # Link to a pseudo requirement id (no FK constraint)
-            requirement_id = f"demo_req_{int(time.time()*1000)}_{i}"
-
-            # Persist
-            # EvaluationModel.create signature: (requirementId, criteria, q13, q14, comment, recommendations, finalized)
-            # But current model's create order differs from table (criteria first). We'll insert via updateSpecific-compatible order.
-            inserted = EvaluationDb.create((
-                # columns from EvaluationModel.columns ordering
-                requirement_id,                    # requirementId
-                str(criteria),                     # criteria (store as string)
-                q13,                               # q13
-                q14,                               # q14
-                comment_text,                      # comment
-                recommendations,                   # recommendations
-                True                               # finalized
-            ))
+            inserted = SatisfactionSurveyDb.create(
+                eventId=0,  # event-less seeded surveys still counted via submittedAt fallback
+                eventType="internal",
+                requirementId=requirement_id,
+                respondentType=respondent_type,
+                respondentEmail=f"seeded_{i}@example.com",
+                respondentName=f"Seeded User {i+1}",
+                overallSatisfaction=overall,
+                volunteerRating=volunteer_rating if respondent_type == "Volunteer" else None,
+                beneficiaryRating=beneficiary_rating if respondent_type == "Beneficiary" else None,
+                organizationRating=overall,
+                communicationRating=overall,
+                venueRating=overall,
+                materialsRating=overall,
+                supportRating=overall,
+                q13=q13,
+                q14=q14,
+                comment=comment_text,
+                recommendations='Keep improving community engagement.',
+                wouldRecommend=True,
+                areasForImprovement=", ".join(issues_in_comment) if issues_in_comment else "",
+                positiveAspects="Community impact and organization",
+                submittedAt=submitted_at,
+                finalized=True,
+            )
 
             if inserted:
                 seeded += 1
