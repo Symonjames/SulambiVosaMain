@@ -127,6 +127,14 @@ try:
 except Exception as e:
   print(f"[startup] migrate_internal_report_finance: {e}")
 
+# Seed membership from Excel on fresh databases (Render new DBs, etc.)
+try:
+  from app.database.bootstrap_members_from_excel import ensure_members_seeded_from_excel
+  seed_result = ensure_members_seeded_from_excel()
+  print(f"[startup] bootstrap_members_from_excel: {seed_result}")
+except Exception as e:
+  print(f"[startup] bootstrap_members_from_excel: {e}")
+
 # Export app for Gunicorn (production)
 app = Server
 
