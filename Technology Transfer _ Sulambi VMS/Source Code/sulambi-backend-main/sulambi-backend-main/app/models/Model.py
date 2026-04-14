@@ -18,16 +18,15 @@ class Model:
     self.createdAtCol = ""
   
   def _quote_identifier(self, identifier):
-    """Quote identifier for PostgreSQL, leave unquoted for SQLite"""
+    """Normalize identifiers for PostgreSQL without quoting."""
     if is_postgresql:
-      return f'"{identifier}"'
+      return identifier.lower()
     return identifier
   
   def _normalize_column_name(self, column_name):
-    """Normalize column name for PostgreSQL: use quoted identifier to match schema (camelCase columns)."""
-    # Schema uses quoted camelCase (e.g. "volunteerEmail", "durationStart") so SELECT/INSERT must quote too
+    """Normalize column name for PostgreSQL to unquoted lowercase."""
     if is_postgresql:
-      return self._quote_identifier(column_name)
+      return column_name.lower()
     return column_name
   
   def _normalize_column_list(self, columns):

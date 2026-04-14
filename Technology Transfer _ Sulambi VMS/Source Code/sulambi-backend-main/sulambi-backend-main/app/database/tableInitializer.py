@@ -33,11 +33,11 @@ def convert_sql(sql):
         pattern = rf'\b{col}\s+INTEGER\b'
         sql = re.sub(pattern, f'{col} BIGINT', sql, flags=re.IGNORECASE)
     
-    # Quote table names in CREATE TABLE statements to preserve case in PostgreSQL
-    # Match: CREATE TABLE IF NOT EXISTS tableName( or CREATE TABLE tableName(
+    # Normalize table names in CREATE TABLE statements to unquoted lowercase for PostgreSQL.
+    # This avoids case-sensitive identifier mismatches in runtime queries.
     sql = re.sub(
         r'CREATE TABLE (IF NOT EXISTS )?(\w+)\s*\(',
-        lambda m: f'CREATE TABLE {m.group(1) or ""}"{m.group(2)}"(',
+        lambda m: f'CREATE TABLE {m.group(1) or ""}{m.group(2).lower()}(',
         sql,
         flags=re.IGNORECASE
     )
@@ -277,8 +277,8 @@ DEBUG and print("Done")
 # Migration: add beneficiaryEvaluationPin to existing event tables if missing
 try:
     if is_postgresql:
-        execute_sql('ALTER TABLE "internalEvents" ADD COLUMN IF NOT EXISTS "beneficiaryEvaluationPin" TEXT')
-        execute_sql('ALTER TABLE "externalEvents" ADD COLUMN IF NOT EXISTS "beneficiaryEvaluationPin" TEXT')
+        execute_sql('ALTER TABLE internalevents ADD COLUMN IF NOT EXISTS beneficiaryevaluationpin TEXT')
+        execute_sql('ALTER TABLE externalevents ADD COLUMN IF NOT EXISTS beneficiaryevaluationpin TEXT')
     else:
         try:
             execute_sql("ALTER TABLE internalEvents ADD COLUMN beneficiaryEvaluationPin TEXT")
@@ -335,8 +335,8 @@ DEBUG and print("Done")
 # Migration for existing DBs: ensure internal report officer-submitted approved budget columns exist.
 try:
     if is_postgresql:
-        execute_sql('ALTER TABLE "internalReport" ADD COLUMN IF NOT EXISTS "approvedBudget" INTEGER NOT NULL DEFAULT 0')
-        execute_sql('ALTER TABLE "internalReport" ADD COLUMN IF NOT EXISTS "approvedBudgetSrc" TEXT NOT NULL DEFAULT \'\'')
+        execute_sql('ALTER TABLE internalreport ADD COLUMN IF NOT EXISTS approvedbudget INTEGER NOT NULL DEFAULT 0')
+        execute_sql("ALTER TABLE internalreport ADD COLUMN IF NOT EXISTS approvedbudgetsrc TEXT NOT NULL DEFAULT ''")
     else:
         try:
             execute_sql("ALTER TABLE internalReport ADD COLUMN approvedBudget INTEGER NOT NULL DEFAULT 0")
@@ -582,10 +582,9 @@ DEBUG and print("Done")
 # Create index for faster semester-based queries
 DEBUG and print("[*] Creating indexes for volunteerParticipationHistory...")
 if is_postgresql:
-    # PostgreSQL: use quoted table name to match CREATE TABLE
-    execute_sql('CREATE INDEX IF NOT EXISTS idx_volunteer_email ON "volunteerParticipationHistory"(volunteerEmail)')
-    execute_sql('CREATE INDEX IF NOT EXISTS idx_semester ON "volunteerParticipationHistory"(semester)')
-    execute_sql('CREATE INDEX IF NOT EXISTS idx_last_event_date ON "volunteerParticipationHistory"(lastEventDate)')
+    execute_sql('CREATE INDEX IF NOT EXISTS idx_volunteer_email ON volunteerparticipationhistory(volunteeremail)')
+    execute_sql('CREATE INDEX IF NOT EXISTS idx_semester ON volunteerparticipationhistory(semester)')
+    execute_sql('CREATE INDEX IF NOT EXISTS idx_last_event_date ON volunteerparticipationhistory(lasteventdate)')
 else:
     # SQLite: unquoted table name
     execute_sql("CREATE INDEX IF NOT EXISTS idx_volunteer_email ON volunteerParticipationHistory(volunteerEmail)")

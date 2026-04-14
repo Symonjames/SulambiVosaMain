@@ -21,10 +21,10 @@ def run_beneficiary_pin_migration():
             if is_postgresql:
                 # PostgreSQL: column created unquoted = lowercase (matches Model normalization)
                 cursor.execute(
-                    'ALTER TABLE "internalEvents" ADD COLUMN IF NOT EXISTS beneficiaryevaluationpin TEXT'
+                    'ALTER TABLE internalevents ADD COLUMN IF NOT EXISTS beneficiaryevaluationpin TEXT'
                 )
                 cursor.execute(
-                    'ALTER TABLE "externalEvents" ADD COLUMN IF NOT EXISTS beneficiaryevaluationpin TEXT'
+                    'ALTER TABLE externalevents ADD COLUMN IF NOT EXISTS beneficiaryevaluationpin TEXT'
                 )
             else:
                 try:

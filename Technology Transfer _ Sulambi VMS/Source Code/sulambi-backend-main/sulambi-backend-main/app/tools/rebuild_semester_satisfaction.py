@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 
-from ..database.connection import cursorInstance, quote_identifier, convert_placeholders, table_name_for_query
+from ..database.connection import cursorInstance, table_name_for_query
 from ..database.connection import is_postgresql_url
 
 load_dotenv()
@@ -17,17 +17,17 @@ def ensure_table(conn, cursor):
     # PostgreSQL syntax
     cursor.execute(
       """
-      CREATE TABLE IF NOT EXISTS "semester_satisfaction" (
+      CREATE TABLE IF NOT EXISTS semester_satisfaction (
         id SERIAL PRIMARY KEY,
         year INTEGER NOT NULL,
         semester INTEGER NOT NULL CHECK (semester IN (1,2)),
         overall REAL NOT NULL,
         volunteers REAL NOT NULL,
         beneficiaries REAL NOT NULL,
-        "totalEvaluations" INTEGER NOT NULL DEFAULT 0,
-        "eventIds" TEXT NOT NULL DEFAULT '[]',
-        "topIssues" TEXT NOT NULL DEFAULT '[]',
-        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        totalevaluations INTEGER NOT NULL DEFAULT 0,
+        eventids TEXT NOT NULL DEFAULT '[]',
+        topissues TEXT NOT NULL DEFAULT '[]',
+        updatedat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(year, semester)
       );
       """
@@ -57,19 +57,19 @@ def ensure_table(conn, cursor):
 def upsert_row(cursor, year, sem, overall, vol, ben, total, event_ids, top_issues):
   if is_postgresql:
     # PostgreSQL syntax
-    table_name = quote_identifier('semester_satisfaction')
+    table_name = table_name_for_query("semester_satisfaction")
     query = f"""
     INSERT INTO {table_name}
-    (year, semester, overall, volunteers, beneficiaries, "totalEvaluations", "eventIds", "topIssues", "updatedAt")
+    (year, semester, overall, volunteers, beneficiaries, totalevaluations, eventids, topissues, updatedat)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
     ON CONFLICT(year, semester) DO UPDATE SET
       overall=EXCLUDED.overall,
       volunteers=EXCLUDED.volunteers,
       beneficiaries=EXCLUDED.beneficiaries,
-      "totalEvaluations"=EXCLUDED."totalEvaluations",
-      "eventIds"=EXCLUDED."eventIds",
-      "topIssues"=EXCLUDED."topIssues",
-      "updatedAt"=CURRENT_TIMESTAMP;
+      totalevaluations=EXCLUDED.totalevaluations,
+      eventids=EXCLUDED.eventids,
+      topissues=EXCLUDED.topissues,
+      updatedat=CURRENT_TIMESTAMP;
     """
     cursor.execute(
       query,

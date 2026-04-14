@@ -20,9 +20,9 @@ def is_postgresql_url(url: str | None) -> bool:
 IS_POSTGRESQL = is_postgresql_url(DATABASE_URL)
 
 def quote_identifier(identifier):
-    """Quote identifier for PostgreSQL (case-sensitive), leave unquoted for SQLite"""
+    """Normalize identifiers for PostgreSQL (unquoted lowercase)."""
     if IS_POSTGRESQL:
-        return f'"{identifier}"'
+        return identifier.lower()
     return identifier
 
 def table_name_for_query(identifier):
