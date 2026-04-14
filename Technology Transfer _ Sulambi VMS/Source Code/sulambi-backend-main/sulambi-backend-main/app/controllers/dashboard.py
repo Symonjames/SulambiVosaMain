@@ -162,6 +162,16 @@ def getSummary():
 def getAnalytics():
   ageGroup = {}
   sexGroup = {}
+  def _normalize_sex_label(raw_value):
+    if raw_value is None:
+      return None
+    v = str(raw_value).strip().lower()
+    if v in ("male", "m", "man", "boy"):
+      return "Male"
+    if v in ("female", "f", "woman", "girl"):
+      return "Female"
+    return None
+
   try:
     conn, cursor = cursorInstance()
     membership_table = table_name_for_query("membership")
@@ -180,7 +190,7 @@ def getAnalytics():
     cursor.execute(age_query)
     for age_value, cnt in cursor.fetchall() or []:
       try:
-        age_int = int(age_value)
+        age_int = int(float(str(age_value).strip()))
         if age_int > 0:
           ageGroup[str(age_int)] = int(cnt or 0)
       except (TypeError, ValueError):
@@ -198,10 +208,9 @@ def getAnalytics():
     sex_query = convert_boolean_condition(sex_query)
     cursor.execute(sex_query)
     for sex_norm, cnt in cursor.fetchall() or []:
-      if sex_norm == "male":
-        sexGroup["Male"] = int(cnt or 0)
-      elif sex_norm == "female":
-        sexGroup["Female"] = int(cnt or 0)
+      normalized = _normalize_sex_label(sex_norm)
+      if normalized:
+        sexGroup[normalized] = sexGroup.get(normalized, 0) + int(cnt or 0)
     conn.close()
   except Exception:
     # Fallback to previous model-based iteration
@@ -221,7 +230,7 @@ def getAnalytics():
       age_value = membership.get("age")
       if age_value is not None and age_value != "":
         try:
-          age_int = int(age_value) if isinstance(age_value, str) else age_value
+          age_int = int(float(str(age_value).strip()))
           if age_int > 0:
             age_key = str(age_int)
             if age_key not in ageGroup:
@@ -232,7 +241,7 @@ def getAnalytics():
 
       sex_value = membership.get("sex")
       if sex_value is not None and sex_value != "":
-        sex_normalized = sex_value.strip().title()
+        sex_normalized = _normalize_sex_label(sex_value)
         if sex_normalized in ["Male", "Female"]:
           if sex_normalized not in sexGroup:
             sexGroup[sex_normalized] = 0
