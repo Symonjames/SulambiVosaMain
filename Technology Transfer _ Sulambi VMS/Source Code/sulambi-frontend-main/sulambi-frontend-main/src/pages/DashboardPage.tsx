@@ -34,6 +34,11 @@ import FloatingCalendarButton from "../components/FloatingCalendar/FloatingCalen
 import ProjectSearchBar from "../components/Search/ProjectSearchBar";
 import { useCachedFetch } from "../hooks/useCachedFetch";
 import { CACHE_TIMES } from "../utils/apiCache";
+import type {
+  DashboardAnalyticsPayload,
+  DashboardSummaryPayload,
+  EventsListPayload,
+} from "../api/apiTypes";
 
 const iconSx = {
   height: "45px",
@@ -247,7 +252,7 @@ const Dashboard = () => {
   // The data should persist and display in analytics widgets
 
   // Use cached fetch for dashboard summary - data persists when navigating away and coming back!
-  const { data: summaryResponse } = useCachedFetch({
+  const { data: summaryResponse } = useCachedFetch<DashboardSummaryPayload>({
     cacheKey: 'dashboard_summary',
     fetchFn: () => getDashboardSummary(),
     cacheTime: CACHE_TIMES.MEDIUM, // 5 minutes keeps navigation fast while staying fresh
@@ -255,7 +260,7 @@ const Dashboard = () => {
   });
 
   // Use cached fetch for dashboard analytics - data persists when navigating away and coming back!
-  const { data: analyticsResponse, error: analyticsError } = useCachedFetch({
+  const { data: analyticsResponse, error: analyticsError } = useCachedFetch<DashboardAnalyticsPayload>({
     cacheKey: 'dashboard_analytics',
     fetchFn: () => getDashboardAnalytics(),
     cacheTime: CACHE_TIMES.MEDIUM, // 5 minutes keeps navigation fast while staying fresh
@@ -263,7 +268,7 @@ const Dashboard = () => {
   });
 
   // Use cached fetch for events - data persists when navigating away and coming back!
-  const { data: eventsResponse } = useCachedFetch({
+  const { data: eventsResponse } = useCachedFetch<EventsListPayload>({
     cacheKey: 'dashboard_events',
     fetchFn: () => getAllEvents(),
     cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
@@ -273,17 +278,18 @@ const Dashboard = () => {
   // Process dashboard summary data
   useEffect(() => {
     if (summaryResponse?.data) {
-      const data = summaryResponse.data || {};
+      const data = summaryResponse.data as Record<string, unknown>;
+      const n = (v: unknown) => (typeof v === "number" && !Number.isNaN(v) ? v : Number(v)) || 0;
       setDashboardData({
-        implementedEvent: data.implementedEvent || 0,
-        pendingEvents: data.pendingEvents || 0,
-        rejectedEvents: data.rejectedEvents || 0,
-        totalAccounts: data.totalAccounts || 0,
-        totalActiveMembers: data.totalActiveMembers || 0,
-        totalApprovedEvents: data.totalApprovedEvents || 0,
-        totalMembers: data.totalMembers || 0,
-        totalPendingMembers: data.totalPendingMembers || 0,
-        totalAllMembers: data.totalAllMembers || 0,
+        implementedEvent: n(data.implementedEvent),
+        pendingEvents: n(data.pendingEvents),
+        rejectedEvents: n(data.rejectedEvents),
+        totalAccounts: n(data.totalAccounts),
+        totalActiveMembers: n(data.totalActiveMembers),
+        totalApprovedEvents: n(data.totalApprovedEvents),
+        totalMembers: n(data.totalMembers),
+        totalPendingMembers: n(data.totalPendingMembers),
+        totalAllMembers: n(data.totalAllMembers),
       });
     }
   }, [summaryResponse]);
@@ -301,16 +307,26 @@ const Dashboard = () => {
     }
 
     // Handle both response.data.data and response.data structures
-    const analyticsData = analyticsResponse?.data?.data || analyticsResponse?.data || {};
-    
-    if (!analyticsData || (Object.keys(analyticsData).length === 0 && !analyticsData.sexGroup && !analyticsData.ageGroup)) {
+    const rawNested = analyticsResponse.data as
+      | { data?: Record<string, unknown> }
+      | Record<string, unknown>
+      | undefined;
+    const inner = rawNested && "data" in rawNested && rawNested.data ? rawNested.data : rawNested;
+    const analyticsData = (inner || {}) as Record<string, unknown>;
+
+    if (
+      !analyticsData ||
+      (Object.keys(analyticsData).length === 0 &&
+        !analyticsData.sexGroup &&
+        !analyticsData.ageGroup)
+    ) {
       setAgeGroupData([]);
       setSexGroupData([]);
       return;
     }
 
-    const sexGroup = analyticsData.sexGroup || {};
-    const ageGroup = analyticsData.ageGroup || {};
+    const sexGroup = (analyticsData.sexGroup as Record<string, unknown>) || {};
+    const ageGroup = (analyticsData.ageGroup as Record<string, unknown>) || {};
     // Validate and sanitize sex group data
     const validatedSexData = Object.keys(sexGroup)
       .filter(sex => sex && sex.trim() !== '')
@@ -340,9 +356,9 @@ const Dashboard = () => {
           total: typeof totalNum === 'number' && !isNaN(totalNum) && totalNum > 0 ? totalNum : 0
         };
       })
-      .filter(item => item.total > 0 && !isNaN(item.ageNum) && item.ageNum !== 12)
+      .filter(item => item.total > 0 && !isNaN(item.ageNum))
       .sort((a, b) => a.ageNum - b.ageNum)
-      .map(({ ageNum, ...rest }) => rest);
+      .map(({ ageNum: _ageNum, ...rest }) => rest);
 
     setAgeGroupData(validatedAgeData);
   }, [analyticsResponse, analyticsError]);

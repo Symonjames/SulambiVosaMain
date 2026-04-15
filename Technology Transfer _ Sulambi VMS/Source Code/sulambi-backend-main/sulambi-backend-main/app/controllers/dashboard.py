@@ -166,22 +166,56 @@ def getAnalytics():
     if raw_value is None:
       return None
     v = str(raw_value).strip().lower()
-    if v in ("male", "m", "man", "boy"):
+    if v in ("male", "m", "man", "boy", "guy", "lalaki", "male.", "m."):
       return "Male"
-    if v in ("female", "f", "woman", "girl"):
+    if v in ("female", "f", "woman", "girl", "gal", "babae", "babaye", "f."):
       return "Female"
     return None
+
+  def _membership_included_sql():
+    """Approved members; treat NULL active as active (schema default TRUE, legacy NULL rows).
+
+    Must use ``= 1`` / ``active = 1`` (not ``IS TRUE``): on PostgreSQL many deployments store
+    these flags as INTEGER 0/1. ``(1)::int IS TRUE`` is false, so ``accepted IS TRUE`` would
+    match nobody; ``convert_boolean_condition`` turns ``= 1`` into ``= true``, which still
+    compares correctly to integer columns in PostgreSQL.
+    """
+    return "(accepted = 1) AND (active = 1 OR active IS NULL)"
+
+  def _is_accepted_for_analytics(accepted):
+    if accepted is None:
+      return False
+    if accepted is False or accepted == 0:
+      return False
+    if accepted is True or accepted == 1:
+      return True
+    if isinstance(accepted, str) and accepted.strip().lower() in ("1", "true", "yes"):
+      return True
+    return False
+
+  def _is_active_for_analytics(active):
+    if active is None:
+      return True
+    if active is False or active == 0:
+      return False
+    if active is True or active == 1:
+      return True
+    if isinstance(active, str) and active.strip().lower() in ("0", "false", "no"):
+      return False
+    if isinstance(active, str) and active.strip().lower() in ("1", "true", "yes"):
+      return True
+    return True
 
   try:
     conn, cursor = cursorInstance()
     membership_table = table_name_for_query("membership")
     sex_expr = "LOWER(TRIM(sex))"
+    member_filter = _membership_included_sql()
 
     age_query = f"""
       SELECT age, COUNT(*)
       FROM {membership_table}
-      WHERE accepted = 1
-        AND active = 1
+      WHERE {member_filter}
         AND age IS NOT NULL
         AND CAST(age AS TEXT) != ''
       GROUP BY age
@@ -191,7 +225,7 @@ def getAnalytics():
     for age_value, cnt in cursor.fetchall() or []:
       try:
         age_int = int(float(str(age_value).strip()))
-        if age_int > 0:
+        if age_int >= 0:
           ageGroup[str(age_int)] = int(cnt or 0)
       except (TypeError, ValueError):
         continue
@@ -199,8 +233,7 @@ def getAnalytics():
     sex_query = f"""
       SELECT {sex_expr} AS sex_norm, COUNT(*)
       FROM {membership_table}
-      WHERE accepted = 1
-        AND active = 1
+      WHERE {member_filter}
         AND sex IS NOT NULL
         AND TRIM(sex) != ''
       GROUP BY {sex_expr}
@@ -218,20 +251,16 @@ def getAnalytics():
     for membership in allMemberships:
       accepted = membership.get("accepted")
       active = membership.get("active")
-      if accepted is None or accepted == False or accepted == 0:
+      if not _is_accepted_for_analytics(accepted):
         continue
-      if accepted != 1 and accepted != True:
-        continue
-      if active is None or active == False or active == 0:
-        continue
-      if active != 1 and active != True:
+      if not _is_active_for_analytics(active):
         continue
 
       age_value = membership.get("age")
       if age_value is not None and age_value != "":
         try:
           age_int = int(float(str(age_value).strip()))
-          if age_int > 0:
+          if age_int >= 0:
             age_key = str(age_int)
             if age_key not in ageGroup:
               ageGroup[age_key] = 0
