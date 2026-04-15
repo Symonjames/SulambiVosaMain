@@ -144,44 +144,21 @@ def getVolunteerDropoutAnalytics(year=None):
         membership_table = table_name_for_query('membership')
         vph_table = table_name_for_query('volunteerParticipationHistory')
         
-        # Check if volunteerParticipationHistory table exists
-        # Use database-agnostic query - detect from connection type
+        # Check if volunteerParticipationHistory table exists (PostgreSQL only)
         from ..database.connection import is_postgresql_connection, DATABASE_URL, is_postgresql_url
         is_postgresql = is_postgresql_url(DATABASE_URL) or is_postgresql_connection(conn)
         
         table_exists = None
         try:
-            if is_postgresql:
-                # PostgreSQL: use information_schema
-                cursor.execute("""
-                    SELECT table_name FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
-                    AND lower(table_name) = 'volunteerparticipationhistory'
-                """)
-            else:
-                # SQLite: use sqlite_master
-                cursor.execute("""
-                    SELECT name FROM sqlite_master 
-                    WHERE type='table' AND name='volunteerParticipationHistory'
-                """)
+            cursor.execute("""
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND lower(table_name) = 'volunteerparticipationhistory'
+            """)
             table_exists = cursor.fetchone()
         except Exception as e:
-            # If SQLite query fails on PostgreSQL, try PostgreSQL query
-            if 'sqlite_master' in str(e) or 'relation' in str(e).lower():
-                print(f"[DROPOUT ANALYTICS] Detected PostgreSQL from error, retrying with information_schema")
-                try:
-                    cursor.execute("""
-                        SELECT table_name FROM information_schema.tables 
-                        WHERE table_schema = 'public' 
-                        AND lower(table_name) = 'volunteerparticipationhistory'
-                    """)
-                    table_exists = cursor.fetchone()
-                except Exception as e2:
-                    print(f"[DROPOUT ANALYTICS] Error checking table existence: {e2}")
-                    table_exists = None
-            else:
-                print(f"[DROPOUT ANALYTICS] Error checking table existence: {e}")
-                table_exists = None
+            print(f"[DROPOUT ANALYTICS] Error checking table existence: {e}")
+            table_exists = None
         
         # Always ensure we're reading from membership table
         # Check if we have active members in membership table

@@ -12,30 +12,27 @@ DEBUG = os.getenv("DEBUG") == "True"
 conn, cursor = connection.cursorInstance()
 
 def migrate_photo_captions():
-    """Add photoCaptions column to existing report tables if it doesn't exist"""
-    
+    """Add photoCaptions column to report tables if it doesn't exist (PostgreSQL only)."""
+
     from .connection import DATABASE_URL
     from .connection import is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
-    
+    if not is_postgresql:
+        raise RuntimeError("PostgreSQL DATABASE_URL is required. SQLite mode is not supported.")
+
     try:
         # Check if photoCaptions column exists in externalReport table
-        if is_postgresql:
-            # PostgreSQL: use information_schema
-            from .connection import quote_identifier
-            external_table = quote_identifier('externalReport')
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_schema = 'public' 
-                AND table_name = %s 
-                AND column_name = 'photoCaptions'
-            """, (external_table.strip('"'),))
-            external_columns = [row[0] for row in cursor.fetchall()]
-        else:
-            # SQLite: use PRAGMA
-            cursor.execute("PRAGMA table_info(externalReport)")
-            external_columns = [column[1] for column in cursor.fetchall()]
+        # PostgreSQL: use information_schema
+        from .connection import quote_identifier
+        external_table = quote_identifier('externalReport')
+        cursor.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = %s 
+            AND lower(column_name) = 'photocaptions'
+        """, (external_table.strip('"'),))
+        external_columns = [row[0] for row in cursor.fetchall()]
         
         if 'photoCaptions' not in external_columns:
             DEBUG and print("[*] Adding photoCaptions column to externalReport table...", end="")
@@ -47,22 +44,17 @@ def migrate_photo_captions():
             DEBUG and print("[*] photoCaptions column already exists in externalReport table")
         
         # Check if photoCaptions column exists in internalReport table
-        if is_postgresql:
-            # PostgreSQL: use information_schema
-            from .connection import quote_identifier
-            internal_table = quote_identifier('internalReport')
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_schema = 'public' 
-                AND table_name = %s 
-                AND column_name = 'photoCaptions'
-            """, (internal_table.strip('"'),))
-            internal_columns = [row[0] for row in cursor.fetchall()]
-        else:
-            # SQLite: use PRAGMA
-            cursor.execute("PRAGMA table_info(internalReport)")
-            internal_columns = [column[1] for column in cursor.fetchall()]
+        # PostgreSQL: use information_schema
+        from .connection import quote_identifier
+        internal_table = quote_identifier('internalReport')
+        cursor.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = %s 
+            AND lower(column_name) = 'photocaptions'
+        """, (internal_table.strip('"'),))
+        internal_columns = [row[0] for row in cursor.fetchall()]
         
         if 'photoCaptions' not in internal_columns:
             DEBUG and print("[*] Adding photoCaptions column to internalReport table...", end="")

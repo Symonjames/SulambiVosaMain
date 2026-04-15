@@ -4,27 +4,17 @@
 # Create uploads directory if it doesn't exist
 mkdir -p uploads
 
-# Initialize database if it doesn't exist
-# Check if we're using PostgreSQL (production) or SQLite
-if [ -n "$DATABASE_URL" ]; then
-  echo "Using PostgreSQL database..."
-  # For PostgreSQL, we'll let the app handle initialization
-  # The tableInitializer should work with PostgreSQL if we update it
-  python server.py --init || echo "Database may already be initialized"
-else
-  echo "Using SQLite database..."
-  # For SQLite, check if database exists
-  if [ ! -f "$DB_PATH" ]; then
-    echo "Initializing database..."
-    python server.py --init
-  else
-    echo "Database already exists, skipping initialization"
-  fi
+# PostgreSQL is required in production.
+if [ -z "$DATABASE_URL" ]; then
+  echo "ERROR: DATABASE_URL is required (PostgreSQL only)." >&2
+  exit 1
 fi
+echo "Using PostgreSQL database..."
+python server.py --init || echo "Database may already be initialized"
 
 # Start the server with Gunicorn
 # Short TMPDIR avoids "AF_UNIX path too long" on hosts with very long cwd paths (e.g. Render).
 export TMPDIR="${TMPDIR:-/tmp}"
 echo "Starting Gunicorn server..."
-gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 server:app
+gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 2 --timeout 120 server:app
 

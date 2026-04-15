@@ -1,11 +1,9 @@
 from dotenv import load_dotenv
 import re
-import sqlite3
 import os
 
 load_dotenv()
-DB_PATH = os.getenv("DB_PATH")
-DATABASE_URL = os.getenv("DATABASE_URL")  # For PostgreSQL (production)
+DATABASE_URL = os.getenv("DATABASE_URL")  # PostgreSQL DSN
 
 def is_postgresql_url(url: str | None) -> bool:
   """
@@ -22,21 +20,15 @@ IS_POSTGRESQL = is_postgresql_url(DATABASE_URL)
 
 def quote_identifier(identifier):
     """Normalize identifiers for PostgreSQL (unquoted lowercase)."""
-    if IS_POSTGRESQL:
-        return identifier.lower()
-    return identifier
+    return identifier.lower()
 
 def table_name_for_query(identifier):
-    """Table name for FROM/JOIN: PostgreSQL stores unquoted names lowercase, so use lowercase."""
-    if IS_POSTGRESQL:
-        return identifier.lower()
-    return identifier
+    """Table name for FROM/JOIN: PostgreSQL stores unquoted names lowercase."""
+    return identifier.lower()
 
 def convert_placeholders(query):
-    """Convert SQLite ? placeholders to PostgreSQL %s placeholders if needed"""
-    if IS_POSTGRESQL:
-        return query.replace('?', '%s')
-    return query
+    """Convert qmark placeholders to psycopg2 placeholders."""
+    return query.replace('?', '%s')
 
 def is_postgresql_connection(conn):
     """Check if connection is PostgreSQL by checking connection type"""
@@ -47,72 +39,37 @@ def is_postgresql_connection(conn):
         return False
 
 def convert_boolean_value(value):
-    """Convert boolean value for database compatibility
-    PostgreSQL uses true/false, SQLite uses 1/0
-    """
-    if IS_POSTGRESQL:
-        # PostgreSQL: convert 1/0 to true/false
-        if value == 1 or value == True:
-            return True
-        elif value == 0 or value == False:
-            return False
-        return value
-    else:
-        # SQLite: convert true/false to 1/0
-        if value == True:
-            return 1
-        elif value == False:
-            return 0
-        return value
+    """Normalize booleans for PostgreSQL."""
+    if value == 1 or value is True:
+        return True
+    if value == 0 or value is False:
+        return False
+    return value
 
 def convert_boolean_condition(condition):
-    """Convert boolean conditions in SQL queries
-    PostgreSQL: column = true/false
-    SQLite: column = 1/0
-    Only replace literal 1/0, not 10, 100, 0.5, timestamps, etc.
-    """
-    if IS_POSTGRESQL:
-        condition = re.sub(r" = 1(?![0-9])", " = true", condition)
-        condition = re.sub(r" = 0(?![0-9.])", " = false", condition)
-        condition = re.sub(r"= 1(?![0-9])", "= true", condition)
-        condition = re.sub(r"= 0(?![0-9.])", "= false", condition)
+    """Convert numeric boolean literals to PostgreSQL booleans."""
+    condition = re.sub(r" = 1(?![0-9])", " = true", condition)
+    condition = re.sub(r" = 0(?![0-9.])", " = false", condition)
+    condition = re.sub(r"= 1(?![0-9])", "= true", condition)
+    condition = re.sub(r"= 0(?![0-9.])", "= false", condition)
     return condition
 
 def cursorInstance():
-  global IS_POSTGRESQL
-  # Use PostgreSQL if DATABASE_URL is provided (production)
-  if IS_POSTGRESQL:
-    try:
-      import psycopg2
-      from urllib.parse import urlparse
-      
-      result = urlparse(DATABASE_URL)
-      connect = psycopg2.connect(
-        database=result.path[1:],  # Remove leading '/'
-        user=result.username,
-        password=result.password,
-        host=result.hostname,
-        port=result.port or 5432
-      )
-      return connect, connect.cursor()
-    except ImportError:
-      print("Warning: psycopg2 not installed. Install with: pip install psycopg2-binary")
-      print("Falling back to SQLite...")
-      # Keep SQL placeholder style consistent with actual fallback engine.
-      IS_POSTGRESQL = False
-    except Exception as e:
-      print(f"Error connecting to PostgreSQL: {e}")
-      print("Falling back to SQLite...")
-      # Keep SQL placeholder style consistent with actual fallback engine.
-      IS_POSTGRESQL = False
-  
-  # Fallback to SQLite (local development)
-  db_path = DB_PATH or os.getenv("DB_PATH") or "app/database/database.db"
-  
-  connect = sqlite3.connect(db_path, timeout=30.0)
-  connect.execute("PRAGMA journal_mode=WAL")
-  connect.execute("PRAGMA synchronous=NORMAL")
-  connect.execute("PRAGMA cache_size=1000")
-  connect.execute("PRAGMA temp_store=MEMORY")
+  if not IS_POSTGRESQL or not DATABASE_URL:
+    raise RuntimeError(
+      "DATABASE_URL must be set to a PostgreSQL DSN. SQLite fallback has been removed."
+    )
+  import psycopg2
+  from urllib.parse import urlparse
+
+  result = urlparse(DATABASE_URL)
+  connect = psycopg2.connect(
+    database=result.path[1:],  # Remove leading '/'
+    user=result.username,
+    password=result.password,
+    host=result.hostname,
+    port=result.port or 5432,
+    connect_timeout=15
+  )
   return connect, connect.cursor()
 
