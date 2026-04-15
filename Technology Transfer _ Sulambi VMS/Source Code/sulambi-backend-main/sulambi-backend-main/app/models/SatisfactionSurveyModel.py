@@ -1,4 +1,7 @@
+import os
+
 from .Model import Model
+from ..database import connection
 
 class SatisfactionSurveyModel(Model):
   def __init__(self):
@@ -30,6 +33,47 @@ class SatisfactionSurveyModel(Model):
       "submittedAt",
       "finalized",
     ]
+    self._pg_columns_cache = None
+
+  def _is_pg(self) -> bool:
+    return connection.is_postgresql_url(os.getenv("DATABASE_URL"))
+
+  def _load_pg_columns(self):
+    if self._pg_columns_cache is not None:
+      return self._pg_columns_cache
+    self._pg_columns_cache = set()
+    if not self._is_pg():
+      return self._pg_columns_cache
+    try:
+      conn, cursor = connection.cursorInstance()
+      cursor.execute(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND lower(table_name) = 'satisfactionsurveys'
+        """
+      )
+      self._pg_columns_cache = {row[0] for row in cursor.fetchall()}
+      conn.close()
+    except Exception:
+      self._pg_columns_cache = set()
+    return self._pg_columns_cache
+
+  def _normalize_column_name(self, column_name):
+    if not self._is_pg():
+      return column_name
+    pg_columns = self._load_pg_columns()
+    if column_name in pg_columns:
+      return f'"{column_name}"'
+    lower = column_name.lower()
+    if lower in pg_columns:
+      return lower
+    return f'"{column_name}"'
+
+  def _normalize_column_list(self, columns):
+    if not self._is_pg():
+      return columns
+    return [self._normalize_column_name(col) for col in columns]
 
   def create(self,
     eventId: int,

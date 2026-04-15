@@ -24,6 +24,7 @@ const DropoutRiskAssessment: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isAuthError, setIsAuthError] = useState(false);
   const [curtainOpen, setCurtainOpen] = useState(false);
+  const hasNoDropoutData = !loading && !error && semesterEngagementData.length === 0 && atRiskVolunteers.length === 0;
 
   const isAuthRelatedMessage = (msg: string) =>
     /unauthorized|log in|sign in|session expired|session invalid|403/i.test(msg || '');
@@ -385,6 +386,35 @@ const DropoutRiskAssessment: React.FC = () => {
         </Typography>
         <Alert severity={isAuthError ? 'info' : 'error'} sx={{ mt: 2 }}>
           {error}
+        </Alert>
+      </FlexBox>
+    );
+  }
+
+  if (hasNoDropoutData) {
+    return (
+      <FlexBox
+        flexDirection="column"
+        borderRadius="10px"
+        padding="16px"
+        boxShadow="0 0 10px 1px gray"
+        minHeight="260px"
+        flex="1"
+        sx={{
+          minWidth: '500px',
+          flex: '1 1 0',
+          maxWidth: 'none',
+          '@media (max-width: 768px)': {
+            minWidth: '100%',
+            maxWidth: '100%',
+          }
+        }}
+      >
+        <Typography textAlign="center" fontWeight="bold" gutterBottom>
+          Dropout Risk Assessment
+        </Typography>
+        <Alert severity="info" sx={{ mt: 1 }}>
+          No dropout analytics data is available yet. Seed data or complete event participation/evaluations first.
         </Alert>
       </FlexBox>
     );

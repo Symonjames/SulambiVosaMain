@@ -29,12 +29,24 @@ def volunteerDropoutRoute():
     """Get volunteer dropout risk analytics"""
     from flask import jsonify
     year = request.args.get('year', None)
-    result = getVolunteerDropoutAnalytics(year)
+    try:
+        result = getVolunteerDropoutAnalytics(year)
+    except Exception as e:
+        result = {
+            "success": False,
+            "message": f"Failed to retrieve volunteer dropout analytics: {str(e)}",
+            "data": {"semesterData": [], "atRiskVolunteers": []}
+        }
     print(f"[DROPOUT ROUTE] Returning result: success={result.get('success')}, has_data={bool(result.get('data'))}")
     if result.get('data'):
         print(f"[DROPOUT ROUTE] semesterData length: {len(result.get('data', {}).get('semesterData', []))}")
         print(f"[DROPOUT ROUTE] atRiskVolunteers length: {len(result.get('data', {}).get('atRiskVolunteers', []))}")
-    return jsonify(result), 200 if result.get("success") else 500
+    if not isinstance(result.get("data"), dict):
+        result["data"] = {"semesterData": [], "atRiskVolunteers": []}
+    result["data"].setdefault("semesterData", [])
+    result["data"].setdefault("atRiskVolunteers", [])
+    # Always return 200 so frontend can render empty/error state safely.
+    return jsonify(result), 200
 
 @AnalyticsBlueprint.route("/analytics/insights", methods=["GET"])
 def insightsRoute():
@@ -172,13 +184,19 @@ def seedEvaluationsRoute():
     if event_type not in (None, "internal", "external"):
         event_type = None
 
-    result = seedDemoEvaluations(count, years=years, event_id=event_id, event_type=event_type)
-    if result.get("success"):
-        return jsonify(result), 200
-    # Real DB/schema failures include traceback in "error"; return 500 so logs stand out.
-    if result.get("error"):
-        return jsonify(result), 500
-    # Predictable cases (e.g. no events) — 200 so axios returns body and UI can read message.
+    try:
+        result = seedDemoEvaluations(count, years=years, event_id=event_id, event_type=event_type)
+    except Exception as e:
+        result = {
+            "success": False,
+            "message": f"Failed to seed demo evaluations: {str(e)}",
+            "data": {"seeded": 0, "years": years, "eventsUsed": 0}
+        }
+    if not isinstance(result.get("data"), dict):
+        result["data"] = {"seeded": 0, "years": years, "eventsUsed": 0}
+    result["data"].setdefault("seeded", 0)
+    result["data"].setdefault("eventsUsed", 0)
+    # Always return 200 so frontend can show predictable state instead of hard failure.
     return jsonify(result), 200
 
 @AnalyticsBlueprint.route("/analytics/dev/clear", methods=["POST", "OPTIONS"])

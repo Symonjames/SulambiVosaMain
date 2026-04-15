@@ -17,14 +17,51 @@ def is_postgresql_url(url: str | None) -> bool:
   return url.startswith("postgresql://") or url.startswith("postgres://")
 
 IS_POSTGRESQL = is_postgresql_url(DATABASE_URL)
+_TABLE_NAME_CACHE: dict[str, str] = {}
 
 def quote_identifier(identifier):
     """Normalize identifiers for PostgreSQL (unquoted lowercase)."""
     return identifier.lower()
 
 def table_name_for_query(identifier):
-    """Table name for FROM/JOIN: PostgreSQL stores unquoted names lowercase."""
-    return identifier.lower()
+    """
+    Resolve a PostgreSQL table name safely.
+    - If exact mixed-case table exists, return quoted exact name.
+    - Else if lowercase exists, return lowercase.
+    - Else fallback to lowercase (legacy behavior).
+    """
+    key = str(identifier or "")
+    if not key:
+        return key
+    if key in _TABLE_NAME_CACHE:
+        return _TABLE_NAME_CACHE[key]
+
+    lower = key.lower()
+    try:
+        conn, cursor = cursorInstance()
+        cursor.execute(
+            """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND (table_name = %s OR table_name = %s)
+            LIMIT 2
+            """,
+            (key, lower),
+        )
+        names = {row[0] for row in cursor.fetchall()}
+        conn.close()
+        if key in names:
+            resolved = f'"{key}"'
+        elif lower in names:
+            resolved = lower
+        else:
+            resolved = lower
+    except Exception:
+        resolved = lower
+
+    _TABLE_NAME_CACHE[key] = resolved
+    return resolved
 
 def convert_placeholders(query):
     """Convert qmark placeholders to psycopg2 placeholders."""
