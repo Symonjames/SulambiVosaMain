@@ -498,11 +498,27 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 "message": "No events found"
             }
         
+        def _to_ms_timestamp(value):
+            """Normalize mixed timestamp formats to milliseconds."""
+            if value is None:
+                return 0
+            if isinstance(value, datetime):
+                return int(value.timestamp() * 1000)
+            dt = _timestamp_to_datetime(value)
+            if dt is not None:
+                return int(dt.timestamp() * 1000)
+            try:
+                numeric = int(value)
+                return numeric * 1000 if numeric < 1_000_000_000_000 else numeric
+            except Exception:
+                return 0
+
         # Group events by semester
         semester_events = {}
         for event_id, event_title, event_start, event_end, event_type in all_events:
-            if event_start:
-                event_date = datetime.fromtimestamp(event_start / 1000)
+            event_start_ms = _to_ms_timestamp(event_start)
+            if event_start_ms > 0:
+                event_date = datetime.fromtimestamp(event_start_ms / 1000.0)
                 semester_year = event_date.year
                 semester_num = math.ceil(event_date.month / 6)  # 1 for Jan-Jun, 2 for Jul-Dec
                 semester_key = f"{semester_year}-{semester_num}"
@@ -697,8 +713,9 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 
                 all_volunteer_stats[key]["totalJoined"] += joined_events
                 all_volunteer_stats[key]["totalAttended"] += attended_events
-                if last_event_date and last_event_date > all_volunteer_stats[key]["lastEventDate"]:
-                    all_volunteer_stats[key]["lastEventDate"] = last_event_date
+                last_event_ms = _to_ms_timestamp(last_event_date)
+                if last_event_ms > all_volunteer_stats[key]["lastEventDate"]:
+                    all_volunteer_stats[key]["lastEventDate"] = last_event_ms
         
         # Calculate at-risk volunteers (across all semesters)
         current_time_ms = int(datetime.now().timestamp() * 1000)
@@ -752,7 +769,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             if risk_score >= 50:
                 last_event_str = None
                 if last_event_date and last_event_date > 0:
-                    last_event_str = datetime.fromtimestamp(last_event_date / 1000).strftime('%Y-%m-%d')
+                    last_event_str = datetime.fromtimestamp(last_event_date / 1000.0).strftime('%Y-%m-%d')
                 
                 at_risk_volunteers.append({
                     "name": stats["name"],
