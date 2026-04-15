@@ -675,7 +675,9 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 volunteer_query += " AND r.type = 'external' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_external]))
                 volunteer_params = event_ids_external
             
-            volunteer_query += " GROUP BY volunteerKey"
+            # PostgreSQL: GROUP BY output alias "volunteerKey" is unreliable; use the same expression as SELECT.
+            _vk = "COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)"
+            volunteer_query += f" GROUP BY {_vk}"
             
             from ..database.connection import convert_placeholders
             volunteer_query = convert_placeholders(volunteer_query)

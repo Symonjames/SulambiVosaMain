@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+import re
 import sqlite3
 import os
 
@@ -68,13 +69,13 @@ def convert_boolean_condition(condition):
     """Convert boolean conditions in SQL queries
     PostgreSQL: column = true/false
     SQLite: column = 1/0
+    Only replace literal 1/0, not 10, 100, 0.5, timestamps, etc.
     """
     if IS_POSTGRESQL:
-        # Replace = 1 with = true, = 0 with = false
-        condition = condition.replace(' = 1', ' = true')
-        condition = condition.replace(' = 0', ' = false')
-        condition = condition.replace('= 1', '= true')
-        condition = condition.replace('= 0', '= false')
+        condition = re.sub(r" = 1(?![0-9])", " = true", condition)
+        condition = re.sub(r" = 0(?![0-9.])", " = false", condition)
+        condition = re.sub(r"= 1(?![0-9])", "= true", condition)
+        condition = re.sub(r"= 0(?![0-9.])", "= false", condition)
     return condition
 
 def cursorInstance():
