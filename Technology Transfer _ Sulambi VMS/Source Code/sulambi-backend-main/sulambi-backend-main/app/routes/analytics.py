@@ -1,5 +1,8 @@
+import logging
 from datetime import datetime
 from flask import Blueprint, jsonify, request
+
+logger = logging.getLogger(__name__)
 from ..controllers.analytics import (
     getEventSuccessAnalytics,
     getVolunteerDropoutAnalytics,
@@ -32,19 +35,30 @@ def volunteerDropoutRoute():
     try:
         result = getVolunteerDropoutAnalytics(year)
     except Exception as e:
+        logger.exception(
+            "GET /api/analytics/volunteer-dropout failed before controller returned",
+            extra={"year": year},
+        )
         result = {
             "success": False,
             "message": f"Failed to retrieve volunteer dropout analytics: {str(e)}",
-            "data": {"semesterData": [], "atRiskVolunteers": []}
+            "data": {"semesterData": [], "atRiskVolunteers": []},
         }
-    print(f"[DROPOUT ROUTE] Returning result: success={result.get('success')}, has_data={bool(result.get('data'))}")
-    if result.get('data'):
-        print(f"[DROPOUT ROUTE] semesterData length: {len(result.get('data', {}).get('semesterData', []))}")
-        print(f"[DROPOUT ROUTE] atRiskVolunteers length: {len(result.get('data', {}).get('atRiskVolunteers', []))}")
+    if result.get("success") is False:
+        logger.warning(
+            "volunteer-dropout controller reported success=False: %s",
+            result.get("message") or result.get("error"),
+        )
     if not isinstance(result.get("data"), dict):
         result["data"] = {"semesterData": [], "atRiskVolunteers": []}
     result["data"].setdefault("semesterData", [])
     result["data"].setdefault("atRiskVolunteers", [])
+    logger.info(
+        "GET /api/analytics/volunteer-dropout done success=%s semester_rows=%s at_risk=%s",
+        result.get("success"),
+        len(result["data"].get("semesterData") or []),
+        len(result["data"].get("atRiskVolunteers") or []),
+    )
     # Always return 200 so frontend can render empty/error state safely.
     return jsonify(result), 200
 
@@ -187,15 +201,30 @@ def seedEvaluationsRoute():
     try:
         result = seedDemoEvaluations(count, years=years, event_id=event_id, event_type=event_type)
     except Exception as e:
+        logger.exception(
+            "GET /api/analytics/dev/seed failed before controller returned",
+            extra={"count": count, "years": years, "event_id": event_id, "event_type": event_type},
+        )
         result = {
             "success": False,
             "message": f"Failed to seed demo evaluations: {str(e)}",
-            "data": {"seeded": 0, "years": years, "eventsUsed": 0}
+            "data": {"seeded": 0, "years": years, "eventsUsed": 0},
         }
+    if result.get("success") is False:
+        logger.warning(
+            "dev/seed reported success=False: %s",
+            result.get("message") or result.get("error"),
+        )
     if not isinstance(result.get("data"), dict):
         result["data"] = {"seeded": 0, "years": years, "eventsUsed": 0}
     result["data"].setdefault("seeded", 0)
     result["data"].setdefault("eventsUsed", 0)
+    logger.info(
+        "GET /api/analytics/dev/seed done success=%s seeded=%s eventsUsed=%s",
+        result.get("success"),
+        result["data"].get("seeded"),
+        result["data"].get("eventsUsed"),
+    )
     # Always return 200 so frontend can show predictable state instead of hard failure.
     return jsonify(result), 200
 

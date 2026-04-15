@@ -10,6 +10,9 @@ import math
 import json
 from datetime import datetime, timedelta
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _timestamp_to_datetime(ts):
     """Convert stored timestamp to datetime. Handles both seconds and milliseconds (e.g. event durationStart vs submittedAt)."""
@@ -401,22 +404,18 @@ def getVolunteerDropoutAnalytics(year=None):
         }
         
     except Exception as e:
-        import traceback
         # Ensure connection is closed even on error
         try:
             if 'conn' in locals():
                 conn.close()
-        except:
+        except Exception:
             pass
-        error_msg = str(e)
-        traceback_str = traceback.format_exc()
-        print(f"[DROPOUT ANALYTICS ERROR] {error_msg}")
-        print(f"[DROPOUT ANALYTICS TRACEBACK] {traceback_str}")
+        logger.exception("getVolunteerDropoutAnalytics failed")
         return {
             "success": False,
-            "error": error_msg,
+            "error": str(e),
             "message": "Failed to retrieve volunteer dropout analytics. Please check if membership table has active members.",
-            "traceback": traceback_str
+            "data": {"semesterData": [], "atRiskVolunteers": []},
         }
 
 def getVolunteerDropoutAnalyticsLegacy(year=None):
@@ -773,12 +772,17 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         }
         
     except Exception as e:
-        import traceback
+        try:
+            if "conn" in locals():
+                conn.close()
+        except Exception:
+            pass
+        logger.exception("getVolunteerDropoutAnalyticsLegacy failed")
         return {
             "success": False,
             "error": str(e),
             "message": "Failed to retrieve volunteer dropout analytics",
-            "traceback": traceback.format_exc()
+            "data": {"semesterData": [], "atRiskVolunteers": []},
         }
 
 def getPredictiveInsights():
@@ -806,8 +810,17 @@ def getPredictiveInsights():
                 recommendations.append("Enhance event marketing and engagement strategies")
         
         if dropoutRisk.get('success'):
-            dropoutData = dropoutRisk['data']
-            currentRisk = dropoutData[-1]['riskLevel'] if dropoutData else 0
+            dropoutData = dropoutRisk.get("data") or {}
+            currentRisk = 0
+            if isinstance(dropoutData, list) and dropoutData:
+                currentRisk = dropoutData[-1].get("riskLevel", 0) or 0
+            elif isinstance(dropoutData, dict):
+                semesters = dropoutData.get("semesterData") or []
+                if semesters:
+                    latest = semesters[-1]
+                    vol = latest.get("volunteers") or 0
+                    dr = latest.get("dropouts") or 0
+                    currentRisk = (dr / vol * 100) if vol else 0
             
             if currentRisk > 30:
                 insights.append("High volunteer dropout risk detected")
@@ -1945,9 +1958,10 @@ def seedDemoEvaluations(
             }
         }
     except Exception as e:
-        import traceback
+        logger.exception("seedDemoEvaluations failed")
         return {
             'success': False,
             'message': f'Failed to seed demo evaluations: {str(e)}',
-            'error': traceback.format_exc(),
+            'error': str(e),
+            'data': {'seeded': 0, 'years': years or [], 'eventsUsed': 0},
         }
