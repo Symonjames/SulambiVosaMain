@@ -145,9 +145,16 @@ export const rebuildSatisfactionAnalytics = async (year?: string) => {
 export const seedSatisfactionDemoData = async (count: number = 80) => {
   try {
     const response = await axios.get(`/analytics/dev/seed?count=${count}`);
-    return response.data;
+    const data = response.data;
+    if (!data?.success) {
+      console.warn(
+        "[seedSatisfactionDemoData] Backend reported success=false:",
+        data?.message || data
+      );
+    }
+    return data;
   } catch (error) {
-    console.error('Error seeding satisfaction demo data:', error);
+    console.error("Error seeding satisfaction demo data:", error);
     throw error;
   }
 };

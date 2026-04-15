@@ -1,4 +1,5 @@
-from flask import Blueprint, request
+from datetime import datetime
+from flask import Blueprint, jsonify, request
 from ..controllers.analytics import (
     getEventSuccessAnalytics,
     getVolunteerDropoutAnalytics,
@@ -144,7 +145,9 @@ def allAnalyticsRoute():
 def seedEvaluationsRoute():
     """Seed demo evaluation records for testing analytics"""
     count_param = request.args.get('count', default='100')
-    years_param = request.args.get('years', default='2025,2026')
+    # Default includes current year so production DBs with only recent events still seed.
+    y0 = datetime.now().year
+    years_param = request.args.get('years', default=f'{y0 - 1},{y0},{y0 + 1}')
     event_id_param = request.args.get('eventId', default=None)
     event_type_param = request.args.get('eventType', default=None)
     try:
@@ -155,8 +158,8 @@ def seedEvaluationsRoute():
     years: list[int] = []
     try:
         years = [int(y.strip()) for y in str(years_param).split(',') if str(y).strip()]
-    except:
-        years = [2025, 2026]
+    except Exception:
+        years = [y0 - 1, y0, y0 + 1]
 
     event_id = None
     if event_id_param not in (None, ""):
@@ -170,7 +173,13 @@ def seedEvaluationsRoute():
         event_type = None
 
     result = seedDemoEvaluations(count, years=years, event_id=event_id, event_type=event_type)
-    return result, 200 if result.get("success") else 500
+    if result.get("success"):
+        return jsonify(result), 200
+    # Real DB/schema failures include traceback in "error"; return 500 so logs stand out.
+    if result.get("error"):
+        return jsonify(result), 500
+    # Predictable cases (e.g. no events) — 200 so axios returns body and UI can read message.
+    return jsonify(result), 200
 
 @AnalyticsBlueprint.route("/analytics/dev/clear", methods=["POST", "OPTIONS"])
 def clearAnalyticsDataRoute():

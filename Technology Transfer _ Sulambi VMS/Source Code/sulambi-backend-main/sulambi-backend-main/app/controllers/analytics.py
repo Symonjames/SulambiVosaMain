@@ -1827,6 +1827,13 @@ def seedDemoEvaluations(
             dt = _timestamp_to_datetime(evt.get("durationStart"))
             return dt.year if dt else None
 
+        def _append_event(ev: dict, evt_type: str):
+            eid = ev.get("id")
+            if eid is None:
+                return
+            ts = int(ev.get("durationStart") or int(time.time() * 1000))
+            candidate_events.append((int(eid), evt_type, ts))
+
         if event_id is not None and event_type in ("internal", "external"):
             source = all_internal if event_type == "internal" else all_external
             matched = next((e for e in source if int(e.get("id", -1)) == int(event_id)), None)
@@ -1837,18 +1844,33 @@ def seedDemoEvaluations(
             for ev in all_internal:
                 y = _event_year(ev)
                 if y in years:
-                    ts = int(ev.get("durationStart") or int(time.time() * 1000))
-                    candidate_events.append((int(ev.get("id")), "internal", ts))
+                    _append_event(ev, "internal")
             for ev in all_external:
                 y = _event_year(ev)
                 if y in years:
-                    ts = int(ev.get("durationStart") or int(time.time() * 1000))
-                    candidate_events.append((int(ev.get("id")), "external", ts))
+                    _append_event(ev, "external")
+
+        # If year filter matches nothing (common on prod), use accepted/completed events from any year.
+        if not candidate_events:
+            ok_status = {"accepted", "completed"}
+            for ev in all_internal:
+                if str(ev.get("status") or "").lower() in ok_status:
+                    _append_event(ev, "internal")
+            for ev in all_external:
+                if str(ev.get("status") or "").lower() in ok_status:
+                    _append_event(ev, "external")
+
+        if not candidate_events:
+            for ev in all_internal:
+                _append_event(ev, "internal")
+            for ev in all_external:
+                _append_event(ev, "external")
 
         if not candidate_events:
             return {
                 'success': False,
-                'message': f'No events found for years {years}. Create events first or pass eventId/eventType.'
+                'message': f'No events in database to attach surveys to. Create events first or pass eventId/eventType.',
+                'data': {'yearsRequested': years, 'internalCount': len(all_internal), 'externalCount': len(all_external)},
             }
 
         # Create balanced volunteer/beneficiary samples distributed across candidate events.
@@ -1910,7 +1932,9 @@ def seedDemoEvaluations(
             }
         }
     except Exception as e:
+        import traceback
         return {
             'success': False,
-            'message': f'Failed to seed demo evaluations: {str(e)}'
+            'message': f'Failed to seed demo evaluations: {str(e)}',
+            'error': traceback.format_exc(),
         }
