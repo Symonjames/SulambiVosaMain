@@ -9,6 +9,7 @@ from .routes.dashboard import DashboardBlueprint
 from .routes.reports import ReportsBlueprint
 from .routes.feedback import FeedbackBlueprint
 from .routes.analytics import AnalyticsBlueprint
+from .routes.dev_seed import DevSeedBlueprint
 from .middlewares.globalAuth import global_api_auth
 
 ApiBlueprint = Blueprint('api', __name__, url_prefix='/api')
@@ -32,3 +33,4 @@ ApiBlueprint.register_blueprint(DashboardBlueprint)
 ApiBlueprint.register_blueprint(ReportsBlueprint)
 ApiBlueprint.register_blueprint(FeedbackBlueprint)
 ApiBlueprint.register_blueprint(AnalyticsBlueprint)
+ApiBlueprint.register_blueprint(DevSeedBlueprint)

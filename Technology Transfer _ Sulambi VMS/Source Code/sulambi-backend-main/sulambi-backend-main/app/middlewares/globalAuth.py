@@ -69,6 +69,8 @@ def _get_allowed_roles(method, path):
         return ["admin", "officer"]
     if path.startswith("/api/analytics"):
         return ["admin", "officer"]
+    if path.startswith("/api/dev"):
+        return ["admin", "officer"]
     # Requirements: GET /my = member; GET / and PATCH = admin, officer; POST = member (or public for event join - we keep protected)
     if path.startswith("/api/requirements"):
         if "/my" in path or path.endswith("/my"):
