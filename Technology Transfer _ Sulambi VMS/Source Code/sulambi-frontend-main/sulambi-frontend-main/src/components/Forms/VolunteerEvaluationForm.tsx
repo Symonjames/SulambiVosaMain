@@ -17,6 +17,7 @@ interface Props {
     date?: string;
     venue?: string;
   };
+  onSubmit?: (data: VolunteerEvaluationData) => void;
 }
 
 const VolunteerEvaluationForm: React.FC<Props> = ({ 
@@ -24,7 +25,8 @@ const VolunteerEvaluationForm: React.FC<Props> = ({
   setOpen,
   eventId = "1",
   eventType = "external",
-  eventData
+  eventData,
+  onSubmit,
 }: Props) => {
   const { formData } = useContext(FormDataContext);
   const { showSnackbarMessage } = useContext(SnackbarContext);
@@ -143,6 +145,8 @@ const VolunteerEvaluationForm: React.FC<Props> = ({
           recommendations: String(formData.recommendations ?? ""),
         }
       );
+
+      onSubmit?.(volunteerData);
 
       // Show success message
       alert('Volunteer evaluation submitted successfully! Thank you for your feedback.');

@@ -64,7 +64,7 @@ export const applyExternalReportPrintFix = (container: HTMLElement): (() => void
   };
 };
 
-export const cleanupExternalReportPrintFix = (container: HTMLElement | null): void => {
+export const cleanupExternalReportPrintFix = (_container: HTMLElement | null): void => {
   // no-op (observer removed for performance)
 };
 

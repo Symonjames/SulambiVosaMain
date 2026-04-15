@@ -16,6 +16,8 @@ interface Props {
   setOpen?: (state: boolean) => void;
   eventId?: string;
   eventType?: 'external' | 'internal';
+  /** Optional display title when `eventData.title` is not set */
+  eventTitle?: string;
   eventData?: {
     title?: string;
     date?: string;
@@ -45,6 +47,7 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
   setOpen, 
   eventId = "1",
   eventType = "external",
+  eventTitle,
   eventData,
   onSubmit,
   availableEvents = [],
@@ -298,7 +301,6 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
   };
 
   const categorizedEvents = useMemo(() => {
-    const now = dayjs();
     const nowMs = Date.now();
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
     const cutoffMs = nowMs - sevenDaysMs;
@@ -470,6 +472,10 @@ const BeneficiariesEvaluationForm: React.FC<Props> = ({
                 venue: selectedEvent.venue || selectedEvent.location || "TBA",
               }
             : eventData
+              ? { ...eventData, title: eventData.title ?? eventTitle }
+              : eventTitle
+                ? { title: eventTitle, date: "", venue: "" }
+                : undefined
         }
       />
     </Box>

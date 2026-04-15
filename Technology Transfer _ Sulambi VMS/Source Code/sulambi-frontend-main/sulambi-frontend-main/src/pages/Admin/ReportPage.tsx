@@ -4,7 +4,7 @@ import TextSubHeader from "../../components/Headers/TextSubHeader";
 import DataTable from "../../components/Tables/DataTable";
 import PageLayout from "../PageLayout";
 import RemoveRedEyeIcon from "@mui/icons-material/RemoveRedEye";
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { CircularProgress, Typography } from "@mui/material";
 import FlexBox from "../../components/FlexBox";
 
 import { getAllReports, deleteReport } from "../../api/reports";
@@ -14,14 +14,13 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import EditIcon from "@mui/icons-material/Edit";
 import MenuButtonTemplate from "../../components/Menu/MenuButtonTemplate";
 import FormDataLoaderModal from "../../components/Modal/FormDataLoaderModal";
-import PrimaryButton from "../../components/Buttons/PrimaryButton";
-import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
 import SignatoriesForm from "../../components/Forms/SignatoriesForm";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
 import ConfirmModal from "../../components/Modal/ConfirmModal";
 import { useCachedFetch } from "../../hooks/useCachedFetch";
 import { CACHE_TIMES } from "../../utils/apiCache";
+import type { ReportsListPayload } from "../../api/apiTypes";
 import ReportForm from "../../components/Forms/ReportForm";
 
 const ReportPage = () => {
@@ -30,7 +29,7 @@ const ReportPage = () => {
   const [reportData, setReportData] = useState<any[]>([]);
   const [searchReport, setSearchReport] = useState("");
   const [debouncedSearchReport, setDebouncedSearchReport] = useState("");
-  const [textPos, setTextPos] = useState<"left" | "justify">("left");
+  const [textPos] = useState<"left" | "justify">("left");
 
   const [openUpdateSignatories, setOpenUpdateSignatories] = useState(false);
   const [openFormDataLoader, setOpenFormDataLoader] = useState(false);
@@ -53,7 +52,7 @@ const ReportPage = () => {
   } | null>(null);
 
   // Use cached fetch - data persists when navigating away and coming back!
-  const { data: reportsResponse, loading, refetch: refetchReports } = useCachedFetch({
+  const { data: reportsResponse, loading, refetch: refetchReports } = useCachedFetch<ReportsListPayload>({
     cacheKey: 'reports_all',
     fetchFn: () => getAllReports(),
     cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
@@ -161,8 +160,10 @@ const ReportPage = () => {
   const refreshReportList = () => {
     if (!reportsResponse) return;
 
-    const externalReport: ExternalReportType[] = reportsResponse.external || [];
-    const internalReport: InternalReportType[] = reportsResponse.internal || [];
+    const externalReport: ExternalReportType[] =
+      (reportsResponse.external || []) as ExternalReportType[];
+    const internalReport: InternalReportType[] =
+      (reportsResponse.internal || []) as InternalReportType[];
 
     const terms = normalizeText(debouncedSearchReport).split(" ").filter(Boolean);
     const matchesSearch = (title: string) => {

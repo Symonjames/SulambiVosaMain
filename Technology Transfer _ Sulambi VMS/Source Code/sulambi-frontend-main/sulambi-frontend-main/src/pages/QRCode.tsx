@@ -17,7 +17,7 @@ const QRCode = () => {
   const [id, setId] = useState("");
   const [showEvaluationOptions, setShowEvaluationOptions] = useState(false);
   const [openBeneficiaryForm, setOpenBeneficiaryForm] = useState(false);
-  const [eventData, setEventData] = useState<any>(null);
+  const [eventData] = useState<{ id?: number; title?: string } | null>(null);
 
   const checkvalidity = async () => {
     const normalizedToken = (id || "").trim();
@@ -31,7 +31,7 @@ const QRCode = () => {
       // Token-based flow is for volunteer evaluation links.
       // Navigate directly to the public evaluation form.
       navigate(`/evaluation/${encodeURIComponent(normalizedToken)}`);
-    } catch (err) {
+    } catch (_err) {
       showSnackbarMessage("Cannot evaluate on the token provided", "warning");
     }
   };
@@ -257,7 +257,7 @@ const QRCode = () => {
       <BeneficiariesEvaluationForm
         open={openBeneficiaryForm}
         setOpen={setOpenBeneficiaryForm}
-        eventId={eventData?.id || 1}
+        eventId={eventData?.id != null ? String(eventData.id) : "1"}
         eventTitle={eventData?.title || "Event Evaluation"}
         onSubmit={handleBeneficiarySubmit}
       />

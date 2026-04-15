@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
 import { Box, Typography, Grid, Card, CardContent, Chip } from "@mui/material";
 import { CalendarToday, LocationOn, AccessTime, People } from "@mui/icons-material";
 import TextHeader from "../../components/Headers/TextHeader";
 import TextSubHeader from "../../components/Headers/TextSubHeader";
 import PageLayout from "../PageLayout";
 import { getAllEvents } from "../../api/events";
+import type { EventsListPayload } from "../../api/apiTypes";
 import { ExternalEventProposalType, InternalEventProposalType } from "../../interface/types";
 import dayjs from "dayjs";
 import { useCachedFetch } from "../../hooks/useCachedFetch";
@@ -35,7 +35,7 @@ const toEventMs = (value: unknown): number | null => {
 
 const CalendarPage = () => {
   // Use cached fetch - data persists when navigating away and coming back!
-  const { data: eventsResponse, loading } = useCachedFetch({
+  const { data: eventsResponse, loading } = useCachedFetch<EventsListPayload>({
     cacheKey: 'calendar_events',
     fetchFn: () => getAllEvents(),
     cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
@@ -44,15 +44,18 @@ const CalendarPage = () => {
 
   // Process events data
   // Match backend "public events" logic: include all non-editing, non-rejected events
-  const events = eventsResponse
-    ? [...(eventsResponse.external || []), ...(eventsResponse.internal || [])]
+  const events: (ExternalEventProposalType | InternalEventProposalType)[] = eventsResponse
+    ? ([...(eventsResponse.external || []), ...(eventsResponse.internal || [])] as (
+        | ExternalEventProposalType
+        | InternalEventProposalType
+      )[])
         .filter((event) => {
           const status = String(event.status || "").toLowerCase().trim();
           return status !== "editing" && status !== "rejected";
         })
         .sort((a, b) => {
-          const aMs = toEventMs((a as any).durationStart) ?? 0;
-          const bMs = toEventMs((b as any).durationStart) ?? 0;
+          const aMs = toEventMs(a.durationStart) ?? 0;
+          const bMs = toEventMs(b.durationStart) ?? 0;
           return aMs - bMs;
         })
     : [];

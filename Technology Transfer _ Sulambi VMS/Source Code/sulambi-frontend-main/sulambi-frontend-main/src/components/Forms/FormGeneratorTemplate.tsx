@@ -22,8 +22,6 @@ import SafeHtmlRenderer from "../Inputs/SafeHtmlRenderer";
 import EditableGanttTable from "../Tables/EditableGanttTable";
 import { resolveReportImageUrl } from "../../utils/uploadUrl";
 
-const BASE_API_URL = import.meta.env.VITE_API_URI ?? "http://localhost:8000/api";
-
 export interface FormGenTemplateProps {
   id?: string;
   /**

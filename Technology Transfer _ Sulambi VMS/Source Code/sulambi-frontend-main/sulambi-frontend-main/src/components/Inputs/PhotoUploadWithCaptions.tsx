@@ -6,24 +6,6 @@ import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import BrokenImageIcon from "@mui/icons-material/BrokenImage";
 import { styled } from "@mui/material/styles";
 
-const StyledImageContainer = styled(Box)(() => ({
-  position: "relative",
-  width: "100%",
-  maxWidth: "300px",
-  height: "200px",
-  border: "2px dashed #bdbdbd",
-  borderRadius: "8px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  overflow: "hidden",
-  backgroundColor: "#fafafa",
-  "&:hover": {
-    borderColor: "var(--text-landing)",
-    backgroundColor: "#f5f5f5",
-  },
-}));
-
 const StyledImage = styled("img")({
   width: "100%",
   height: "100%",
@@ -383,7 +365,7 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
         {/* Add Photo Button - Only show if less than 2 photos */}
         {photos.length < 2 && (
           <PhotoItemContainer>
-            <StyledImageContainer
+            <Box
               component="label"
               htmlFor={inputId}
               onClick={handleAddPhoto}
@@ -391,18 +373,31 @@ const PhotoUploadWithCaptions: React.FC<PhotoUploadWithCaptionsProps> = ({
                 console.log("[REPORT_PHOTO_UPLOAD] Add photo area mousedown");
               }}
               sx={{
+                position: "relative",
+                width: "100%",
                 cursor: "pointer",
                 flexDirection: "column",
                 gap: "8px",
                 height: "180px",
                 maxWidth: "none",
+                border: "2px dashed #bdbdbd",
+                borderRadius: "8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+                backgroundColor: "#fafafa",
+                "&:hover": {
+                  borderColor: "var(--text-landing)",
+                  backgroundColor: "#f5f5f5",
+                },
               }}
             >
               <AddPhotoAlternateIcon sx={{ fontSize: 40, color: "#bdbdbd" }} />
               <Typography color="#bdbdbd" variant="body2" textAlign="center">
                 Click to add photo<br />({photos.length}/2)
               </Typography>
-            </StyledImageContainer>
+            </Box>
             {/* Empty space for caption alignment */}
             <Box height="56px" />
           </PhotoItemContainer>

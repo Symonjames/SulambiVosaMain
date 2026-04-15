@@ -1,10 +1,10 @@
-import React, { useState, useContext } from "react";
+import { useState, useContext } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Typography, Card, CardContent, Box, Chip, Container } from "@mui/material";
 import FlexBox from "../components/FlexBox";
 import VolunteerEvaluationForm from "../components/Forms/VolunteerEvaluationForm";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
-import { VolunteerActivism, Star, Assignment, ArrowBack } from "@mui/icons-material";
+import { VolunteerActivism, Star, ArrowBack } from "@mui/icons-material";
 import PrimaryButton from "../components/Buttons/PrimaryButton";
 
 const VolunteerEvaluationPage = () => {

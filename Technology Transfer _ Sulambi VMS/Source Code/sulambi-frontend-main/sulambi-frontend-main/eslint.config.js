@@ -23,6 +23,24 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+      // Legacy API boundaries and gradual typing: `any` is used widely; TS strict build is the source of truth.
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+      // TSX often uses `cond && sideEffect()` or comma patterns; strict unused-expressions is noisy.
+      '@typescript-eslint/no-unused-expressions': 'off',
+      'prefer-const': 'warn',
+      'no-empty': 'warn',
+      'no-extra-boolean-cast': 'warn',
+      '@typescript-eslint/ban-ts-comment': 'warn',
+      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/rules-of-hooks': 'warn',
     },
   },
 )

@@ -133,9 +133,6 @@ export const logAllFormBorders = (container: HTMLElement | null, zoomLevel: numb
  * Get current zoom level
  */
 export const getZoomLevel = (): number => {
-  // Method 1: Using device pixel ratio
-  const dpr = window.devicePixelRatio || 1;
-  
   // Method 2: Using screen dimensions (more accurate for browser zoom)
   const screenWidth = screen.width;
   const windowWidth = window.innerWidth;

@@ -5,7 +5,6 @@ import {
   Card,
   CardContent,
   Grid,
-  Chip,
   Alert,
   CircularProgress,
   Tabs,
@@ -91,7 +90,7 @@ const AnalyticsPage: React.FC = () => {
     loadAnalyticsData();
   }, []);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 

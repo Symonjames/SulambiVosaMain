@@ -1,16 +1,15 @@
-import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import FlexBox from '../FlexBox';
 import { Typography, Box, Chip, LinearProgress, Select, MenuItem, FormControl, InputLabel, CircularProgress, Alert, Button } from '@mui/material';
 import { TrendingUp, TrendingDown, TrendingFlat, Visibility } from '@mui/icons-material';
-import { getSatisfactionAnalytics, getEventSatisfactionAnalytics, seedSatisfactionDemoData } from '../../api/analytics';
+import { getSatisfactionAnalytics, seedSatisfactionDemoData } from '../../api/analytics';
+import type { EventsListPayload, SatisfactionAnalyticsPayload } from '../../api/apiTypes';
 import { getAllEvents } from '../../api/events';
-import { AccountDetailsContext } from '../../contexts/AccountDetailsProvider';
 import CurtainPanel from '../Curtain/CurtainPanel';
 import { useCachedFetch } from '../../hooks/useCachedFetch';
 import { CACHE_TIMES } from '../../utils/apiCache';
 
 const PredictiveSatisfactionRatings: React.FC = () => {
-  const { accountDetails } = useContext(AccountDetailsContext);
   const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
   const selectedYearRef = useRef(selectedYear);
   const [satisfactionData, setSatisfactionData] = useState<any[]>([]);
@@ -27,34 +26,21 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   const [volunteerCount, setVolunteerCount] = useState(0);
   const [beneficiaryCount, setBeneficiaryCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  // Store original API counts for "All Years" view
-  const [originalVolunteerCount, setOriginalVolunteerCount] = useState(0);
-  const [originalBeneficiaryCount, setOriginalBeneficiaryCount] = useState(0);
-  const [originalTotalCount, setOriginalTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Note: eventsLoading is now controlled by cached fetch
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [curtainOpen, setCurtainOpen] = useState(false);
 
-  const [eventFilter, setEventFilter] = useState<'all' | 'past' | 'recent'>('all');
   const [availableEvents, setAvailableEvents] = useState<any[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
   
-  // Check if user is admin
-  const isAdmin = accountDetails?.accountType === 'admin';
-  
-  // Event-specific analytics state
-  const [selectedEventForAnalytics, setSelectedEventForAnalytics] = useState<string>('');
-  const [eventAnalytics, setEventAnalytics] = useState<any>(null);
-  const [eventAnalyticsLoading, setEventAnalyticsLoading] = useState(false);
   const seededRequestYearsRef = useRef<Set<string>>(new Set());
   const [seedInProgress, setSeedInProgress] = useState(false);
 
   // Removed buildFallbackData - no longer generating fake data
 
   // Use cached fetch for events - prevents reloading when navigating
-  const { data: eventsResponse, loading: eventsLoadingFromCache } = useCachedFetch({
+  const { data: eventsResponse, loading: eventsLoadingFromCache } = useCachedFetch<EventsListPayload>({
     cacheKey: 'satisfaction_events',
     fetchFn: () => getAllEvents(),
     cacheTime: CACHE_TIMES.MEDIUM,
@@ -80,40 +66,12 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         title: event.title || `Event ${event.id}`
       }));
       setAvailableEvents(events);
-      setEventsLoading(false);
     }
   }, [eventsResponse]);
-  
-  // Load event-specific analytics when event is selected
-  useEffect(() => {
-    if (selectedEventForAnalytics && isAdmin) {
-      const loadEventAnalytics = async () => {
-        try {
-          setEventAnalyticsLoading(true);
-          const [eventType, eventId] = selectedEventForAnalytics.split('-');
-          const response = await getEventSatisfactionAnalytics(parseInt(eventId), eventType);
-          
-          if (response.success && response.data) {
-            setEventAnalytics(response.data);
-          } else {
-            setEventAnalytics(null);
-          }
-        } catch (err) {
-          console.error('Error loading event analytics:', err);
-          setEventAnalytics(null);
-        } finally {
-          setEventAnalyticsLoading(false);
-        }
-      };
-      loadEventAnalytics();
-    } else {
-      setEventAnalytics(null);
-    }
-  }, [selectedEventForAnalytics, isAdmin]);
 
   // Use cached fetch for satisfaction analytics.
   // Fetch with year parameter when a specific year is selected to get accurate counts
-  const { data: satisfactionResponse, loading: satisfactionLoading, error: satisfactionError, refetch: refetchSatisfaction } = useCachedFetch({
+  const { data: satisfactionResponse, loading: satisfactionLoading, error: satisfactionError, refetch: refetchSatisfaction } = useCachedFetch<SatisfactionAnalyticsPayload>({
     cacheKey: selectedYear && selectedYear !== 'all' ? `satisfaction_analytics_${selectedYear}` : 'satisfaction_analytics_all',
     fetchFn: async () => {
       try {
@@ -281,16 +239,11 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             setSatisfactionData(enrichedData);
             setTopIssues(issues);
             // Extract counts from response data FIRST (before calculating averages)
-            const responseData = satisfactionResponse;
             let volunteerCountFromAPI = 0;
             let beneficiaryCountFromAPI = 0;
             if (responseData?.data) {
               volunteerCountFromAPI = responseData.data.volunteerCount || 0;
               beneficiaryCountFromAPI = responseData.data.beneficiaryCount || 0;
-              // Store original counts for "All Years" view
-              setOriginalVolunteerCount(volunteerCountFromAPI);
-              setOriginalBeneficiaryCount(beneficiaryCountFromAPI);
-              setOriginalTotalCount(responseData.data.totalCount || 0);
               // Set current counts (will be updated by filtered data effect if year is selected)
               setVolunteerCount(volunteerCountFromAPI);
               setBeneficiaryCount(beneficiaryCountFromAPI);
@@ -503,13 +456,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       setVolunteerCount(apiVolunteerCount);
       setBeneficiaryCount(apiBeneficiaryCount);
       setTotalCount(apiTotalCount);
-      
-      // Store original counts for "All Years" view
-      if (!selectedYear || selectedYear === 'all') {
-        setOriginalVolunteerCount(apiVolunteerCount);
-        setOriginalBeneficiaryCount(apiBeneficiaryCount);
-        setOriginalTotalCount(apiTotalCount);
-      }
     }
     
     if (filteredData.length > 0) {
@@ -571,13 +517,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       default:
         return '#ff9800';
     }
-  };
-
-  const getComparisonTrend = (score1: number, score2: number) => {
-    const diff = score2 - score1;
-    if (diff > 0.2) return { trend: 'Improving', color: '#4caf50', icon: <TrendingUp sx={{ color: '#4caf50', fontSize: 16 }} /> };
-    if (diff < -0.2) return { trend: 'Declining', color: '#f44336', icon: <TrendingDown sx={{ color: '#f44336', fontSize: 16 }} /> };
-    return { trend: 'Stable', color: '#ff9800', icon: <TrendingFlat sx={{ color: '#ff9800', fontSize: 16 }} /> };
   };
 
   // Overview View Component
@@ -804,141 +743,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           </Select>
         </FormControl>
       </FlexBox>
-      
-      {/* Event-Specific Analytics Display removed */}
-      {false && (
-        <Box textAlign="center" py={4} mb={2}>
-          <CircularProgress size={40} />
-          <Typography variant="body2" color="text.secondary" mt={2}>
-            Loading event analytics...
-          </Typography>
-        </Box>
-      )}
-      
-      {false && (
-        <Box mb={3} p={2} border="1px solid #e0e0e0" borderRadius={2} sx={{ backgroundColor: '#f9f9f9' }}>
-          <Typography variant="h6" gutterBottom fontWeight="bold">
-            {eventAnalytics.eventTitle}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" gutterBottom sx={{ display: 'block', mb: 2 }}>
-            {new Date(eventAnalytics.eventStart).toLocaleDateString()} - {new Date(eventAnalytics.eventEnd).toLocaleDateString()}
-          </Typography>
-          
-          {/* Volunteer and Beneficiary Ratings */}
-          <Box mb={2}>
-            <Typography variant="subtitle2" gutterBottom>
-              Satisfaction Ratings:
-            </Typography>
-            <FlexBox gap={2} mb={2}>
-              <Box flex={1}>
-                <Typography variant="body2" fontSize="0.875rem" gutterBottom>
-                  Volunteers: {eventAnalytics.volunteerScore}/5.0 ({eventAnalytics.volunteerCount} responses)
-                </Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(eventAnalytics.volunteerScore / 5) * 100} 
-                  sx={{ height: 6, borderRadius: 3, backgroundColor: '#e3f2fd' }}
-                  color="primary"
-                />
-              </Box>
-              <Box flex={1}>
-                <Typography variant="body2" fontSize="0.875rem" gutterBottom>
-                  Beneficiaries: {eventAnalytics.beneficiaryScore}/5.0 ({eventAnalytics.beneficiaryCount} responses)
-                </Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(eventAnalytics.beneficiaryScore / 5) * 100} 
-                  sx={{ height: 6, borderRadius: 3, backgroundColor: '#f3e5f5' }}
-                  color="secondary"
-                />
-              </Box>
-            </FlexBox>
-            <Box>
-              <Typography variant="body2" fontSize="0.875rem" gutterBottom>
-                Overall: {eventAnalytics.overallScore}/5.0 ({eventAnalytics.totalEvaluations} total evaluations)
-              </Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={(eventAnalytics.overallScore / 5) * 100} 
-                sx={{ height: 6, borderRadius: 3 }}
-              />
-            </Box>
-          </Box>
-          
-          {/* Predictive Statement */}
-          <Box mt={2} p={2} borderRadius={1} sx={{ backgroundColor: '#f4f8ff', border: '1px solid #d0e3ff' }}>
-            <Typography variant="subtitle2" gutterBottom fontWeight="bold">
-              Predictive Analysis:
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {eventAnalytics.prediction}
-            </Typography>
-          </Box>
-          
-          {/* Top Issues */}
-          {eventAnalytics.topIssues && eventAnalytics.topIssues.length > 0 && (
-            <Box mt={2}>
-              <Typography variant="subtitle2" gutterBottom>
-                Top Issues:
-              </Typography>
-              {eventAnalytics.topIssues.map((item: any, index: number) => (
-                <FlexBox key={index} justifyContent="space-between" alignItems="center" mb={0.5}>
-                  <Typography variant="body2" fontSize="0.875rem">
-                    {item.issue}
-                  </Typography>
-                  <Chip 
-                    label={`${item.frequency}`} 
-                    size="small" 
-                    variant="outlined"
-                    sx={{ fontSize: '0.7rem' }}
-                  />
-                </FlexBox>
-              ))}
-            </Box>
-          )}
-        </Box>
-      )}
-      
-      {false && (
-        <Box textAlign="center" py={4} mb={2}>
-          <Typography variant="body2" color="text.secondary">
-            No analytics data available for this event
-          </Typography>
-        </Box>
-      )}
-      
-      {/* Comparison filter removed */}
-      {false && (
-        <FlexBox
-          gap={2}
-          alignItems="center"
-          mb={2}
-          sx={{
-            flexWrap: 'wrap',
-            justifyContent: { xs: 'flex-start', md: 'flex-start' }
-          }}
-        >
-          <FormControl 
-            size="small" 
-            sx={{ 
-              minWidth: 140, 
-              '& .MuiOutlinedInput-root': { height: 36 },
-              '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0 }
-            }}
-          >
-            <InputLabel>Event Filter</InputLabel>
-            <Select
-              value={eventFilter}
-              label="Event Filter"
-              onChange={(e) => setEventFilter(e.target.value as any)}
-            >
-              <MenuItem value="all">All Events</MenuItem>
-              <MenuItem value="past">Past Events</MenuItem>
-              <MenuItem value="recent">Recent Events</MenuItem>
-            </Select>
-          </FormControl>
-        </FlexBox>
-      )}
       
       {/* Always show Overview */}
       <OverviewView />

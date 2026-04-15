@@ -35,7 +35,7 @@ const FormDataProvider = ({ children }: { children: ReactNode }) => {
   let location;
   try {
     location = useLocation();
-  } catch (error) {
+  } catch (_error) {
     // Fallback if not inside BrowserRouter (shouldn't happen, but safety check)
     location = { pathname: window?.location?.pathname || '/' };
   }

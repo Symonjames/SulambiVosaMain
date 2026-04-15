@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, IconButton, Typography, Slide, Fade } from '@mui/material';
+import { Box, IconButton, Typography, Fade } from '@mui/material';
 import { Close } from '@mui/icons-material';
 import FlexBox from '../FlexBox';
 
@@ -22,17 +22,6 @@ const CurtainPanel: React.FC<CurtainPanelProps> = ({
   maxHeight = '80vh',
   maxWidth = '90vw'
 }) => {
-  const getSlideProps = () => {
-    switch (direction) {
-      case 'right':
-        return { direction: 'left' as const, in: open };
-      case 'left':
-        return { direction: 'right' as const, in: open };
-      default:
-        return { direction: 'up' as const, in: open };
-    }
-  };
-
   return (
     <>
       {/* Backdrop */}

@@ -14,15 +14,11 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemAvatar,
-  Avatar,
 } from '@mui/material';
 import {
   Search,
   Clear,
   Close,
-  CalendarToday,
-  LocationOn,
 } from '@mui/icons-material';
 import FlexBox from '../FlexBox';
 import { getAllEvents } from '../../api/events';
@@ -165,18 +161,6 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
     onSearchResultsRef.current(filtered);
   }, [debouncedSearchTerm, selectedYear, selectedStatus, selectedType, allEvents]);
 
-  // Suggestions: return up to 5 matching event objects for predictive UI - Memoized to prevent unnecessary recalculations
-  const suggestionEvents = React.useMemo(() => {
-    if (!searchTerm.trim()) return [];
-    const term = searchTerm.toLowerCase();
-    const matches = allEvents.filter(event =>
-      (event.title || '').toLowerCase().includes(term) ||
-      ((event as ExternalEventProposalType).location || '').toLowerCase().includes(term) ||
-      ((event as InternalEventProposalType).venue || '').toLowerCase().includes(term)
-    );
-    return matches.slice(0, 5);
-  }, [searchTerm, allEvents]);
-
   const handleSuggestionClick = (evt: ExternalEventProposalType | InternalEventProposalType) => {
     const title = evt.title || '';
     setSearchTerm(title);
@@ -260,17 +244,6 @@ const ProjectSearchBar: React.FC<ProjectSearchBarProps> = ({
   const handleFocus = () => {
     setShowSuggestions(true);
     setTimeout(() => setSuggestionsVisible(true), 10);
-  };
-
-  // Util: format date range nicely
-  const formatDateRange = (start?: string | Date | number, end?: string | Date | number) => {
-    if (!start) return '';
-    const s = new Date(start);
-    const e = end ? new Date(end) : null;
-    const sStr = s.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    if (!e) return sStr;
-    const eStr = e.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    return `${sStr} — ${eStr}`;
   };
 
   // Helper to get location/venue text

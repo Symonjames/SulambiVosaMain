@@ -49,7 +49,12 @@ const ReportForm: React.FC<Props> = (props) => {
     if (open) {
       if (isEditMode && initialData) {
         // Pre-fill form data for edit mode
-        const photosWithCaptions = [];
+        const photosWithCaptions: Array<{
+          file: File | null;
+          url: string;
+          preview: string;
+          caption: string;
+        }> = [];
         if (initialData.photos && Array.isArray(initialData.photos)) {
           const captions = initialData.photoCaptions || [];
           initialData.photos.forEach((photo: string, index: number) => {

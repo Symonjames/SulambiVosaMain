@@ -16,6 +16,7 @@ import RequirementForm from "../../components/Forms/RequirementForm";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import { useCachedFetch } from "../../hooks/useCachedFetch";
 import { CACHE_TIMES } from "../../utils/apiCache";
+import type { EventsListPayload } from "../../api/apiTypes";
 
 const EventsPage = () => {
   const { setFormData } = useContext(FormDataContext);
@@ -31,7 +32,7 @@ const EventsPage = () => {
   });
 
   // Member-specific cache key and short TTL so newly approved events show up soon.
-  const { data: eventsResponse, loading, error, refetch } = useCachedFetch({
+  const { data: eventsResponse, loading, error, refetch } = useCachedFetch<EventsListPayload>({
     cacheKey: 'member_events',
     fetchFn: () => getAllEvents(),
     cacheTime: CACHE_TIMES.SHORT, // 30 seconds so new/approved events appear quickly
@@ -57,8 +58,8 @@ const EventsPage = () => {
   // Process events data
   const events = eventsResponse
     ? [
-        ...(eventsResponse.external || []),
-        ...(eventsResponse.internal || []),
+        ...((eventsResponse.external || []) as ExternalEventProposalType[]),
+        ...((eventsResponse.internal || []) as InternalEventProposalType[]),
       ]
     : [];
 
@@ -127,7 +128,8 @@ const EventsPage = () => {
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          {error.response?.status === 403 || /auth|session|login|unauthorized/i.test(String(error.message || ''))
+          {(error as Error & { response?: { status?: number } }).response?.status === 403 ||
+          /auth|session|login|unauthorized/i.test(String(error.message || ""))
             ? "Your session may have expired or the request was not authorized. Please log out and log in again, then click Refresh."
             : `Error loading events: ${error.message || "Unknown error"}`}
         </Alert>

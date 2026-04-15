@@ -11,9 +11,9 @@ import {
   updateFeedback,
 } from "../../api/feedback";
 import { useContext, useEffect } from "react";
+import { isAxiosError } from "axios";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
-import { AxiosError } from "axios";
 
 interface Props {
   eventId?: number;
@@ -43,10 +43,10 @@ const FeedbackForm: React.FC<Props> = ({
         try {
           const response = await getEventFeedback(eventType, eventId);
           setFormData({ feedback: response.data.message });
-        } catch (error: AxiosError | any) {
+        } catch (error: unknown) {
           let errmsg = null;
-          if (error?.response?.data?.message)
-            errmsg = error?.response?.data?.message;
+          if (isAxiosError(error) && error.response?.data?.message)
+            errmsg = error.response.data.message as string;
           showSnackbarMessage(
             errmsg ?? "An error occured in fetching feedback",
             "error"
@@ -72,10 +72,10 @@ const FeedbackForm: React.FC<Props> = ({
         updateFeedback(feedbackId, formData.feedback ?? "");
         showSnackbarMessage("Feedback updated successfully", "success");
         setOpen(false);
-      } catch (error: AxiosError | any) {
+      } catch (error: unknown) {
         let errmsg = null;
-        if (error?.response?.data?.message)
-          errmsg = error?.response?.data?.message;
+        if (isAxiosError(error) && error.response?.data?.message)
+          errmsg = error.response.data.message as string;
         showSnackbarMessage(
           errmsg ?? "An error occured in updating feedback",
           "error"
@@ -90,10 +90,10 @@ const FeedbackForm: React.FC<Props> = ({
         await submitFeedback(eventType, eventId, formData.feedback ?? "");
         showSnackbarMessage("Feedback submitted successfully", "success");
         setOpen(false);
-      } catch (error: AxiosError | any) {
+      } catch (error: unknown) {
         let errmsg = null;
-        if (error?.response?.data?.message)
-          errmsg = error?.response?.data?.message;
+        if (isAxiosError(error) && error.response?.data?.message)
+          errmsg = error.response.data.message as string;
         showSnackbarMessage(
           errmsg ?? "An error occured in submitting feedback",
           "error"

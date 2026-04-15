@@ -4,7 +4,7 @@ import TextSubHeader from "../../components/Headers/TextSubHeader";
 import ConfirmModal from "../../components/Modal/ConfirmModal";
 import DataTable from "../../components/Tables/DataTable";
 import PageLayout from "../PageLayout";
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { CircularProgress, Typography } from "@mui/material";
 import FlexBox from "../../components/FlexBox";
 
 import FeedbackIcon from "@mui/icons-material/Feedback";
@@ -40,6 +40,7 @@ import { useSearchParams } from "react-router-dom";
 import FeedbackForm from "../../components/Forms/FeedbackForm";
 import { useCachedFetch } from "../../hooks/useCachedFetch";
 import { CACHE_TIMES } from "../../utils/apiCache";
+import type { EventsListPayload } from "../../api/apiTypes";
 
 const EventApproval = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
@@ -101,7 +102,7 @@ const EventApproval = () => {
       .trim();
 
   // Use cached fetch - data persists when navigating away and coming back!
-  const { data: eventsResponse, loading } = useCachedFetch({
+  const { data: eventsResponse, loading } = useCachedFetch<EventsListPayload>({
     cacheKey: 'event_approval_events',
     fetchFn: () => getAllEvents(),
     cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds (approval page needs fresher data)
@@ -113,9 +114,11 @@ const EventApproval = () => {
     if (!eventsResponse) return;
 
     // Combine external and internal events (check both possible response structures)
-    const eventData: (ExternalEventProposalType | InternalEventProposalType)[] = 
-      eventsResponse.events || 
-      [...(eventsResponse.external || []), ...(eventsResponse.internal || [])];
+    const eventData = (eventsResponse.events ||
+      [...(eventsResponse.external || []), ...(eventsResponse.internal || [])]) as (
+      | ExternalEventProposalType
+      | InternalEventProposalType
+    )[];
 
     const terms = normalizeText(debouncedSearchVal).split(" ").filter(Boolean);
     const filteredData = eventData

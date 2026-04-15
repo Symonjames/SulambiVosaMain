@@ -1,5 +1,4 @@
 import React from "react";
-import FlexBox from "../FlexBox";
 
 interface Props {
   upperMessage?: string;
@@ -17,13 +16,14 @@ const BSUTemplateSigning: React.FC<Props> = ({
   romaize,
 }) => {
   return (
-    <td colSpan={colspan} style={{ 
-      padding: "15px 20px",
-      "@media print": {
+    <td
+      colSpan={colspan}
+      style={{
+        padding: "15px 20px",
+        breakInside: "avoid",
         pageBreakInside: "avoid",
-        breakInside: "avoid"
-      }
-    }}>
+      }}
+    >
       <div className={romaize ? "fontSet" : ""} style={{ textAlign: "left", marginBottom: "8px" }}>
         {upperMessage}
       </div>

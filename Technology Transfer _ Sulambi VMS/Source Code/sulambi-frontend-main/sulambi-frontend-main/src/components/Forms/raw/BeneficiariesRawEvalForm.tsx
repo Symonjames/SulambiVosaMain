@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import FlexBox from "../../FlexBox";
-import FormGeneratorTemplate from "../FormGeneratorTemplate";
+import FormGeneratorTemplate, { type FormGenTemplateProps } from "../FormGeneratorTemplate";
 import { FormDataContext } from "../../../contexts/FormDataProvider";
 
 interface Props {
@@ -435,7 +435,7 @@ const BeneficiariesRawEvalForm = ({ eventData, viewOnly = false }: Props) => {
               message: "Recommendations for improving future volunteer programs:",
               required: true,
             },
-          ]}
+          ] as FormGenTemplateProps[]}
         />
       </FlexBox>
     </form>

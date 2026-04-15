@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useMemo } from "react";
+import { useState, useContext, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Typography, Card, CardContent, Box, Chip, Container } from "@mui/material";
 import FlexBox from "../components/FlexBox";
@@ -114,7 +114,7 @@ const BeneficiaryEvaluationPage = () => {
   
   const preselectedEventId = useMemo(() => searchParams.get("eventId"), [searchParams]);
 
-  const handleSubmit = (data: any) => {
+  const handleSubmit = (_data: unknown) => {
     showSnackbarMessage("Beneficiary evaluation submitted successfully!", "success");
     setOpenForm(false);
     if (typeof window !== "undefined") {

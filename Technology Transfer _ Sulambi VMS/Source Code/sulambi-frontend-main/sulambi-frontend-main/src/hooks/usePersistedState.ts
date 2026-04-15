@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { saveToStorage, getFromStorage } from '../utils/storage';
 
 /**
  * Hook to persist state in localStorage and restore it on reload

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, IconButton, Slide, Fade } from '@mui/material';
+import { Box, IconButton, Fade } from '@mui/material';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import CloseIcon from '@mui/icons-material/Close';
 import CompactEventCalendar from '../Analytics/CompactEventCalendar';

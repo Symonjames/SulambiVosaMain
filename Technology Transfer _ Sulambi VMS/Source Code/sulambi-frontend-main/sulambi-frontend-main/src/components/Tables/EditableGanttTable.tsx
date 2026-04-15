@@ -415,7 +415,7 @@ const EditableGanttTable = forwardRef<EditableGanttTableRef, EditableGanttTableP
       Object.keys(prev).forEach((rowIndex) => {
         const rowData = { ...prev[rowIndex] };
         if (colKey in rowData) {
-          const { [colKey]: removed, ...rest } = rowData;
+          const { [colKey]: _removed, ...rest } = rowData;
           newRows[rowIndex] = rest;
         } else {
           newRows[rowIndex] = rowData;
@@ -901,5 +901,4 @@ const MemoizedEditableGanttTable = React.memo(EditableGanttTable, (prevProps, ne
 MemoizedEditableGanttTable.displayName = 'EditableGanttTable';
 
 export default MemoizedEditableGanttTable;
-export type { EditableGanttTableRef };
 

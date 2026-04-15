@@ -218,6 +218,7 @@ export interface DashboardDataType {
 }
 
 export interface ExternalReportType {
+  id?: number;
   eventId?: ExternalEventProposalType;
   narrative: string;
   photos: string[];
@@ -226,6 +227,7 @@ export interface ExternalReportType {
 }
 
 export interface InternalReportType {
+  id?: number;
   eventId?: InternalEventProposalType;
   narrative: string;
   photos: string[];

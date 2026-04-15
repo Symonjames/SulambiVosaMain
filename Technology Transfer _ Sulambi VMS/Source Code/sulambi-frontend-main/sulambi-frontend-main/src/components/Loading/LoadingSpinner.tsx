@@ -1,4 +1,4 @@
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { CircularProgress, Typography } from "@mui/material";
 import FlexBox from "../FlexBox";
 
 interface LoadingSpinnerProps {

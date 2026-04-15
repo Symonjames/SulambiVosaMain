@@ -24,13 +24,11 @@ import { useMediaQuery } from "react-responsive";
 import NewsThumbnailCarousel from "../components/NewsThumbnailCarousel";
 import { useNavigate } from "react-router-dom";
 import { People, Assignment } from "@mui/icons-material";
-import { SnackbarContext } from "../contexts/SnackbarProvider";
 import { getImagePath } from "../utils/imagePath";
 
 const Landing = () => {
   const { setFormData } = useContext(FormDataContext);
   const navigate = useNavigate();
-  const { showSnackbarMessage } = useContext(SnackbarContext);
 
   const [openVolunteerForm, setOpenVolunteerForm] = useState(false);
   const [openRequirementForm, setOpenRequirementForm] = useState(false);

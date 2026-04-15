@@ -480,10 +480,6 @@ const EvaluationMechanicsTable: React.FC<EvaluationMechanicsProps> = ({
   data,
 }) => {
   const rows = getMonitoringRows(data);
-  const getObjectiveLabel = (labelKey: string, defaultValue: string): string => {
-    if (!data || typeof data !== "object") return defaultValue;
-    return (data[labelKey] as string) || defaultValue;
-  };
   return (
     <table className="bsuFormChild compact eval-compact internal-event-table-with-top-border" style={{ border: "0.5px solid #000", borderTop: "0.5px solid #000", borderBottom: "0.5px solid #000", borderLeft: "0.5px solid #000", borderRight: "0.5px solid #000", outline: "none", marginLeft: "auto", marginRight: "auto", width: "90%", boxSizing: "border-box", borderCollapse: "collapse", borderSpacing: 0, fontSize: "10pt", tableLayout: "fixed", maxWidth: "90%" }}>
       <colgroup>
@@ -641,7 +637,7 @@ const ExternalEventForm: React.FC<FormProps> = ({ data }) => {
     let lst = [];
     try {
       lst = JSON.parse(sourceList);
-    } catch (err) {
+    } catch (_err) {
       lst = [];
     }
     for (let i = 0; i < lst.length; i++) {

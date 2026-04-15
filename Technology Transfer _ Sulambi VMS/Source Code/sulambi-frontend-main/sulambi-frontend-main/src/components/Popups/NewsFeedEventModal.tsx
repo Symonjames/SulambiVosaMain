@@ -1,7 +1,5 @@
 import { Box, Typography } from "@mui/material";
 import PopupModal from "../Modal/PopupModal";
-import CustomDivider from "../Divider/CustomDivider";
-import dayjs from "dayjs";
 import { ExternalReportType, InternalReportType } from "../../interface/types";
 import { useMediaQuery } from "react-responsive";
 import { resolveReportImageUrl } from "../../utils/uploadUrl";
@@ -22,12 +20,11 @@ interface Props {
 }
 
 const NewsFeedEventModal: React.FC<Props> = (props) => {
-  const { open, reportData, reportType, setOpen } = props;
+  const { open, reportData, setOpen } = props;
   const isMobile = useMediaQuery({ query: "(max-width: 600px)" });
 
   if (!reportData) return null;
 
-  const event = reportData.eventId;
   const photos = reportData.photos || [];
   const photoCaptions = reportData.photoCaptions || [];
 

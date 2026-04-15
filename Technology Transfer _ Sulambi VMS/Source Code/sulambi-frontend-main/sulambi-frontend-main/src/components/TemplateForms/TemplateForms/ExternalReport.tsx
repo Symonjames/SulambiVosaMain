@@ -22,7 +22,7 @@ const ExternalReport: React.FC<Props> = ({ data, textAlign }) => {
     let lst = [];
     try {
       lst = JSON.parse(sourceList);
-    } catch (err) {
+    } catch (_err) {
       lst = [];
     }
     for (let i = 0; i < lst.length; i++) {

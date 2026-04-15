@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 // A simplified ColSizeGen that respects live widths
 const ColSizeGen = ({ widths }: { widths: (string | number)[] }) => (

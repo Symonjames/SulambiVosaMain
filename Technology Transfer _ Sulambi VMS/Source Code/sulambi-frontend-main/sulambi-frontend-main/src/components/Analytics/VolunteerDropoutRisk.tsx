@@ -65,7 +65,7 @@ const VolunteerDropoutRisk: React.FC = () => {
                 data: chartData.riskLevels,
                 label: 'Risk %',
                 color: '#C07F00',
-                curve: 'monotone',
+                curve: 'monotoneX',
               }
             ]}
             xAxis={[

@@ -3,11 +3,7 @@ import FlexBox from '../FlexBox';
 import { 
   Typography, 
   Box, 
-  Card, 
-  CardContent, 
-  Chip, 
   IconButton,
-  Tooltip,
   List,
   ListItem,
   ListItemText,
@@ -83,18 +79,6 @@ const CompactEventCalendar: React.FC = () => {
     });
   }, []);
 
-  // Get events for the current month
-  const getEventsForMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    
-    return events.filter(event => {
-      const eventDate = toEventDate((event as any).durationStart);
-      if (!eventDate) return false;
-      return eventDate.getFullYear() === year && eventDate.getMonth() === month;
-    });
-  };
-
   // Get events for a specific date
   const getEventsForDate = (date: Date) => {
     const dateStr = date.toDateString();
@@ -139,7 +123,6 @@ const CompactEventCalendar: React.FC = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
@@ -159,7 +142,6 @@ const CompactEventCalendar: React.FC = () => {
 
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const calendarDays = getCalendarDays();
-  const monthEvents = getEventsForMonth(currentDate);
   const upcomingEvents = getUpcomingEvents();
 
   return (

@@ -17,11 +17,14 @@ interface PageStateContextValue {
   getStateForPage: <T>(pagePath: string, key: string, defaultValue: T) => T;
 }
 
+const noop = () => {};
+
 export const PageStateContext = createContext<PageStateContextValue>({
-  getState: () => null,
-  setState: () => {},
-  clearState: () => {},
-  getStateForPage: () => null,
+  getState: <T,>(_key: string, defaultValue: T) => defaultValue,
+  setState: noop,
+  clearState: noop,
+  getStateForPage: <T,>(_pagePath: string, _key: string, defaultValue: T) =>
+    defaultValue,
 });
 
 interface PageStateProviderProps {
@@ -103,7 +106,7 @@ export const PageStateProvider = ({ children }: PageStateProviderProps) => {
   const getStateForPage = <T,>(pagePath: string, key: string, defaultValue: T): T => {
     try {
       const pageStateKey = `pageState_${pagePath}`;
-      const pageState = getFromStorage<PageState>(pageStateKey, {});
+      const pageState = getFromStorage<PageState>(pageStateKey, {}) ?? {};
       return (pageState[key] !== undefined ? pageState[key] : defaultValue) as T;
     } catch (error) {
       console.error('Error loading state for page:', error);
