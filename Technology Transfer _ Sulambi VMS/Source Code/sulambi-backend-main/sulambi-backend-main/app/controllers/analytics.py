@@ -1917,7 +1917,11 @@ def seedDemoEvaluations(
                     q13 = str(volunteer_rating) if respondent_type == "Volunteer" else ""
                     q14 = str(beneficiary_rating) if respondent_type == "Beneficiary" else ""
                     requirement_id = f"seed_req_{evt_type}_{evt_id}_{int(time.time()*1000)}_{sample_index}"
-                    submitted_at = int(evt_start) + random.randint(1, 7) * 24 * 60 * 60 * 1000
+                    # Keep submittedAt in epoch-seconds to avoid PostgreSQL int4 overflow
+                    # on deployments where this column is INTEGER instead of BIGINT.
+                    evt_start_int = int(evt_start or int(time.time() * 1000))
+                    evt_start_seconds = evt_start_int // 1000 if evt_start_int > 9_999_999_999 else evt_start_int
+                    submitted_at = evt_start_seconds + random.randint(1, 7) * 24 * 60 * 60
 
                     inserted = SatisfactionSurveyDb.create(
                         eventId=evt_id,

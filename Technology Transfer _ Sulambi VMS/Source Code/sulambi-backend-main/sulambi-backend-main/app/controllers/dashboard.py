@@ -15,6 +15,9 @@ from ..database.connection import (
 )
 
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 '''
 Data needed:
@@ -286,14 +289,21 @@ def getAnalytics():
 
 def getEventInformation(eventId: int, eventType: str):
   try:
+    try:
+      event_id_int = int(eventId)
+    except (TypeError, ValueError):
+      return ({
+        "message": f"Invalid event id: {eventId}"
+      }, 400)
+
     if (eventType == "external"):
-      event = ExternalEventModel().get(eventId)
+      event = ExternalEventModel().get(event_id_int)
       if not event:
         return ({
           "message": "External event not found"
         }, 404)
     else:
-      event = InternalEventModel().get(eventId)
+      event = InternalEventModel().get(event_id_int)
       if not event:
         return ({
           "message": "Internal event not found"
@@ -322,7 +332,7 @@ def getEventInformation(eventId: int, eventType: str):
     """
     aggregate_query = convert_boolean_condition(aggregate_query)
     aggregate_query = convert_placeholders(aggregate_query)
-    cursor.execute(aggregate_query, (eventId, eventType))
+    cursor.execute(aggregate_query, (event_id_int, eventType))
     row = cursor.fetchone() or (0, 0)
     registered, answered = int(row[0] or 0), int(row[1] or 0)
     conn.close()
@@ -336,9 +346,11 @@ def getEventInformation(eventId: int, eventType: str):
       "message": "Successfully retrieved event details"
     }
   except Exception as e:
-    print(f"Error in getEventInformation: {e}")
-    import traceback
-    traceback.print_exc()
+    logger.exception(
+      "Error in getEventInformation eventId=%s eventType=%s",
+      eventId,
+      eventType,
+    )
     return ({
       "message": f"Error retrieving event information: {str(e)}"
     }, 500)
