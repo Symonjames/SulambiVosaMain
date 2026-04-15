@@ -186,10 +186,9 @@ def getVolunteerDropoutAnalytics(year=None):
         # Always ensure we're reading from membership table
         # Check if we have active members in membership table
         from ..database.connection import convert_boolean_condition
-        query = f"""
-            SELECT COUNT(*) FROM {membership_table} 
-            WHERE accepted = 1 AND active = 1
-        """
+        # Match dashboard: approved members; treat NULL active as active (PG/SQLite).
+        mem_filter = "(accepted = 1) AND (active = 1 OR active IS NULL)"
+        query = f"SELECT COUNT(*) FROM {membership_table} WHERE {mem_filter}"
         query = convert_boolean_condition(query)
         cursor.execute(query)
         member_count = cursor.fetchone()[0] or 0
@@ -208,7 +207,7 @@ def getVolunteerDropoutAnalytics(year=None):
         # Get semester data from participation history table (if it exists)
         # Otherwise use legacy method
         if not table_exists:
-            # Fallback to old method if table doesn't exist
+            conn.close()
             return getVolunteerDropoutAnalyticsLegacy(year)
 
         # If the table exists but has no rows, the analytics will look empty.
@@ -307,7 +306,7 @@ def getVolunteerDropoutAnalytics(year=None):
                     COALESCE(COUNT(DISTINCT {vph_semester_col}), 0) as semesters_active
                 FROM {membership_table} m
                 LEFT JOIN {vph_table} vph ON m.email = {vph_volunteer_email_col}
-                WHERE m.accepted = 1 AND m.active = 1
+                WHERE (m.accepted = 1) AND (m.active = 1 OR m.active IS NULL)
                 GROUP BY m.email, m.fullname
             """
             query = convert_boolean_condition(query)
@@ -330,7 +329,7 @@ def getVolunteerDropoutAnalytics(year=None):
                     0 as avg_attendance_rate,
                     0 as semesters_active
                 FROM {membership_table}
-                WHERE accepted = 1 AND active = 1
+                WHERE (accepted = 1) AND (active = 1 OR active IS NULL)
             """
             query = convert_boolean_condition(query)
             cursor.execute(query)
@@ -456,8 +455,22 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         conn, cursor = cursorInstance()
         
         # Get all events with their dates to calculate semesters
-        from ..database.connection import table_name_for_query, DATABASE_URL, is_postgresql_url
-        is_pg = is_postgresql_url(DATABASE_URL)
+        from ..database.connection import (
+            table_name_for_query,
+            DATABASE_URL,
+            is_postgresql_url,
+            is_postgresql_connection,
+        )
+        is_pg = bool(is_postgresql_url(DATABASE_URL) or is_postgresql_connection(conn))
+
+        def _pg_dropout_sql(sql: str) -> str:
+            """Quote identifiers PostgreSQL treats as reserved or case-sensitive."""
+            if not is_pg:
+                return sql
+            s = sql.replace("r.type", 'r."type"')
+            s = s.replace("ei.durationEnd", 'ei."durationEnd"').replace("ee.durationEnd", 'ee."durationEnd"')
+            return s
+
         internal_events_table = table_name_for_query("internalEvents")
         external_events_table = table_name_for_query("externalEvents")
         col_ds = '"durationStart"' if is_pg else 'durationStart'
@@ -541,6 +554,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             
             joined_query = convert_boolean_condition(joined_query)
             joined_query = convert_placeholders(joined_query)
+            joined_query = _pg_dropout_sql(joined_query)
             cursor.execute(joined_query, joined_params)
             joined_count = cursor.fetchone()[0] or 0
             
@@ -572,6 +586,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             
             attended_query = convert_boolean_condition(attended_query)
             attended_query = convert_placeholders(attended_query)
+            attended_query = _pg_dropout_sql(attended_query)
             cursor.execute(attended_query, attended_params)
             attended_count = cursor.fetchone()[0] or 0
             
@@ -608,6 +623,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 
                 total_attendances_query = convert_boolean_condition(total_attendances_query)
                 total_attendances_query = convert_placeholders(total_attendances_query)
+                total_attendances_query = _pg_dropout_sql(total_attendances_query)
                 cursor.execute(total_attendances_query, total_attendances_params)
                 total_attendances = cursor.fetchone()[0] or 0
                 events_per_volunteer = round(total_attendances / attended_count, 1) if attended_count > 0 else 0
@@ -663,6 +679,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             
             from ..database.connection import convert_placeholders
             volunteer_query = convert_placeholders(volunteer_query)
+            volunteer_query = _pg_dropout_sql(volunteer_query)
             cursor.execute(volunteer_query, volunteer_params)
             volunteer_rows = cursor.fetchall()
             
