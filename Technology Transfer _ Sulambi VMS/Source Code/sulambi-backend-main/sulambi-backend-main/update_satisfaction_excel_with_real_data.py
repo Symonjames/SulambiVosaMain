@@ -19,6 +19,36 @@ elif not os.path.isabs(DB_PATH):
 EXCEL_OUTPUT = os.path.join("data", "satisfaction-ratings.xlsx")
 EXCEL_OUTPUT_TEMP = os.path.join("data", "satisfaction-ratings-temp.xlsx")
 MEMBER_EXCEL = os.path.join("data", "member-app.xlsx")
+TARGET_PER_GROUP = 75
+VOLUNTEER = "Volunteer"
+BENEFICIARY = "Beneficiary"
+
+def _normalize_text(value):
+    return str(value or "").strip()
+
+def _normalize_email(value):
+    return _normalize_text(value).lower()
+
+def _existing_unique_keys(df):
+    grouped = {VOLUNTEER: set(), BENEFICIARY: set()}
+    if df is None or df.empty:
+        return grouped
+    for _, row in df.iterrows():
+        respondent_type = _normalize_text(row.get("Respondent Type"))
+        if respondent_type not in grouped:
+            continue
+        email_key = _normalize_email(row.get("Respondent Email"))
+        if email_key:
+            grouped[respondent_type].add(email_key)
+    return grouped
+
+def _validate_group_integrity(df):
+    grouped = _existing_unique_keys(df)
+    for respondent_type, seen in grouped.items():
+        if len(seen) < TARGET_PER_GROUP:
+            raise ValueError(
+                f"{respondent_type} unique count must be at least {TARGET_PER_GROUP}, got {len(seen)}."
+            )
 
 def update_satisfaction_excel():
     """Update satisfaction ratings Excel with real names and event titles"""
@@ -112,16 +142,34 @@ def update_satisfaction_excel():
         "Please organize more frequently."
     ]
     
-    data_rows = []
+    # Load existing file first, so production manual entries are preserved.
+    existing_rows = []
+    if os.path.exists(EXCEL_OUTPUT):
+        try:
+            existing_df = pd.read_excel(EXCEL_OUTPUT)
+            existing_rows = existing_df.to_dict("records")
+            print(f"\n3. Loaded existing records: {len(existing_rows)}")
+        except Exception as e:
+            print(f"\n3. Could not read existing file, starting fresh: {e}")
+    else:
+        print("\n3. No existing file found, creating a new dataset.")
+
+    existing_df = pd.DataFrame(existing_rows)
+    grouped_existing = _existing_unique_keys(existing_df)
+
+    data_rows = list(existing_rows)
     
     # Generate volunteer responses (30 samples) using real names
-    print("\n3. Generating volunteer responses with real names...")
-    for i in range(30):
-        if not name_email_pairs:
+    print("\n4. Appending unique volunteer responses until exactly 75...")
+    next_id = len(data_rows) + 1
+    random.shuffle(name_email_pairs)
+    for name, email in name_email_pairs:
+        if len(grouped_existing[VOLUNTEER]) >= TARGET_PER_GROUP:
             break
-        
+        email_key = _normalize_email(email)
+        if not email_key or email_key in grouped_existing[VOLUNTEER]:
+            continue
         event_id, event_title, event_type = random.choice(all_events)
-        name, email = random.choice(name_email_pairs)
         
         # Generate ratings (1-5 scale, bias towards higher ratings)
         overall = random.choices([3, 4, 5], weights=[2, 3, 5])[0]
@@ -138,12 +186,12 @@ def update_satisfaction_excel():
         submitted_date = (datetime.now() - timedelta(days=random.randint(0, 90))).strftime("%Y-%m-%d %H:%M:%S")
         
         data_rows.append({
-            "ID": i + 1,
+            "ID": next_id,
             "Event ID": event_id,
             "Event Type": event_type,
             "Event Title": event_title,
             "Requirement ID": f"REQ-{random.randint(10000, 99999)}",
-            "Respondent Type": "Volunteer",
+            "Respondent Type": VOLUNTEER,
             "Respondent Email": email,
             "Respondent Name": name,
             "Overall Satisfaction (1-5)": overall,
@@ -164,15 +212,19 @@ def update_satisfaction_excel():
             "Submitted At": submitted_date,
             "Finalized": "Yes"
         })
+        grouped_existing[VOLUNTEER].add(email_key)
+        next_id += 1
     
     # Generate beneficiary responses (20 samples) using real names
-    print("4. Generating beneficiary responses with real names...")
-    for i in range(20):
-        if not name_email_pairs:
+    print("5. Appending unique beneficiary responses until exactly 75...")
+    random.shuffle(name_email_pairs)
+    for name, email in name_email_pairs:
+        if len(grouped_existing[BENEFICIARY]) >= TARGET_PER_GROUP:
             break
-        
+        email_key = _normalize_email(email)
+        if not email_key or email_key in grouped_existing[BENEFICIARY]:
+            continue
         event_id, event_title, event_type = random.choice(all_events)
-        name, email = random.choice(name_email_pairs)
         
         # Generate ratings (1-5 scale, bias towards higher ratings)
         overall = random.choices([3, 4, 5], weights=[2, 3, 5])[0]
@@ -189,12 +241,12 @@ def update_satisfaction_excel():
         submitted_date = (datetime.now() - timedelta(days=random.randint(0, 90))).strftime("%Y-%m-%d %H:%M:%S")
         
         data_rows.append({
-            "ID": 30 + i + 1,
+            "ID": next_id,
             "Event ID": event_id,
             "Event Type": event_type,
             "Event Title": event_title,
             "Requirement ID": f"REQ-{random.randint(10000, 99999)}",
-            "Respondent Type": "Beneficiary",
+            "Respondent Type": BENEFICIARY,
             "Respondent Email": email,
             "Respondent Name": name,
             "Overall Satisfaction (1-5)": overall,
@@ -215,9 +267,26 @@ def update_satisfaction_excel():
             "Submitted At": submitted_date,
             "Finalized": "Yes"
         })
+        grouped_existing[BENEFICIARY].add(email_key)
+        next_id += 1
     
+    # Ensure minimum target coverage; allow production growth beyond 75.
+    if len(grouped_existing[VOLUNTEER]) < TARGET_PER_GROUP:
+        print(
+            f"\n❌ Unable to reach at least {TARGET_PER_GROUP} unique volunteer entries. "
+            f"Current: {len(grouped_existing[VOLUNTEER])}"
+        )
+        return
+    if len(grouped_existing[BENEFICIARY]) < TARGET_PER_GROUP:
+        print(
+            f"\n❌ Unable to reach at least {TARGET_PER_GROUP} unique beneficiary entries. "
+            f"Current: {len(grouped_existing[BENEFICIARY])}"
+        )
+        return
+
     # Create DataFrame
     df = pd.DataFrame(data_rows)
+    _validate_group_integrity(df)
     
     # Ensure data directory exists
     os.makedirs(os.path.dirname(EXCEL_OUTPUT), exist_ok=True)
@@ -239,12 +308,12 @@ def update_satisfaction_excel():
             output_file = EXCEL_OUTPUT
         
         df.to_excel(output_file, index=False, engine='openpyxl')
-        print(f"\n✓ Successfully updated satisfaction-ratings.xlsx with:")
+        print(f"\n✓ Successfully updated satisfaction-ratings.xlsx with uniqueness validation:")
         print(f"  - Real names from member-app.xlsx: {len(name_email_pairs)} names")
         print(f"  - Real event titles from database: {len(all_events)} events")
         print(f"  - Total records: {len(data_rows)}")
-        print(f"    * Volunteer responses: 30")
-        print(f"    * Beneficiary responses: 20")
+        print(f"    * Volunteer unique responses: {len(grouped_existing[VOLUNTEER])} (min target {TARGET_PER_GROUP})")
+        print(f"    * Beneficiary unique responses: {len(grouped_existing[BENEFICIARY])} (min target {TARGET_PER_GROUP})")
         print(f"\nFile location: {output_file}")
         
         if output_file == EXCEL_OUTPUT_TEMP:

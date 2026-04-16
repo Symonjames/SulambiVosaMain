@@ -9,6 +9,58 @@ from datetime import datetime, timedelta
 import random
 
 EXCEL_OUTPUT = os.path.join("data", "satisfaction-ratings.xlsx")
+TARGET_PER_GROUP = 75
+VOLUNTEER = "Volunteer"
+BENEFICIARY = "Beneficiary"
+
+def _normalize_text(value):
+    return str(value or "").strip()
+
+def _normalize_email(value):
+    return _normalize_text(value).lower()
+
+def _sanitize_existing_rows(df):
+    """Keep first unique row per (Respondent Type, Respondent Email)."""
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    grouped_seen = {VOLUNTEER: set(), BENEFICIARY: set()}
+    cleaned_rows = []
+
+    for _, row in df.iterrows():
+        respondent_type = _normalize_text(row.get("Respondent Type"))
+        if respondent_type not in grouped_seen:
+            continue
+
+        email_key = _normalize_email(row.get("Respondent Email"))
+        if not email_key or email_key in grouped_seen[respondent_type]:
+            continue
+
+        grouped_seen[respondent_type].add(email_key)
+        cleaned_rows.append(row.to_dict())
+
+    return pd.DataFrame(cleaned_rows)
+
+def _validate_group_counts(df):
+    """Require exactly 75 unique entries for each respondent group."""
+    grouped_counts = {VOLUNTEER: 0, BENEFICIARY: 0}
+    grouped_seen = {VOLUNTEER: set(), BENEFICIARY: set()}
+
+    for _, row in df.iterrows():
+        respondent_type = _normalize_text(row.get("Respondent Type"))
+        if respondent_type not in grouped_seen:
+            continue
+        email_key = _normalize_email(row.get("Respondent Email"))
+        if not email_key or email_key in grouped_seen[respondent_type]:
+            continue
+        grouped_seen[respondent_type].add(email_key)
+        grouped_counts[respondent_type] += 1
+
+    for respondent_type, count in grouped_counts.items():
+        if count != TARGET_PER_GROUP:
+            raise ValueError(
+                f"{respondent_type} unique count must be exactly {TARGET_PER_GROUP}, got {count}."
+            )
 
 def add_sample_satisfaction_data():
     """Add sample satisfaction ratings to Excel file"""
@@ -25,18 +77,23 @@ def add_sample_satisfaction_data():
         {"id": 5, "type": "external", "title": "Food Distribution Event"}
     ]
     
-    # Sample names
-    volunteer_names = [
+    # Build enough unique sample names for strict 75-per-group generation.
+    volunteer_base_names = [
         "Maria Santos", "Juan Dela Cruz", "Anna Rodriguez", "Carlos Garcia",
         "Sofia Martinez", "Miguel Torres", "Isabella Reyes", "Diego Lopez",
         "Elena Fernandez", "Ricardo Morales", "Carmen Vargas", "Jose Gutierrez"
     ]
-    
-    beneficiary_names = [
+    beneficiary_base_names = [
         "Rosa Alcantara", "Pedro Mendoza", "Luz Villanueva", "Manuel Bautista",
         "Teresa Ramos", "Fernando Cruz", "Dolores Aquino", "Roberto Salazar",
         "Esperanza Del Rosario", "Alfredo Navarro", "Consuelo Medina", "Francisco Ortega"
     ]
+    volunteer_names = [
+        f"{name} V{i+1}" for i in range(TARGET_PER_GROUP) for name in volunteer_base_names
+    ][:TARGET_PER_GROUP]
+    beneficiary_names = [
+        f"{name} B{i+1}" for i in range(TARGET_PER_GROUP) for name in beneficiary_base_names
+    ][:TARGET_PER_GROUP]
     
     # Sample comments
     positive_comments = [
@@ -71,10 +128,9 @@ def add_sample_satisfaction_data():
     
     data_rows = []
     
-    # Generate volunteer responses (30 samples)
-    for i in range(30):
+    # Generate volunteer responses (exactly 75 unique entries)
+    for i, name in enumerate(volunteer_names):
         event = random.choice(events)
-        name = random.choice(volunteer_names)
         email = name.lower().replace(" ", ".") + "@example.com"
         
         # Generate ratings (1-5 scale, bias towards higher ratings)
@@ -97,7 +153,7 @@ def add_sample_satisfaction_data():
             "Event Type": event["type"],
             "Event Title": event["title"],
             "Requirement ID": f"REQ-{random.randint(10000, 99999)}",
-            "Respondent Type": "Volunteer",
+            "Respondent Type": VOLUNTEER,
             "Respondent Email": email,
             "Respondent Name": name,
             "Overall Satisfaction (1-5)": overall,
@@ -119,10 +175,9 @@ def add_sample_satisfaction_data():
             "Finalized": "Yes"
         })
     
-    # Generate beneficiary responses (20 samples)
-    for i in range(20):
+    # Generate beneficiary responses (exactly 75 unique entries)
+    for i, name in enumerate(beneficiary_names):
         event = random.choice(events)
-        name = random.choice(beneficiary_names)
         email = name.lower().replace(" ", ".") + "@example.com"
         
         # Generate ratings (1-5 scale, bias towards higher ratings)
@@ -140,12 +195,12 @@ def add_sample_satisfaction_data():
         submitted_date = (datetime.now() - timedelta(days=random.randint(0, 90))).strftime("%Y-%m-%d %H:%M:%S")
         
         data_rows.append({
-            "ID": 30 + i + 1,
+            "ID": TARGET_PER_GROUP + i + 1,
             "Event ID": event["id"],
             "Event Type": event["type"],
             "Event Title": event["title"],
             "Requirement ID": f"REQ-{random.randint(10000, 99999)}",
-            "Respondent Type": "Beneficiary",
+            "Respondent Type": BENEFICIARY,
             "Respondent Email": email,
             "Respondent Name": name,
             "Overall Satisfaction (1-5)": overall,
@@ -167,8 +222,10 @@ def add_sample_satisfaction_data():
             "Finalized": "Yes"
         })
     
-    # Create DataFrame
+    # Create DataFrame and enforce strict uniqueness/count invariants.
     df = pd.DataFrame(data_rows)
+    df = _sanitize_existing_rows(df)
+    _validate_group_counts(df)
     
     # Ensure data directory exists
     os.makedirs(os.path.dirname(EXCEL_OUTPUT), exist_ok=True)
@@ -179,8 +236,8 @@ def add_sample_satisfaction_data():
         print(f"\n✓ Successfully added {len(data_rows)} sample satisfaction ratings to:")
         print(f"  {EXCEL_OUTPUT}")
         print(f"\nSample data breakdown:")
-        print(f"  - Volunteer responses: 30")
-        print(f"  - Beneficiary responses: 20")
+        print(f"  - Volunteer responses: {TARGET_PER_GROUP}")
+        print(f"  - Beneficiary responses: {TARGET_PER_GROUP}")
         print(f"  - Total: {len(data_rows)}")
     except Exception as e:
         print(f"\n❌ Error exporting to Excel: {e}")
