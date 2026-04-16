@@ -427,14 +427,33 @@ def validateBeneficiaryPin():
     is_postgresql = is_postgresql_url(DATABASE_URL)
     event_table = "internalEvents" if event_type == "internal" else "externalEvents"
     quoted_table = table_name_for_query(event_table)
+    conn, cursor = cursorInstance()
     if is_postgresql:
-      # PostgreSQL event tables use unquoted lowercase column names.
-      query = f"SELECT beneficiaryevaluationpin, durationstart, durationend FROM {quoted_table} WHERE id = %s"
+      # Support both common PG schemas:
+      # - lowercase unquoted columns (beneficiaryevaluationpin, durationstart, durationend)
+      # - quoted camelCase columns ("beneficiaryEvaluationPin", "durationStart", "durationEnd")
+      pg_queries = [
+        f"SELECT beneficiaryevaluationpin, durationstart, durationend FROM {quoted_table} WHERE id = %s",
+        f'SELECT "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s',
+      ]
+      event_row = None
+      last_pg_error = None
+      for q in pg_queries:
+        try:
+          cursor.execute(q, (event_id,))
+          event_row = cursor.fetchone()
+          last_pg_error = None
+          break
+        except Exception as pg_err:
+          last_pg_error = pg_err
+          continue
+      if last_pg_error is not None and event_row is None:
+        raise last_pg_error
     else:
       query = f"SELECT beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
-    conn, cursor = cursorInstance()
-    cursor.execute(query, (event_id,))
-    event_row = cursor.fetchone()
+      cursor.execute(query, (event_id,))
+      event_row = cursor.fetchone()
+
     if not event_row:
       return {"message": "Event not found", "success": False, "error": "Wrong PIN."}, 400
     event_required_pin = (event_row[0] or "").strip() or None
