@@ -659,12 +659,27 @@ def submitBeneficiaryEvaluation():
       quoted_table = table_name_for_query(event_table)
       
       if is_postgresql:
-        query = f'SELECT title, "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
+        pg_queries = [
+          f"SELECT title, beneficiaryevaluationpin, durationstart, durationend FROM {quoted_table} WHERE id = %s",
+          f'SELECT title, "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s',
+        ]
+        event_row = None
+        last_pg_error = None
+        for q in pg_queries:
+          try:
+            cursor.execute(q, (event_id,))
+            event_row = cursor.fetchone()
+            last_pg_error = None
+            break
+          except Exception as pg_err:
+            last_pg_error = pg_err
+            continue
+        if last_pg_error is not None and event_row is None:
+          raise last_pg_error
       else:
         query = f"SELECT title, beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
-
-      cursor.execute(query, (event_id,))
-      event_row = cursor.fetchone()
+        cursor.execute(query, (event_id,))
+        event_row = cursor.fetchone()
       if event_row:
         event_title = event_row[0]
         raw_pin = event_row[1] if len(event_row) > 1 else None
@@ -929,11 +944,27 @@ def submitVolunteerEvaluation():
       event_table = "internalEvents" if event_type == "internal" else "externalEvents"
       quoted_table = table_name_for_query(event_table)
       if is_postgresql:
-        query = f'SELECT title, "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
+        pg_queries = [
+          f"SELECT title, durationstart, durationend FROM {quoted_table} WHERE id = %s",
+          f'SELECT title, "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s',
+        ]
+        row = None
+        last_pg_error = None
+        for q in pg_queries:
+          try:
+            cursor.execute(q, (event_id,))
+            row = cursor.fetchone()
+            last_pg_error = None
+            break
+          except Exception as pg_err:
+            last_pg_error = pg_err
+            continue
+        if last_pg_error is not None and row is None:
+          raise last_pg_error
       else:
         query = f"SELECT title, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
-      cursor.execute(query, (event_id,))
-      row = cursor.fetchone()
+        cursor.execute(query, (event_id,))
+        row = cursor.fetchone()
       if not row:
         conn.close()
         return {"message": "Event not found", "success": False, "error": "Invalid event ID or event type"}, 400
