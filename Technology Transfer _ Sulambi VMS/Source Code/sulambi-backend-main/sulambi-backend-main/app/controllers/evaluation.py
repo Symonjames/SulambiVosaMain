@@ -396,9 +396,12 @@ def validateBeneficiaryPin():
   try:
     from ..database.connection import cursorInstance, table_name_for_query
     import os
-    event_id = request.json.get("eventId")
-    event_type = request.json.get("eventType", "external")
-    submitted_pin = (request.json.get("pin") or "").strip()
+    payload = request.get_json(silent=True) or {}
+    event_id = payload.get("eventId")
+    event_type = (payload.get("eventType", "external") or "external").strip().lower()
+    if event_type not in ("external", "internal"):
+      return {"message": "Invalid event type", "success": False, "error": "eventType must be 'external' or 'internal'."}, 400
+    submitted_pin = (payload.get("pin") or "").strip()
 
     try:
       if isinstance(event_id, str):
@@ -425,7 +428,8 @@ def validateBeneficiaryPin():
     event_table = "internalEvents" if event_type == "internal" else "externalEvents"
     quoted_table = table_name_for_query(event_table)
     if is_postgresql:
-      query = f'SELECT "beneficiaryEvaluationPin", "durationStart", "durationEnd" FROM {quoted_table} WHERE id = %s'
+      # PostgreSQL event tables use unquoted lowercase column names.
+      query = f"SELECT beneficiaryevaluationpin, durationstart, durationend FROM {quoted_table} WHERE id = %s"
     else:
       query = f"SELECT beneficiaryEvaluationPin, durationStart, durationEnd FROM {quoted_table} WHERE id = ?"
     conn, cursor = cursorInstance()
