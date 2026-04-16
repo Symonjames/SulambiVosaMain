@@ -1047,34 +1047,25 @@ def getSatisfactionAnalytics(year=None):
                 else "ss.finalized = 1"
             )
 
-            # Get event dates and submission dates for satisfactionSurveys.
-            # PostgreSQL deployments may have either lowercase columns or quoted camelCase columns.
+            # Read satisfactionSurveys directly (no event-table joins) so analytics remains
+            # resilient across PostgreSQL schema variants. We use submittedAt/submittedat
+            # as the temporal source for semester/year grouping.
             if is_postgresql:
                 pg_survey_queries = [
                     f"""
                         SELECT ss.id, ss.requirementid, ss.respondenttype, ss.overallsatisfaction,
                                ss.volunteerrating, ss.beneficiaryrating, ss.q13, ss.q14, ss.comment, ss.recommendations,
                                ss.eventid, ss.eventtype, ss.submittedat,
-                               CASE
-                                   WHEN ss.eventtype = 'internal' THEN ei.durationstart
-                                   ELSE ee.durationstart
-                               END as eventdate
+                               ss.submittedat as eventdate
                         FROM {satisfaction_surveys_table} ss
-                        LEFT JOIN {internal_events_table} ei ON ss.eventid = ei.id AND ss.eventtype = 'internal'
-                        LEFT JOIN {external_events_table} ee ON ss.eventid = ee.id AND ss.eventtype = 'external'
                         WHERE {finalized_survey_condition}
                     """,
                     f"""
                         SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction",
                                ss."volunteerRating", ss."beneficiaryRating", ss.q13, ss.q14, ss.comment, ss.recommendations,
                                ss."eventId", ss."eventType", ss."submittedAt",
-                               CASE
-                                   WHEN ss."eventType" = 'internal' THEN ei."durationStart"
-                                   ELSE ee."durationStart"
-                               END as eventdate
+                               ss."submittedAt" as eventdate
                         FROM {satisfaction_surveys_table} ss
-                        LEFT JOIN {internal_events_table} ei ON ss."eventId" = ei.id AND ss."eventType" = 'internal'
-                        LEFT JOIN {external_events_table} ee ON ss."eventId" = ee.id AND ss."eventType" = 'external'
                         WHERE {finalized_survey_condition}
                     """,
                 ]
@@ -1095,13 +1086,8 @@ def getSatisfactionAnalytics(year=None):
                     SELECT ss.id, ss.requirementId, ss.respondentType, ss.overallSatisfaction,
                            ss.volunteerRating, ss.beneficiaryRating, ss.q13, ss.q14, ss.comment, ss.recommendations,
                            ss.eventId, ss.eventType, ss.submittedAt,
-                           CASE
-                               WHEN ss.eventType = 'internal' THEN ei.durationStart
-                               ELSE ee.durationStart
-                           END as eventDate
+                           ss.submittedAt as eventDate
                     FROM {satisfaction_surveys_table} ss
-                    LEFT JOIN {internal_events_table} ei ON ss.eventId = ei.id AND ss.eventType = 'internal'
-                    LEFT JOIN {external_events_table} ee ON ss.eventId = ee.id AND ss.eventType = 'external'
                     WHERE {finalized_survey_condition}
                 """
                 cursor.execute(survey_query)
