@@ -26,6 +26,10 @@ PUBLIC_PATHS = [
     ("GET", "/api/events/public"),
     ("GET", "/api/events/beneficiary-eligible"),
     ("GET", "/api/reports/public"),  # Landing page "Latest News" carousel
+    # Read-only satisfaction analytics is safe for public access and used by
+    # cross-origin dashboards where third-party cookies may be blocked.
+    ("GET", "/api/analytics/satisfaction"),
+    ("GET", "/api/analytics/satisfaction/event"),
     ("POST", "/api/evaluation/beneficiary/validate-pin"),
     ("POST", "/api/evaluation/beneficiary"),
     # Volunteer evaluation by email link (requirementId in URL is the token; no login required)
