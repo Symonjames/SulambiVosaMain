@@ -312,8 +312,8 @@ def getEventInformation(eventId: int, eventType: str):
     conn, cursor = cursorInstance()
     requirements_table = table_name_for_query("requirements")
     evaluation_table = table_name_for_query("evaluation")
-    event_id_col = '"eventId"' if IS_POSTGRESQL else "eventId"
-    requirement_id_col = '"requirementId"' if IS_POSTGRESQL else "requirementId"
+    event_id_col = "eventid" if IS_POSTGRESQL else "eventId"
+    requirement_id_col = "requirementid" if IS_POSTGRESQL else "requirementId"
 
     aggregate_query = f"""
       SELECT
