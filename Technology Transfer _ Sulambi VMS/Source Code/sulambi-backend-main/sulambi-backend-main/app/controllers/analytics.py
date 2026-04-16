@@ -440,17 +440,19 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         is_pg = bool(is_postgresql_url(DATABASE_URL) or is_postgresql_connection(conn))
 
         def _pg_dropout_sql(sql: str) -> str:
-            """Quote identifiers PostgreSQL treats as reserved or case-sensitive."""
+            """Normalize SQL for PostgreSQL: event tables use lowercase column names (unquoted DDL)."""
             if not is_pg:
                 return sql
             s = sql.replace("r.type", 'r."type"')
-            s = s.replace("ei.durationEnd", 'ei."durationEnd"').replace("ee.durationEnd", 'ee."durationEnd"')
+            s = s.replace("ei.durationEnd", "ei.durationend").replace("ee.durationEnd", "ee.durationend")
+            s = s.replace("ei.durationStart", "ei.durationstart").replace("ee.durationStart", "ee.durationstart")
             return s
 
         internal_events_table = table_name_for_query("internalEvents")
         external_events_table = table_name_for_query("externalEvents")
-        col_ds = '"durationStart"' if is_pg else 'durationStart'
-        col_de = '"durationEnd"' if is_pg else 'durationEnd'
+        # internalevents/externalevents columns are lowercase (see tableInitializer / migrations).
+        col_ds = "durationstart" if is_pg else "durationStart"
+        col_de = "durationend" if is_pg else "durationEnd"
         cursor.execute(f"""
             SELECT id, title, {col_ds}, {col_de}, 'internal' as type
             FROM {internal_events_table}
