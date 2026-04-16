@@ -515,6 +515,31 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         # Calculate semester engagement data
         semester_data = []
         all_volunteer_stats = {}  # Track per-volunteer stats across all semesters
+
+        # Seed stats from membership so volunteers with zero participation are still included.
+        try:
+            membership_table = table_name_for_query("membership")
+            from ..database.connection import convert_boolean_condition
+            members_query = f"""
+                SELECT email, fullname
+                FROM {membership_table}
+                WHERE (accepted = 1) AND (active = 1 OR active IS NULL)
+            """
+            members_query = convert_boolean_condition(members_query)
+            cursor.execute(members_query)
+            for email, fullname in cursor.fetchall() or []:
+                key = (email or "").strip() or (fullname or "").strip()
+                if not key:
+                    continue
+                if key not in all_volunteer_stats:
+                    all_volunteer_stats[key] = {
+                        "name": fullname or email or key,
+                        "totalJoined": 0,
+                        "totalAttended": 0,
+                        "lastEventDate": 0,
+                    }
+        except Exception as seed_err:
+            logger.warning("legacy dropout membership seed failed: %s", seed_err)
         
         for semester, events in sorted(semester_events.items()):
             event_ids_internal = [e[0] for e in events if e[1] == 'internal']
