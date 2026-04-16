@@ -93,7 +93,8 @@ def rebuildSatisfactionRoute():
 def satisfactionAnalyticsRoute():
     """Get satisfaction analytics from QR evaluations"""
     year = request.args.get('year', None)
-    result = getSatisfactionAnalytics(year)
+    debug = str(request.args.get('debug', '0')).strip().lower() in ('1', 'true', 'yes')
+    result = getSatisfactionAnalytics(year, debug=debug)
     # Always return 200 so frontend can show empty state; result.success and result.data describe content
     return result, 200
 

@@ -876,7 +876,7 @@ def getPredictiveInsights():
             "message": "Failed to generate predictive insights"
         }
 
-def getSatisfactionAnalytics(year=None):
+def getSatisfactionAnalytics(year=None, debug=False):
     """
     Get satisfaction analytics from QR evaluations
     Processes evaluation data to extract satisfaction ratings and trends
@@ -999,6 +999,12 @@ def getSatisfactionAnalytics(year=None):
         # Get all evaluations with their requirement and event info
         from ..database.connection import cursorInstance
         conn, cursor = cursorInstance()
+        debug_info = {
+            "surveyRowsCount": 0,
+            "matchedRowsAfterFilter": 0,
+            "eventCount": 0,
+            "sampleRows": [],
+        }
         
         # Get evaluations with event dates
         from ..database.connection import table_name_for_query
@@ -1018,22 +1024,66 @@ def getSatisfactionAnalytics(year=None):
             else "e.finalized = 1"
         )
         
-        # Query 1: Get evaluations from evaluation table (volunteers with requirementIds)
-        query = f"""
-            SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                   r."eventId", r.type,
-                   CASE 
-                       WHEN r.type = 'internal' THEN ei."durationStart"
-                       ELSE ee."durationStart"
-                   END as eventDate
-            FROM {evaluation_table} e
-            INNER JOIN {requirements_table} r ON e."requirementId" = r.id
-            LEFT JOIN {internal_events_table} ei ON r."eventId" = ei.id AND r.type = 'internal'
-            LEFT JOIN {external_events_table} ee ON r."eventId" = ee.id AND r.type = 'external'
-            WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
-        """
-        cursor.execute(query)
-        evaluation_rows = cursor.fetchall()
+        # Query 1: Get evaluations from evaluation table (volunteers with requirementIds).
+        # PostgreSQL deployments may have lowercase columns or quoted camelCase columns.
+        if is_postgresql:
+            pg_eval_queries = [
+                f"""
+                    SELECT e.id, e.requirementid, e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
+                           r.eventid, r.type,
+                           CASE
+                               WHEN r.type = 'internal' THEN ei.durationstart
+                               ELSE ee.durationstart
+                           END as eventdate
+                    FROM {evaluation_table} e
+                    INNER JOIN {requirements_table} r ON e.requirementid = r.id
+                    LEFT JOIN {internal_events_table} ei ON r.eventid = ei.id AND r.type = 'internal'
+                    LEFT JOIN {external_events_table} ee ON r.eventid = ee.id AND r.type = 'external'
+                    WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
+                """,
+                f"""
+                    SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
+                           r."eventId", r.type,
+                           CASE
+                               WHEN r.type = 'internal' THEN ei."durationStart"
+                               ELSE ee."durationStart"
+                           END as eventDate
+                    FROM {evaluation_table} e
+                    INNER JOIN {requirements_table} r ON e."requirementId" = r.id
+                    LEFT JOIN {internal_events_table} ei ON r."eventId" = ei.id AND r.type = 'internal'
+                    LEFT JOIN {external_events_table} ee ON r."eventId" = ee.id AND r.type = 'external'
+                    WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
+                """,
+            ]
+            evaluation_rows = []
+            last_eval_error = None
+            for query in pg_eval_queries:
+                try:
+                    cursor.execute(query)
+                    evaluation_rows = cursor.fetchall()
+                    last_eval_error = None
+                    break
+                except Exception as eval_err:
+                    last_eval_error = eval_err
+                    evaluation_rows = []
+            if last_eval_error is not None and not evaluation_rows:
+                raise last_eval_error
+        else:
+            query = f"""
+                SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
+                       r."eventId", r.type,
+                       CASE
+                           WHEN r.type = 'internal' THEN ei."durationStart"
+                           ELSE ee."durationStart"
+                       END as eventDate
+                FROM {evaluation_table} e
+                INNER JOIN {requirements_table} r ON e."requirementId" = r.id
+                LEFT JOIN {internal_events_table} ei ON r."eventId" = ei.id AND r.type = 'internal'
+                LEFT JOIN {external_events_table} ee ON r."eventId" = ee.id AND r.type = 'external'
+                WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
+            """
+            cursor.execute(query)
+            evaluation_rows = cursor.fetchall()
         
         # Query 2: Get submissions from satisfactionSurveys table
         # (These don't have requirementIds linked to evaluation table - includes both Volunteers and Beneficiaries)
@@ -1100,6 +1150,20 @@ def getSatisfactionAnalytics(year=None):
         # Combine both result sets
         # Convert survey rows to match evaluation row format for processing
         combined_rows = list(evaluation_rows)
+        debug_info["surveyRowsCount"] = len(survey_rows)
+        if survey_rows:
+            # Keep only the most relevant fields for temporary diagnostics.
+            debug_info["sampleRows"] = [
+                {
+                    "id": row[0],
+                    "respondentType": row[2],
+                    "overallSatisfaction": row[3],
+                    "eventId": row[10],
+                    "eventType": row[11],
+                    "submittedAt": row[12],
+                }
+                for row in survey_rows[:3]
+            ]
         for survey_row in survey_rows:
             # Format: (id, requirementId, respondentType, overallSatisfaction, volunteerRating, 
             #          beneficiaryRating, q13, q14, comment, recommendations, eventId, eventType, submittedAt, eventDate)
@@ -1150,6 +1214,13 @@ def getSatisfactionAnalytics(year=None):
         
         conn.close()
         evaluation_rows = combined_rows
+        debug_info["eventCount"] = len(
+            {
+                (str(r[9]), str(r[10]))
+                for r in evaluation_rows
+                if len(r) > 10 and r[9] is not None
+            }
+        )
         
         satisfactionBySemester = {}
         issues = {}
@@ -1183,6 +1254,7 @@ def getSatisfactionAnalytics(year=None):
                     # Check if year matches the event date year
                     if str(evalDate.year) != year_str:
                         continue
+                debug_info["matchedRowsAfterFilter"] += 1
                 
                 semester = f"{evalDate.year}-{math.ceil(evalDate.month / 6)}"
                 
@@ -1300,7 +1372,7 @@ def getSatisfactionAnalytics(year=None):
                 'category': 'volunteers' if random.random() > 0.5 else 'beneficiaries'  # Random assignment for demo
             })
         
-        return {
+        response_payload = {
             "success": True,
             "data": {
                 "satisfactionData": satisfactionData,
@@ -1316,11 +1388,14 @@ def getSatisfactionAnalytics(year=None):
             },
             "message": "Satisfaction analytics retrieved successfully"
         }
+        if debug:
+            response_payload["debug"] = debug_info
+        return response_payload
         
     except Exception as e:
         print(f"[SATISFACTION_ANALYTICS] Error (returning empty data): {e}")
-        # Return 200 with empty data so dashboard does not see 500; frontend can show empty state
-        return {
+        # Return 200 with empty data so dashboard does not see 500; frontend can show empty state.
+        error_payload = {
             "success": True,
             "data": {
                 "satisfactionData": [],
@@ -1336,6 +1411,15 @@ def getSatisfactionAnalytics(year=None):
             },
             "message": "No satisfaction data available"
         }
+        if debug:
+            error_payload["debug"] = {
+                "error": str(e),
+                "surveyRowsCount": 0,
+                "matchedRowsAfterFilter": 0,
+                "eventCount": 0,
+                "sampleRows": [],
+            }
+        return error_payload
 
 def getEventSatisfactionAnalytics(eventId: int, eventType: str):
     """
