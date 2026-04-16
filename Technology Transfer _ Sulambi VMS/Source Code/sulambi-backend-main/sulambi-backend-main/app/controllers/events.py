@@ -295,7 +295,7 @@ def getPublicEvents():
     to_public = event.get("toPublic") in (True, 1, "true", "1")
     duration_end = int(event.get("durationEnd") or 0)
     not_finished = duration_end > time_now_ms
-    if status_lower not in ["editing", "rejected"] and to_public and not_finished:
+    if status_lower == "accepted" and to_public and not_finished:
       event["eventTypeIndicator"] = "external"
       externalEvents.append(event)
     else:
@@ -306,7 +306,7 @@ def getPublicEvents():
     to_public = event.get("toPublic") in (True, 1, "true", "1")
     duration_end = int(event.get("durationEnd") or 0)
     not_finished = duration_end > time_now_ms
-    if status_lower not in ["editing", "rejected"] and to_public and not_finished:
+    if status_lower == "accepted" and to_public and not_finished:
       event["eventTypeIndicator"] = "internal"
       internalEvents.append(event)
     else:
@@ -364,7 +364,7 @@ def getBeneficiaryEligibleEvents():
     status_lower = str(event.get("status", "")).lower().strip()
     to_public = event.get("toPublic") in (True, 1, "true", "1")
     in_window = _is_event_open_for_beneficiary_evaluation(event.get("durationStart"), event.get("durationEnd"), time_now_ms)
-    if status_lower not in ["editing", "rejected"] and to_public and in_window:
+    if status_lower == "accepted" and to_public and in_window:
       pin_val = (event.get("beneficiaryEvaluationPin") or "").strip()
       if not pin_val:
         continue  # every event must have a PIN for beneficiary evaluation; skip if missing
@@ -379,7 +379,7 @@ def getBeneficiaryEligibleEvents():
     status_lower = str(event.get("status", "")).lower().strip()
     to_public = event.get("toPublic") in (True, 1, "true", "1")
     in_window = _is_event_open_for_beneficiary_evaluation(event.get("durationStart"), event.get("durationEnd"), time_now_ms)
-    if status_lower not in ["editing", "rejected"] and to_public and in_window:
+    if status_lower == "accepted" and to_public and in_window:
       pin_val = (event.get("beneficiaryEvaluationPin") or "").strip()
       if not pin_val:
         continue  # every event must have a PIN for beneficiary evaluation; skip if missing
@@ -699,13 +699,9 @@ def editExternalEventStatus(id, status: str):
   if (externalEvent["createdBy"] != accountSessionInfo["id"] and status == "submitted"):
     return ({ "message": "You have no permission to submit this event" }, 403)
 
-  update_fields = ["status"]
-  update_values = [status]
-  # Newly approved events should be visible on homepage/public feeds.
-  if str(status).lower().strip() == "accepted":
-    update_fields.append("toPublic")
-    update_values.append(True)
-  ExternalEventDb.updateSpecific(id, update_fields, tuple(update_values))
+  # Approval and public visibility are separate actions.
+  # Officers/admin can approve first, then explicitly use /to-public endpoint.
+  ExternalEventDb.updateSpecific(id, ["status"], (status,))
   updatedData = ExternalEventDb.get(id)
   return {
     "data": updatedData,
@@ -722,13 +718,9 @@ def editInternalEventStatus(id, status: str):
   if (internalEvent["createdBy"] != accountSessionInfo["id"] and status == "submitted"):
     return ({ "message": "You have no permission to submit this event" }, 403)
 
-  update_fields = ["status"]
-  update_values = [status]
-  # Newly approved events should be visible on homepage/public feeds.
-  if str(status).lower().strip() == "accepted":
-    update_fields.append("toPublic")
-    update_values.append(True)
-  InternalEventDb.updateSpecific(id, update_fields, tuple(update_values))
+  # Approval and public visibility are separate actions.
+  # Officers/admin can approve first, then explicitly use /to-public endpoint.
+  InternalEventDb.updateSpecific(id, ["status"], (status,))
   updatedData = InternalEventDb.get(id)
   return {
     "data": updatedData,
