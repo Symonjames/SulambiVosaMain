@@ -333,6 +333,8 @@ const DropoutRiskAssessment: React.FC = () => {
         ? { backgroundColor: "#f1fff4", border: "1px solid #b9f6ca" }
         : { backgroundColor: "#f4f8ff", border: "1px solid #d0e3ff" };
 
+  const sortedAtRiskVolunteers = [...atRiskVolunteers].sort((a, b) => b.riskScore - a.riskScore);
+
   if (loading) {
     return (
       <FlexBox
@@ -432,129 +434,145 @@ const DropoutRiskAssessment: React.FC = () => {
         maxHeight="75vh"
         maxWidth="600px"
       >
-        <FlexBox flexDirection="column" gap={3}>
-          
-          {/* Risk Level Alert */}
-          <Alert 
+        <FlexBox flexDirection="column" gap={2.5}>
+          <Alert
             severity={riskLevel === 'High' ? 'error' : riskLevel === 'Medium' ? 'warning' : 'success'}
             icon={false}
-            sx={{ mb: 2 }}
+            sx={{ mb: 0.5 }}
           >
             <Typography variant="body2">
               Overall Risk Level: <strong>{riskLevel}</strong> | Retention Rate: <strong>{retentionRate}%</strong>
             </Typography>
           </Alert>
 
-          {/* Semester Overview */}
-          <Box>
-            <Typography variant="subtitle2" gutterBottom>
-              Semester Overview:
-            </Typography>
-            <FlexBox gap={2} mb={1}>
-              <Chip 
-                label={`${averageEngagement} events/volunteer`} 
-                color="primary" 
-                size="small"
-              />
-              <Chip 
-                label={`${retentionRate}% retention`} 
-                color={retentionRate > 90 ? 'success' : retentionRate > 80 ? 'warning' : 'error'}
-                size="small"
-              />
-              <FlexBox alignItems="center" gap={0.5}>
+          <FlexBox gap={1.25} flexWrap="wrap">
+            <Box
+              sx={{
+                flex: 1,
+                minWidth: { xs: "100%", sm: "150px" },
+                border: "1px solid #eee",
+                borderRadius: "10px",
+                p: 1.25,
+                bgcolor: "#faf8f5",
+              }}
+            >
+              <Typography variant="caption" color="text.secondary">Engagement</Typography>
+              <Typography variant="h6" fontWeight={800}>{averageEngagement}</Typography>
+              <Typography variant="caption" color="text.secondary">events per volunteer</Typography>
+            </Box>
+            <Box
+              sx={{
+                flex: 1,
+                minWidth: { xs: "100%", sm: "150px" },
+                border: "1px solid #eee",
+                borderRadius: "10px",
+                p: 1.25,
+                bgcolor: "#faf8f5",
+              }}
+            >
+              <Typography variant="caption" color="text.secondary">Average Inactivity</Typography>
+              <Typography variant="h6" fontWeight={800}>{capDays(averageInactivity)} days</Typography>
+              <Typography variant="caption" color="text.secondary">since last participation</Typography>
+            </Box>
+            <Box
+              sx={{
+                flex: 1,
+                minWidth: { xs: "100%", sm: "150px" },
+                border: "1px solid #eee",
+                borderRadius: "10px",
+                p: 1.25,
+                bgcolor: "#faf8f5",
+              }}
+            >
+              <Typography variant="caption" color="text.secondary">Trend</Typography>
+              <FlexBox alignItems="center" gap={0.6}>
                 {getTrendIcon(dropoutTrend)}
-                <Typography variant="caption" color="text.secondary">
-                  {dropoutTrend} trend
-                </Typography>
+                <Typography variant="h6" fontWeight={800}>{dropoutTrend}</Typography>
               </FlexBox>
-            </FlexBox>
-          </Box>
+              <Typography variant="caption" color="text.secondary">semester-over-semester</Typography>
+            </Box>
+          </FlexBox>
 
-          {/* Engagement Frequency Chart */}
-          <Box>
+          <Box sx={{ border: "1px solid #eee", borderRadius: "12px", p: 1.5 }}>
             <Typography variant="subtitle2" gutterBottom>
-              Volunteer Engagement Frequency (events per semester)
+              Volunteer Engagement Frequency
             </Typography>
-            <Box height={200}>
+            <Box height={220}>
               <BarChart
-                height={200}
+                height={220}
                 dataset={semesterEngagementData}
-                xAxis={[{ 
-                  scaleType: "band", 
-                  dataKey: "semester", 
-                  label: "Semester" 
+                xAxis={[{
+                  scaleType: "band",
+                  dataKey: "semester",
+                  label: "Semester"
                 }]}
-                yAxis={[{ 
-                  label: "Events Attended", 
-                  min: 0, 
-                  max: 5 
+                yAxis={[{
+                  label: "Counts",
+                  min: 0,
+                  max: 5
                 }]}
                 series={[
-                  { 
-                    dataKey: "events", 
+                  {
+                    dataKey: "events",
                     label: "Events per Volunteer",
                     color: "#333333"
                   },
-                  { 
-                    dataKey: "volunteers", 
+                  {
+                    dataKey: "volunteers",
                     label: "Active Volunteers",
                     color: "#2196f3"
                   }
                 ]}
               />
             </Box>
-            <Typography variant="caption" color="text.secondary">
-              Average: {averageEngagement} events per semester
-            </Typography>
           </Box>
 
-          {/* Inactivity Duration */}
-          <Box>
+          <Box sx={{ border: "1px solid #eee", borderRadius: "12px", p: 1.5 }}>
             <Typography variant="subtitle2" gutterBottom>
-              Average Inactivity Duration: {capDays(averageInactivity)} days
+              Flagged At-Risk Volunteers ({sortedAtRiskVolunteers.length})
             </Typography>
-            <Chip 
-              label={`${capDays(averageInactivity)} days since last involvement`} 
-              color={capDays(averageInactivity) > 30 ? 'error' : capDays(averageInactivity) > 15 ? 'warning' : 'success'}
-              size="small"
-            />
-          </Box>
-
-          {/* Flagged At-Risk Volunteers */}
-          <Box>
-            <Typography variant="subtitle2" gutterBottom>
-              Flagged At-Risk Volunteers ({atRiskVolunteers.length}):
-            </Typography>
-            <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
-              {atRiskVolunteers
-                .sort((a, b) => b.riskScore - a.riskScore)
-                .map((volunteer, index) => (
-                <ListItem key={index} sx={{ px: 0, py: 0.5 }}>
+            <List dense sx={{ maxHeight: 240, overflow: 'auto', mt: 0.5 }}>
+              {sortedAtRiskVolunteers.map((volunteer, index) => (
+                <ListItem
+                  key={index}
+                  sx={{
+                    px: 1,
+                    py: 1,
+                    mb: 0.8,
+                    border: "1px solid #f0f0f0",
+                    borderRadius: "8px",
+                    bgcolor: "#fcfcfc",
+                    alignItems: "flex-start",
+                  }}
+                >
                   <ListItemText
                     primary={
-                      <FlexBox justifyContent="space-between" alignItems="center">
-                        <Typography variant="body2" fontWeight="medium">
-                          {volunteer.name}
-                        </Typography>
+                      <FlexBox justifyContent="space-between" alignItems="flex-start" gap={1}>
                         <Box>
-                          <Chip 
-                            label={`${volunteer.riskScore}% risk`} 
-                            size="small" 
-                            color={volunteer.riskScore > 80 ? 'error' : volunteer.riskScore > 60 ? 'warning' : 'success'}
-                            sx={{ fontSize: '0.6rem', mr: 0.5 }}
-                          />
-                          <Chip 
-                            label={`${capDays(volunteer.inactivityDays)} days`} 
-                            size="small" 
-                            color={capDays(volunteer.inactivityDays) > 30 ? 'error' : 'warning'}
-                            sx={{ fontSize: '0.7rem' }}
-                          />
+                          <Typography variant="body2" fontWeight={700}>
+                            {volunteer.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Last event: {volunteer.lastEvent || "Never"}
+                          </Typography>
                         </Box>
+                        <FlexBox gap={0.5} flexWrap="wrap" justifyContent="flex-end">
+                          <Chip
+                            label={`${volunteer.riskScore}% risk`}
+                            size="small"
+                            color={volunteer.riskScore > 80 ? 'error' : volunteer.riskScore > 60 ? 'warning' : 'success'}
+                          />
+                          <Chip
+                            label={`${capDays(volunteer.inactivityDays)} days inactive`}
+                            size="small"
+                            color={capDays(volunteer.inactivityDays) > 30 ? 'error' : 'warning'}
+                          />
+                        </FlexBox>
                       </FlexBox>
                     }
                     secondary={
                       <Typography variant="caption" color="text.secondary">
-                        Last event: {volunteer.lastEvent}
+                        Joined: {volunteer.joinedEvents ?? 0} | Attended: {volunteer.attendedEvents ?? 0} | Attendance: {volunteer.attendanceRate ?? 0}%
                       </Typography>
                     }
                   />
@@ -563,10 +581,9 @@ const DropoutRiskAssessment: React.FC = () => {
             </List>
           </Box>
 
-          {/* Interpretation & Prediction */}
           <Box>
             <Typography variant="subtitle2" gutterBottom>
-              Interpretation:
+              Interpretation
             </Typography>
             {interpretation.map((line, idx) => (
               <Typography key={idx} variant="body2" color="text.secondary">
@@ -575,12 +592,11 @@ const DropoutRiskAssessment: React.FC = () => {
             ))}
             <Box
               sx={{
-                mt: 2,
+                mt: 1.5,
                 p: 2,
                 borderRadius: '12px',
                 ...predictionBoxSx,
-                fontWeight: 500,
-                textAlign: 'center'
+                fontWeight: 500
               }}
             >
               {prediction}

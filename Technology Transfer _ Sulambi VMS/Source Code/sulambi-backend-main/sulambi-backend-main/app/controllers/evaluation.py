@@ -5,6 +5,7 @@ from ..models.AccountModel import AccountModel
 from ..models.MembershipModel import MembershipModel
 from ..models.ExternalEventModel import ExternalEventModel
 from ..models.InternalEventModel import InternalEventModel
+from ..models.SatisfactionSurveyModel import SatisfactionSurveyModel
 from flask import request, g
 
 ExternalEventDb = ExternalEventModel()
@@ -13,6 +14,7 @@ EvaluationDb = EvaluationModel()
 RequirementDb = RequirementsModel()
 MembershipDb = MembershipModel()
 AccountDb = AccountModel()
+SatisfactionSurveyDb = SatisfactionSurveyModel()
 
 def _is_finalized_value(value) -> bool:
   if value is True or value == 1:
@@ -200,12 +202,11 @@ def evaluateByRequirement(requirementId):
 
   # Save to satisfactionSurveys table for analytics
   try:
-    from ..database.connection import cursorInstance
     import json
     from datetime import datetime
-    
-    conn, cursor = cursorInstance()
-    
+    import os
+    from ..database.connection import convert_boolean_value, is_postgresql_url
+
     # Parse criteria to extract ratings
     criteria_data = request.json.get("criteria", {})
     if isinstance(criteria_data, str):
@@ -264,86 +265,67 @@ def evaluateByRequirement(requirementId):
     event_id = requirement.get("eventId")
     event_type = requirement.get("type", "internal")
     
-    # Get event title
+    # Get event title (models handle PG/SQLite column mapping)
     event_title = ""
     try:
-      from ..database.connection import table_name_for_query, convert_placeholders
-      event_table = "internalEvents" if event_type == "internal" else "externalEvents"
-      quoted_table = table_name_for_query(event_table)
-      query = f"SELECT title FROM {quoted_table} WHERE id = ?"
-      query = convert_placeholders(query)
-      cursor.execute(query, (event_id,))
-      event_row = cursor.fetchone()
-      if event_row:
-        event_title = event_row[0]
-    except:
+      eid = int(event_id) if event_id is not None else None
+      if eid is not None:
+        ev = InternalEventDb.get(eid) if str(event_type).lower() == "internal" else ExternalEventDb.get(eid)
+        if ev:
+          event_title = ev.get("title") or ""
+    except Exception:
       pass
-    
-    # Check if already exists - handle both SQLite and PostgreSQL
-    from ..database.connection import DATABASE_URL, table_name_for_query, convert_placeholders, convert_boolean_value, is_postgresql_url
-    is_postgresql = is_postgresql_url(DATABASE_URL)
-    
-    table_name = table_name_for_query('satisfactionSurveys')
 
-    if is_postgresql:
-      check_query = f"""
-        SELECT id FROM {table_name}
-        WHERE "requirementId" = %s AND "respondentEmail" = %s
-      """
-    else:
-      check_query = """
-        SELECT id FROM satisfactionSurveys 
-        WHERE requirementId = ? AND respondentEmail = ?
-      """
-    
-    cursor.execute(check_query, (requirementId, requirement.get("email", "")))
-    
-    if not cursor.fetchone():
-      # Insert into satisfactionSurveys
-      submitted_at = int(datetime.now().timestamp() * 1000)
-      
+    is_postgresql = is_postgresql_url(os.getenv("DATABASE_URL"))
+    existing = SatisfactionSurveyDb.getAndSearch(
+      ["requirementId", "respondentEmail"],
+      [requirementId, requirement.get("email", "")],
+    )
+    if not existing:
+      submitted_at = int(datetime.now().timestamp())
       if is_postgresql:
-        insert_query = f"""
-          INSERT INTO {table_name} (
-            "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
-            "overallSatisfaction", "volunteerRating", "beneficiaryRating",
-            "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
-            q13, q14, comment, recommendations,
-            "wouldRecommend", "areasForImprovement", "positiveAspects",
-            "submittedAt", finalized
-          ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
         finalized_val = convert_boolean_value(True)
-        would_recommend_val = convert_boolean_value(overall_satisfaction >= 4 if overall_satisfaction > 0 else None)
+        would_recommend_val = (
+          convert_boolean_value(overall_satisfaction >= 4)
+          if overall_satisfaction and overall_satisfaction > 0
+          else None
+        )
       else:
-        # SQLite: use unquoted identifiers and ? placeholders
-        insert_query = """
-          INSERT INTO satisfactionSurveys (
-            eventId, eventType, requirementId, respondentType, respondentEmail, respondentName,
-            overallSatisfaction, volunteerRating, beneficiaryRating,
-            organizationRating, communicationRating, venueRating, materialsRating, supportRating,
-            q13, q14, comment, recommendations,
-            wouldRecommend, areasForImprovement, positiveAspects,
-            submittedAt, finalized
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
         finalized_val = True
         would_recommend_val = overall_satisfaction >= 4 if overall_satisfaction > 0 else None
-      
-      cursor.execute(insert_query, (
-        event_id, event_type, requirementId, respondent_type, 
-        requirement.get("email", ""), requirement.get("fullname", ""),
-        overall_satisfaction, volunteer_rating, beneficiary_rating,
-        organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
-        q13, q14, request.json.get("comment", ""), request.json.get("recommendations", ""),
-        would_recommend_val,
-        None,  # Areas for improvement
-        request.json.get("comment", "") if overall_satisfaction >= 4 else None,  # Positive aspects
-        submitted_at, finalized_val
-      ))
-      conn.commit()
-    
-    conn.close()
+
+      try:
+        survey_event_id = int(event_id)
+      except (TypeError, ValueError):
+        survey_event_id = int(float(event_id))
+
+      pos = (request.json.get("comment", "") or "") if overall_satisfaction and overall_satisfaction >= 4 else ""
+
+      SatisfactionSurveyDb.create(
+        eventId=survey_event_id,
+        eventType=str(event_type),
+        requirementId=str(requirementId),
+        respondentType=respondent_type,
+        respondentEmail=str(requirement.get("email", "") or ""),
+        respondentName=str(requirement.get("fullname", "") or ""),
+        overallSatisfaction=float(overall_satisfaction or 0),
+        volunteerRating=volunteer_rating,
+        beneficiaryRating=beneficiary_rating,
+        organizationRating=float(organization_rating or 0),
+        communicationRating=float(communication_rating or 0),
+        venueRating=float(venue_rating or 0),
+        materialsRating=float(materials_rating or 0),
+        supportRating=float(support_rating or 0),
+        q13=q13,
+        q14=q14,
+        comment=request.json.get("comment", "") or "",
+        recommendations=request.json.get("recommendations", "") or "",
+        wouldRecommend=would_recommend_val,
+        areasForImprovement="",
+        positiveAspects=pos,
+        submittedAt=submitted_at,
+        finalized=finalized_val,
+      )
   except Exception as e:
     # Don't fail the evaluation if satisfaction survey save fails
     print(f"Error saving to satisfactionSurveys: {e}")
@@ -687,12 +669,20 @@ def submitBeneficiaryEvaluation():
         duration_start = event_row[2] if len(event_row) > 2 else None
         duration_end = event_row[3] if len(event_row) > 3 else None
         if not _event_is_eligible_for_evaluation(duration_start, duration_end):
+          try:
+            conn.close()
+          except Exception:
+            pass
           return {
             "message": "Event no longer open for evaluation",
             "success": False,
             "error": "This event can only be evaluated while it's ongoing or within 7 days after it ended."
           }, 400
       else:
+        try:
+          conn.close()
+        except Exception:
+          pass
         return {
           "message": "Event not found",
           "success": False,
@@ -702,6 +692,10 @@ def submitBeneficiaryEvaluation():
       print(f"Error checking event: {e}")
       import traceback
       traceback.print_exc()
+      try:
+        conn.close()
+      except Exception:
+        pass
       return {
         "message": "Error verifying event",
         "success": False,
@@ -710,6 +704,10 @@ def submitBeneficiaryEvaluation():
 
     # Every event has one PIN for beneficiaries; validate it
     if not event_required_pin:
+      try:
+        conn.close()
+      except Exception:
+        pass
       return {
         "message": "Event not configured for beneficiary evaluation",
         "success": False,
@@ -717,93 +715,98 @@ def submitBeneficiaryEvaluation():
       }, 400
     submitted_pin = (request.json.get("pin") or "").strip()
     if not submitted_pin:
+      try:
+        conn.close()
+      except Exception:
+        pass
       return {
         "message": "Event PIN is required",
         "success": False,
         "error": "Please enter the 5-digit event PIN to submit beneficiary feedback."
       }, 400
     if len(submitted_pin) != 5 or not submitted_pin.isdigit():
+      try:
+        conn.close()
+      except Exception:
+        pass
       return {
         "message": "Invalid PIN format",
         "success": False,
         "error": "Event PIN must be exactly 5 digits (numbers only)."
       }, 400
     if submitted_pin != event_required_pin:
+      try:
+        conn.close()
+      except Exception:
+        pass
       return {
         "message": "Invalid or missing event PIN",
         "success": False,
         "error": "Please enter the correct event PIN to submit beneficiary feedback."
       }, 400
 
-    # Insert directly into satisfactionSurveys table
-    submitted_at = int(datetime.now().timestamp() * 1000)
-    
-    # Generate a unique requirementId for tracking (using negative ID or UUID)
+    try:
+      conn.close()
+    except Exception:
+      pass
+
     import uuid
+    from ..database.connection import DATABASE_URL, convert_boolean_value, is_postgresql_url
+
     requirement_id = str(uuid.uuid4())
-    
-    # Check if PostgreSQL and use appropriate syntax
-    from ..database.connection import DATABASE_URL, table_name_for_query, convert_placeholders, convert_boolean_value, is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
-    
-    # Get table name with proper quoting
-    table_name = table_name_for_query('satisfactionSurveys')
-    
-    if is_postgresql:
-      insert_query = f"""
-        INSERT INTO {table_name} (
-          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
-          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
-          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
-          q13, q14, comment, recommendations,
-          "wouldRecommend", "areasForImprovement", "positiveAspects",
-          "submittedAt", finalized
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-      """
-    else:
-      # SQLite: use unquoted identifiers and ? placeholders
-      insert_query = f"""
-        INSERT INTO {table_name} (
-          eventId, eventType, requirementId, respondentType, respondentEmail, respondentName,
-          overallSatisfaction, volunteerRating, beneficiaryRating,
-          organizationRating, communicationRating, venueRating, materialsRating, supportRating,
-          q13, q14, comment, recommendations,
-          wouldRecommend, areasForImprovement, positiveAspects,
-          submittedAt, finalized
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      """
-    
-    # Convert boolean for database compatibility - SAME as evaluateByRequirement
+    submitted_at = int(datetime.now().timestamp())
+
     if is_postgresql:
       finalized_val = convert_boolean_value(True)
-      would_recommend_val = convert_boolean_value(overall_satisfaction >= 4 if overall_satisfaction > 0 else None)
+      would_recommend_val = (
+        convert_boolean_value(overall_satisfaction >= 4)
+        if overall_satisfaction and overall_satisfaction > 0
+        else None
+      )
     else:
       finalized_val = True
       would_recommend_val = overall_satisfaction >= 4 if overall_satisfaction > 0 else None
-    
-    # Execute INSERT - SAME parameter order as evaluateByRequirement
+
     try:
-      cursor.execute(insert_query, (
-        event_id, event_type, requirement_id, "Beneficiary",
-        request.json.get("email", "") or "", request.json.get("name", "") or "",
-        overall_satisfaction, None, beneficiary_rating,
-        organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
-        q13, q14, comment, recommendations,
-        would_recommend_val,
-        None,  # Areas for improvement
-        comment if overall_satisfaction >= 4 else None,  # Positive aspects
-        submitted_at, finalized_val
-      ))
-      conn.commit()
-      conn.close()
-      
+      try:
+        survey_event_id = int(event_id)
+      except (TypeError, ValueError):
+        survey_event_id = int(float(event_id))
+
+      pos = comment if overall_satisfaction >= 4 else ""
+
+      SatisfactionSurveyDb.create(
+        eventId=survey_event_id,
+        eventType=str(event_type),
+        requirementId=requirement_id,
+        respondentType="Beneficiary",
+        respondentEmail=request.json.get("email", "") or "",
+        respondentName=request.json.get("name", "") or "",
+        overallSatisfaction=float(overall_satisfaction),
+        volunteerRating=None,
+        beneficiaryRating=beneficiary_rating,
+        organizationRating=float(organization_rating),
+        communicationRating=float(communication_rating),
+        venueRating=float(venue_rating),
+        materialsRating=float(materials_rating),
+        supportRating=float(support_rating),
+        q13=q13,
+        q14=q14,
+        comment=comment,
+        recommendations=recommendations,
+        wouldRecommend=would_recommend_val,
+        areasForImprovement="",
+        positiveAspects=pos,
+        submittedAt=submitted_at,
+        finalized=finalized_val,
+      )
+
       return {
         "message": "Beneficiary evaluation submitted successfully",
         "success": True
       }, 200
     except Exception as db_error:
-      conn.rollback()
-      conn.close()
       error_msg = str(db_error)
       print(f"Database error submitting beneficiary evaluation: {db_error}")
       import traceback
@@ -814,9 +817,9 @@ def submitBeneficiaryEvaluation():
         "event_id": event_id,
         "event_id_type": type(event_id).__name__ if event_id is not None else "None",
         "submitted_at": submitted_at,
-        "submitted_at_type": type(submitted_at).__name__ if 'submitted_at' in locals() else "unknown",
-        "overall_satisfaction": overall_satisfaction_val if 'overall_satisfaction_val' in locals() else "unknown",
-        "beneficiary_rating": beneficiary_rating_val if 'beneficiary_rating_val' in locals() else "unknown",
+        "submitted_at_type": type(submitted_at).__name__ if "submitted_at" in locals() else "unknown",
+        "overall_satisfaction": overall_satisfaction,
+        "beneficiary_rating": beneficiary_rating,
       }
       
       if "integer out of range" in error_msg.lower():
@@ -984,65 +987,59 @@ def submitVolunteerEvaluation():
         pass
       return {"message": "Error verifying event", "success": False, "error": str(e)}, 500
 
-    # Insert into satisfactionSurveys
-    submitted_at = int(datetime.now().timestamp() * 1000)
+    try:
+      conn.close()
+    except Exception:
+      pass
+
+    submitted_at = int(datetime.now().timestamp())
     import uuid
     requirement_id = str(uuid.uuid4())
 
-    from ..database.connection import DATABASE_URL, table_name_for_query, convert_boolean_value, is_postgresql_url
+    from ..database.connection import DATABASE_URL, convert_boolean_value, is_postgresql_url
     is_postgresql = is_postgresql_url(DATABASE_URL)
-    table_name = table_name_for_query('satisfactionSurveys')
-
-    if is_postgresql:
-      insert_query = f"""
-        INSERT INTO {table_name} (
-          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
-          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
-          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
-          q13, q14, comment, recommendations,
-          "wouldRecommend", "areasForImprovement", "positiveAspects",
-          "submittedAt", finalized
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-      """
-    else:
-      insert_query = f"""
-        INSERT INTO {table_name} (
-          eventId, eventType, requirementId, respondentType, respondentEmail, respondentName,
-          overallSatisfaction, volunteerRating, beneficiaryRating,
-          organizationRating, communicationRating, venueRating, materialsRating, supportRating,
-          q13, q14, comment, recommendations,
-          wouldRecommend, areasForImprovement, positiveAspects,
-          submittedAt, finalized
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      """
-
     finalized_val = convert_boolean_value(True) if is_postgresql else True
-    would_recommend_val = convert_boolean_value(overall_satisfaction >= 4) if is_postgresql else (overall_satisfaction >= 4)
+    would_recommend_val = (
+      convert_boolean_value(overall_satisfaction >= 4)
+      if is_postgresql
+      else (overall_satisfaction >= 4)
+    )
 
     try:
-      cursor.execute(insert_query, (
-        event_id, event_type, requirement_id, "Volunteer",
-        request.json.get("email", "") or "", request.json.get("name", "") or "",
-        overall_satisfaction, overall_satisfaction, None,
-        organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
-        q13, q14, comment, recommendations,
-        would_recommend_val,
-        None,
-        comment if overall_satisfaction >= 4 else None,
-        submitted_at, finalized_val
-      ))
-      conn.commit()
-      conn.close()
+      try:
+        survey_event_id = int(event_id)
+      except (TypeError, ValueError):
+        survey_event_id = int(float(event_id))
+
+      pos = comment if overall_satisfaction >= 4 else ""
+
+      SatisfactionSurveyDb.create(
+        eventId=survey_event_id,
+        eventType=str(event_type),
+        requirementId=requirement_id,
+        respondentType="Volunteer",
+        respondentEmail=request.json.get("email", "") or "",
+        respondentName=request.json.get("name", "") or "",
+        overallSatisfaction=float(overall_satisfaction),
+        volunteerRating=float(overall_satisfaction),
+        beneficiaryRating=None,
+        organizationRating=float(organization_rating),
+        communicationRating=float(communication_rating),
+        venueRating=venue_rating,
+        materialsRating=float(materials_rating),
+        supportRating=float(support_rating),
+        q13=q13,
+        q14=q14,
+        comment=comment,
+        recommendations=recommendations,
+        wouldRecommend=would_recommend_val,
+        areasForImprovement="",
+        positiveAspects=pos,
+        submittedAt=submitted_at,
+        finalized=finalized_val,
+      )
       return {"message": "Volunteer evaluation submitted successfully", "success": True}, 200
     except Exception as db_error:
-      try:
-        conn.rollback()
-      except Exception:
-        pass
-      try:
-        conn.close()
-      except Exception:
-        pass
       return {"message": f"Error submitting volunteer evaluation: {str(db_error)}", "success": False, "error": str(db_error)}, 500
 
   except Exception as e:
