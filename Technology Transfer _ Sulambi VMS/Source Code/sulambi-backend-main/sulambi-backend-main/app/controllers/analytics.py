@@ -445,6 +445,8 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 return sql
             s = sql.replace("r.type", 'r."type"')
             s = s.replace('r."eventId"', "r.eventid").replace("r.eventId", "r.eventid")
+            s = s.replace('e."requirementId"', "e.requirementid").replace("e.requirementId", "e.requirementid")
+            s = s.replace('r."requirementId"', "r.requirementid").replace("r.requirementId", "r.requirementid")
             s = s.replace("ei.durationEnd", "ei.durationend").replace("ee.durationEnd", "ee.durationend")
             s = s.replace("ei.durationStart", "ei.durationstart").replace("ee.durationStart", "ee.durationstart")
             return s
