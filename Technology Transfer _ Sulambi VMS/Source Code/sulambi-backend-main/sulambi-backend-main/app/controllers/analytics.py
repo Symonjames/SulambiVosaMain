@@ -1010,8 +1010,13 @@ def getSatisfactionAnalytics(year=None):
         from ..database.connection import DATABASE_URL, is_postgresql_url
         is_postgresql = is_postgresql_url(DATABASE_URL)
         
-        # Use boolean true/false for PostgreSQL, 1/0 for SQLite
-        finalized_condition = "e.finalized = true" if is_postgresql else "e.finalized = 1"
+        # Be tolerant to legacy schemas where finalized may be bool/int/text.
+        # Text-cast works across PostgreSQL variants.
+        finalized_condition = (
+            "LOWER(CAST(e.finalized AS TEXT)) IN ('1', 'true', 't', 'yes')"
+            if is_postgresql
+            else "e.finalized = 1"
+        )
         
         # Query 1: Get evaluations from evaluation table (volunteers with requirementIds)
         query = f"""
@@ -1035,7 +1040,12 @@ def getSatisfactionAnalytics(year=None):
         survey_rows = []
         try:
             satisfaction_surveys_table = table_name_for_query('satisfactionSurveys')
-            finalized_survey_condition = "ss.finalized = true" if is_postgresql else "ss.finalized = 1"
+            # Be tolerant to legacy schemas where finalized may be bool/int/text.
+            finalized_survey_condition = (
+                "LOWER(CAST(ss.finalized AS TEXT)) IN ('1', 'true', 't', 'yes')"
+                if is_postgresql
+                else "ss.finalized = 1"
+            )
 
             # Get event dates and submission dates for satisfactionSurveys.
             # PostgreSQL deployments may have either lowercase columns or quoted camelCase columns.
