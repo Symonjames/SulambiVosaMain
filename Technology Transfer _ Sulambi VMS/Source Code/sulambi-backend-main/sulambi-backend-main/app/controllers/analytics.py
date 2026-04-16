@@ -444,6 +444,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             if not is_pg:
                 return sql
             s = sql.replace("r.type", 'r."type"')
+            s = s.replace('r."eventId"', "r.eventid").replace("r.eventId", "r.eventid")
             s = s.replace("ei.durationEnd", "ei.durationend").replace("ee.durationEnd", "ee.durationend")
             s = s.replace("ei.durationStart", "ei.durationstart").replace("ee.durationStart", "ee.durationstart")
             return s
