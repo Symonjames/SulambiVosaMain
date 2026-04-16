@@ -1036,29 +1036,56 @@ def getSatisfactionAnalytics(year=None):
         try:
             satisfaction_surveys_table = table_name_for_query('satisfactionSurveys')
             finalized_survey_condition = "ss.finalized = true" if is_postgresql else "ss.finalized = 1"
-            
-            # Get event dates and submission dates for satisfactionSurveys
-            # Include both Volunteers and Beneficiaries, and use submittedAt for year filtering
+
+            # Get event dates and submission dates for satisfactionSurveys.
+            # PostgreSQL deployments may have either lowercase columns or quoted camelCase columns.
             if is_postgresql:
-                survey_query = f"""
-                    SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction",
-                           ss."volunteerRating", ss."beneficiaryRating", ss.q13, ss.q14, ss.comment, ss.recommendations,
-                           ss."eventId", ss."eventType", ss."submittedAt",
-                           CASE 
-                               WHEN ss."eventType" = 'internal' THEN ei."durationStart"
-                               ELSE ee."durationStart"
-                           END as eventdate
-                    FROM {satisfaction_surveys_table} ss
-                    LEFT JOIN {internal_events_table} ei ON ss."eventId" = ei.id AND ss."eventType" = 'internal'
-                    LEFT JOIN {external_events_table} ee ON ss."eventId" = ee.id AND ss."eventType" = 'external'
-                    WHERE {finalized_survey_condition}
-                """
+                pg_survey_queries = [
+                    f"""
+                        SELECT ss.id, ss.requirementid, ss.respondenttype, ss.overallsatisfaction,
+                               ss.volunteerrating, ss.beneficiaryrating, ss.q13, ss.q14, ss.comment, ss.recommendations,
+                               ss.eventid, ss.eventtype, ss.submittedat,
+                               CASE
+                                   WHEN ss.eventtype = 'internal' THEN ei.durationstart
+                                   ELSE ee.durationstart
+                               END as eventdate
+                        FROM {satisfaction_surveys_table} ss
+                        LEFT JOIN {internal_events_table} ei ON ss.eventid = ei.id AND ss.eventtype = 'internal'
+                        LEFT JOIN {external_events_table} ee ON ss.eventid = ee.id AND ss.eventtype = 'external'
+                        WHERE {finalized_survey_condition}
+                    """,
+                    f"""
+                        SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction",
+                               ss."volunteerRating", ss."beneficiaryRating", ss.q13, ss.q14, ss.comment, ss.recommendations,
+                               ss."eventId", ss."eventType", ss."submittedAt",
+                               CASE
+                                   WHEN ss."eventType" = 'internal' THEN ei."durationStart"
+                                   ELSE ee."durationStart"
+                               END as eventdate
+                        FROM {satisfaction_surveys_table} ss
+                        LEFT JOIN {internal_events_table} ei ON ss."eventId" = ei.id AND ss."eventType" = 'internal'
+                        LEFT JOIN {external_events_table} ee ON ss."eventId" = ee.id AND ss."eventType" = 'external'
+                        WHERE {finalized_survey_condition}
+                    """,
+                ]
+                last_pg_error = None
+                for survey_query in pg_survey_queries:
+                    try:
+                        cursor.execute(survey_query)
+                        survey_rows = cursor.fetchall()
+                        last_pg_error = None
+                        break
+                    except Exception as pg_err:
+                        last_pg_error = pg_err
+                        survey_rows = []
+                if last_pg_error is not None and not survey_rows:
+                    raise last_pg_error
             else:
                 survey_query = f"""
-                    SELECT ss.id, ss.requirementId, ss.respondentType, ss.overallSatisfaction, 
+                    SELECT ss.id, ss.requirementId, ss.respondentType, ss.overallSatisfaction,
                            ss.volunteerRating, ss.beneficiaryRating, ss.q13, ss.q14, ss.comment, ss.recommendations,
                            ss.eventId, ss.eventType, ss.submittedAt,
-                           CASE 
+                           CASE
                                WHEN ss.eventType = 'internal' THEN ei.durationStart
                                ELSE ee.durationStart
                            END as eventDate
@@ -1067,8 +1094,8 @@ def getSatisfactionAnalytics(year=None):
                     LEFT JOIN {external_events_table} ee ON ss.eventId = ee.id AND ss.eventType = 'external'
                     WHERE {finalized_survey_condition}
                 """
-            cursor.execute(survey_query)
-            survey_rows = cursor.fetchall()
+                cursor.execute(survey_query)
+                survey_rows = cursor.fetchall()
         except Exception as e:
             # If satisfactionSurveys table doesn't exist or query fails, continue with evaluation_rows only
             print(f"Warning: Could not query satisfactionSurveys table: {e}")

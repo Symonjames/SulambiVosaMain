@@ -41,6 +41,15 @@ const BeneficiaryEvaluationPage = () => {
   const [eligibleEvents, setEligibleEvents] = useState<EvaluationEventOption[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
 
+  const openEvaluationForm = () => {
+    // Prevent aria-hidden/focus conflict when Dialog opens.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) {
+      active.blur();
+    }
+    setOpenForm(true);
+  };
+
   useEffect(() => {
     const fetchEligibleEvents = async () => {
       setEventsLoading(true);
@@ -247,7 +256,7 @@ const BeneficiaryEvaluationPage = () => {
                 );
                 return;
               }
-              setOpenForm(true);
+              openEvaluationForm();
             }}
             sx={{
               background: "linear-gradient(to right, #f5b000, #e9a100, #d98a00)",
