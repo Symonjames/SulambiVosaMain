@@ -996,7 +996,8 @@ def getSatisfactionAnalytics(year=None, debug=False):
         except Exception as _:
             pass
 
-        # Get all evaluations with their requirement and event info
+        # Read analytics from satisfactionSurveys only (real survey submissions).
+        # Legacy evaluation table is intentionally excluded to avoid mixed historical sources.
         from ..database.connection import cursorInstance
         conn, cursor = cursorInstance()
         debug_info = {
@@ -1010,83 +1011,12 @@ def getSatisfactionAnalytics(year=None, debug=False):
         from ..database.connection import table_name_for_query
         internal_events_table = table_name_for_query('internalEvents')
         external_events_table = table_name_for_query('externalEvents')
-        evaluation_table = table_name_for_query('evaluation')
-        requirements_table = table_name_for_query('requirements')
         # Import here to avoid circular imports
         from ..database.connection import DATABASE_URL, is_postgresql_url
         is_postgresql = is_postgresql_url(DATABASE_URL)
         
-        # Be tolerant to legacy schemas where finalized may be bool/int/text.
-        # Text-cast works across PostgreSQL variants.
-        finalized_condition = (
-            "LOWER(CAST(e.finalized AS TEXT)) IN ('1', 'true', 't', 'yes')"
-            if is_postgresql
-            else "e.finalized = 1"
-        )
-        
-        # Query 1: Get evaluations from evaluation table (volunteers with requirementIds).
-        # PostgreSQL deployments may have lowercase columns or quoted camelCase columns.
-        if is_postgresql:
-            pg_eval_queries = [
-                f"""
-                    SELECT e.id, e.requirementid, e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                           r.eventid, r.type,
-                           CASE
-                               WHEN r.type = 'internal' THEN ei.durationstart
-                               ELSE ee.durationstart
-                           END as eventdate
-                    FROM {evaluation_table} e
-                    INNER JOIN {requirements_table} r ON e.requirementid = r.id
-                    LEFT JOIN {internal_events_table} ei ON r.eventid = ei.id AND r.type = 'internal'
-                    LEFT JOIN {external_events_table} ee ON r.eventid = ee.id AND r.type = 'external'
-                    WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
-                """,
-                f"""
-                    SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                           r."eventId", r.type,
-                           CASE
-                               WHEN r.type = 'internal' THEN ei."durationStart"
-                               ELSE ee."durationStart"
-                           END as eventDate
-                    FROM {evaluation_table} e
-                    INNER JOIN {requirements_table} r ON e."requirementId" = r.id
-                    LEFT JOIN {internal_events_table} ei ON r."eventId" = ei.id AND r.type = 'internal'
-                    LEFT JOIN {external_events_table} ee ON r."eventId" = ee.id AND r.type = 'external'
-                    WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
-                """,
-            ]
-            evaluation_rows = []
-            last_eval_error = None
-            for query in pg_eval_queries:
-                try:
-                    cursor.execute(query)
-                    evaluation_rows = cursor.fetchall()
-                    last_eval_error = None
-                    break
-                except Exception as eval_err:
-                    last_eval_error = eval_err
-                    evaluation_rows = []
-            if last_eval_error is not None and not evaluation_rows:
-                raise last_eval_error
-        else:
-            query = f"""
-                SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                       r."eventId", r.type,
-                       CASE
-                           WHEN r.type = 'internal' THEN ei."durationStart"
-                           ELSE ee."durationStart"
-                       END as eventDate
-                FROM {evaluation_table} e
-                INNER JOIN {requirements_table} r ON e."requirementId" = r.id
-                LEFT JOIN {internal_events_table} ei ON r."eventId" = ei.id AND r.type = 'internal'
-                LEFT JOIN {external_events_table} ee ON r."eventId" = ee.id AND r.type = 'external'
-                WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
-            """
-            cursor.execute(query)
-            evaluation_rows = cursor.fetchall()
-        
-        # Query 2: Get submissions from satisfactionSurveys table
-        # (These don't have requirementIds linked to evaluation table - includes both Volunteers and Beneficiaries)
+        # Query: Get submissions from satisfactionSurveys table only.
+        # Exclude seeded/demo rows to keep analytics real-data only.
         survey_rows = []
         try:
             satisfaction_surveys_table = table_name_for_query('satisfactionSurveys')
@@ -1109,6 +1039,7 @@ def getSatisfactionAnalytics(year=None, debug=False):
                                ss.submittedat as eventdate
                         FROM {satisfaction_surveys_table} ss
                         WHERE {finalized_survey_condition}
+                          AND LOWER(COALESCE(ss.respondentemail, '')) NOT LIKE 'seeded_%@example.com'
                     """,
                     f"""
                         SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction",
@@ -1117,6 +1048,7 @@ def getSatisfactionAnalytics(year=None, debug=False):
                                ss."submittedAt" as eventdate
                         FROM {satisfaction_surveys_table} ss
                         WHERE {finalized_survey_condition}
+                          AND LOWER(COALESCE(ss."respondentEmail", '')) NOT LIKE 'seeded_%@example.com'
                     """,
                 ]
                 last_pg_error = None
@@ -1139,6 +1071,7 @@ def getSatisfactionAnalytics(year=None, debug=False):
                            ss.submittedAt as eventDate
                     FROM {satisfaction_surveys_table} ss
                     WHERE {finalized_survey_condition}
+                      AND LOWER(COALESCE(ss.respondentEmail, '')) NOT LIKE 'seeded_%@example.com'
                 """
                 cursor.execute(survey_query)
                 survey_rows = cursor.fetchall()
@@ -1147,9 +1080,8 @@ def getSatisfactionAnalytics(year=None, debug=False):
             print(f"Warning: Could not query satisfactionSurveys table: {e}")
             survey_rows = []
         
-        # Combine both result sets
-        # Convert survey rows to match evaluation row format for processing
-        combined_rows = list(evaluation_rows)
+        # Build processing rows from survey data only (no legacy evaluation merge).
+        combined_rows = []
         debug_info["surveyRowsCount"] = len(survey_rows)
         if survey_rows:
             # Keep only the most relevant fields for temporary diagnostics.
@@ -1165,7 +1097,7 @@ def getSatisfactionAnalytics(year=None, debug=False):
                 for row in survey_rows[:3]
             ]
         for survey_row in survey_rows:
-            # Format: (id, requirementId, respondentType, overallSatisfaction, volunteerRating, 
+            # Format: (id, requirementId, respondentType, overallSatisfaction, volunteerRating,
             #          beneficiaryRating, q13, q14, comment, recommendations, eventId, eventType, submittedAt, eventDate)
             survey_id, req_id, resp_type, overall, vol_rating, ben_rating, q13, q14, comment, rec, event_id, event_type, submitted_at, event_date = survey_row
             
@@ -1381,7 +1313,7 @@ def getSatisfactionAnalytics(year=None, debug=False):
                 "volunteerScore": round(volunteer_avg, 1),
                 "beneficiaryScore": round(beneficiary_avg, 1),
                 "totalEvaluations": len(evaluation_rows),
-                "processedEvaluations": len([row for row in evaluation_rows if row[3] == 1]),  # row[3] is finalized
+                "processedEvaluations": len(evaluation_rows),
                 "volunteerCount": len(volunteerSatisfaction),
                 "beneficiaryCount": len(beneficiarySatisfaction),
                 "totalCount": len(volunteerSatisfaction) + len(beneficiarySatisfaction)

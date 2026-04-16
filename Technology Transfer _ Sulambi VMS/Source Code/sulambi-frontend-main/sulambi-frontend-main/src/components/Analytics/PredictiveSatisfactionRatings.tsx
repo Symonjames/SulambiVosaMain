@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import FlexBox from '../FlexBox';
 import { Typography, Box, Chip, LinearProgress, Select, MenuItem, FormControl, InputLabel, CircularProgress, Alert, Button } from '@mui/material';
 import { TrendingUp, TrendingDown, TrendingFlat, Visibility } from '@mui/icons-material';
-import { getSatisfactionAnalytics, seedSatisfactionDemoData } from '../../api/analytics';
+import { getSatisfactionAnalytics } from '../../api/analytics';
 import type { EventsListPayload, SatisfactionAnalyticsPayload } from '../../api/apiTypes';
 import { getAllEvents } from '../../api/events';
 import CurtainPanel from '../Curtain/CurtainPanel';
@@ -34,9 +34,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   const [availableEvents, setAvailableEvents] = useState<any[]>([]);
   
-  const seededRequestYearsRef = useRef<Set<string>>(new Set());
-  const [seedInProgress, setSeedInProgress] = useState(false);
-
   // Removed buildFallbackData - no longer generating fake data
 
   // Use cached fetch for events - prevents reloading when navigating
@@ -146,31 +143,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       window.removeEventListener('satisfaction-rating-submitted', handleRatingSubmitted);
     };
   }, [refetchSatisfaction]);
-
-  // If analytics has no rows yet, seed backend demo surveys once per selected year context.
-  useEffect(() => {
-    const maybeSeed = async () => {
-      if (!satisfactionResponse?.success || seedInProgress) return;
-      const raw = satisfactionResponse?.data?.satisfactionData || [];
-      if (raw.length > 0) return;
-
-      const yearKey = selectedYear && selectedYear !== 'all' ? selectedYear : 'all';
-      if (seededRequestYearsRef.current.has(yearKey)) return;
-      seededRequestYearsRef.current.add(yearKey);
-
-      try {
-        setSeedInProgress(true);
-        await seedSatisfactionDemoData(80);
-        await refetchSatisfaction();
-      } catch (error) {
-        console.error('[Satisfaction Analytics] Failed to seed backend demo surveys:', error);
-      } finally {
-        setSeedInProgress(false);
-      }
-    };
-
-    maybeSeed();
-  }, [satisfactionResponse, selectedYear, refetchSatisfaction, seedInProgress]);
 
   // Process satisfaction data when response changes
   useEffect(() => {
