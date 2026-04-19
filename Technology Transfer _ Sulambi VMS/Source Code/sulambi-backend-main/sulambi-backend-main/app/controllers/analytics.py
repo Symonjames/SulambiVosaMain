@@ -1137,7 +1137,9 @@ def getSatisfactionAnalytics(year=None, debug=False):
                 pg_survey_queries = [
                     f"""
                         SELECT ss.id, ss.requirementid, ss.respondenttype, ss.overallsatisfaction,
-                               ss.volunteerrating, ss.beneficiaryrating, ss.q13, ss.q14, ss.comment, ss.recommendations,
+                               ss.volunteerrating, ss.beneficiaryrating,
+                               ss.organizationrating, ss.communicationrating, ss.venuerating, ss.materialsrating, ss.supportrating,
+                               ss.q13, ss.q14, ss.comment, ss.recommendations,
                                ss.eventid, ss.eventtype, ss.submittedat,
                                ss.submittedat as eventdate
                         FROM {satisfaction_surveys_table} ss
@@ -1146,7 +1148,9 @@ def getSatisfactionAnalytics(year=None, debug=False):
                     """,
                     f"""
                         SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction",
-                               ss."volunteerRating", ss."beneficiaryRating", ss.q13, ss.q14, ss.comment, ss.recommendations,
+                               ss."volunteerRating", ss."beneficiaryRating",
+                               ss."organizationRating", ss."communicationRating", ss."venueRating", ss."materialsRating", ss."supportRating",
+                               ss.q13, ss.q14, ss.comment, ss.recommendations,
                                ss."eventId", ss."eventType", ss."submittedAt",
                                ss."submittedAt" as eventdate
                         FROM {satisfaction_surveys_table} ss
@@ -1169,7 +1173,9 @@ def getSatisfactionAnalytics(year=None, debug=False):
             else:
                 survey_query = f"""
                     SELECT ss.id, ss.requirementId, ss.respondentType, ss.overallSatisfaction,
-                           ss.volunteerRating, ss.beneficiaryRating, ss.q13, ss.q14, ss.comment, ss.recommendations,
+                           ss.volunteerRating, ss.beneficiaryRating,
+                           ss.organizationRating, ss.communicationRating, ss.venueRating, ss.materialsRating, ss.supportRating,
+                           ss.q13, ss.q14, ss.comment, ss.recommendations,
                            ss.eventId, ss.eventType, ss.submittedAt,
                            ss.submittedAt as eventDate
                     FROM {satisfaction_surveys_table} ss
@@ -1193,16 +1199,17 @@ def getSatisfactionAnalytics(year=None, debug=False):
                     "id": row[0],
                     "respondentType": row[2],
                     "overallSatisfaction": row[3],
-                    "eventId": row[10],
-                    "eventType": row[11],
-                    "submittedAt": row[12],
+                    "eventId": row[15],
+                    "eventType": row[16],
+                    "submittedAt": row[17],
                 }
                 for row in survey_rows[:3]
             ]
         for survey_row in survey_rows:
             # Format: (id, requirementId, respondentType, overallSatisfaction, volunteerRating,
-            #          beneficiaryRating, q13, q14, comment, recommendations, eventId, eventType, submittedAt, eventDate)
-            survey_id, req_id, resp_type, overall, vol_rating, ben_rating, q13, q14, comment, rec, event_id, event_type, submitted_at, event_date = survey_row
+            #          beneficiaryRating, organizationRating, communicationRating, venueRating, materialsRating, supportRating,
+            #          q13, q14, comment, recommendations, eventId, eventType, submittedAt, eventDate)
+            survey_id, req_id, resp_type, overall, vol_rating, ben_rating, org_rating, comm_rating, venue_rating, mat_rating, support_rating, q13, q14, comment, rec, event_id, event_type, submitted_at, event_date = survey_row
             
             # Create criteria-like structure from satisfactionSurveys data
             criteria_obj = {}
@@ -1210,6 +1217,17 @@ def getSatisfactionAnalytics(year=None, debug=False):
                 criteria_obj['overall'] = float(overall)
                 criteria_obj['satisfaction'] = float(overall)
                 criteria_obj['rating'] = float(overall)
+            # Keep structured dimensions so low-rated areas can be detected dynamically.
+            if org_rating is not None:
+                criteria_obj['organizationRating'] = float(org_rating)
+            if comm_rating is not None:
+                criteria_obj['communicationRating'] = float(comm_rating)
+            if venue_rating is not None:
+                criteria_obj['venueRating'] = float(venue_rating)
+            if mat_rating is not None:
+                criteria_obj['materialsRating'] = float(mat_rating)
+            if support_rating is not None:
+                criteria_obj['supportRating'] = float(support_rating)
             
             # Convert to criteria string format
             criteria_str = json.dumps(criteria_obj) if criteria_obj else '{}'
@@ -1261,6 +1279,24 @@ def getSatisfactionAnalytics(year=None, debug=False):
         issues = {}
         volunteerSatisfaction = []
         beneficiarySatisfaction = []
+        low_rating_threshold = 2.5
+        low_rating_fields = [
+            ("overall", "Low overall satisfaction"),
+            ("organizationRating", "Organization needs improvement"),
+            ("communicationRating", "Communication concerns"),
+            ("venueRating", "Venue concerns"),
+            ("materialsRating", "Materials quality concerns"),
+            ("supportRating", "Volunteer support concerns"),
+        ]
+        complaint_keyword_map = {
+            "Scheduling and time management": ["schedule", "scheduling", "time", "late", "delay", "timing"],
+            "Communication clarity": ["communication", "unclear", "confusing", "instructions", "inform"],
+            "Materials and resources": ["material", "resources", "supplies", "equipment", "handout"],
+            "Venue and accessibility": ["venue", "location", "access", "accessible", "space", "room"],
+            "Facilitation and support": ["support", "facilitator", "staff", "assistance", "help"],
+            "Training and preparation": ["training", "prepared", "orientation", "briefing", "preparation"],
+            "Coordination and follow-up": ["coordination", "follow-up", "follow up", "organize", "organization"],
+        }
         
         for row in evaluation_rows:
             eval_id, req_id, criteria_str, finalized, q13, q14, comment, recommendations, event_id, event_type, event_date = row
@@ -1327,16 +1363,19 @@ def getSatisfactionAnalytics(year=None, debug=False):
                 
                 # Use q13 and q14 to determine if volunteer or beneficiary
                 # q13 = volunteer satisfaction score, q14 = beneficiary satisfaction score
+                contributes_volunteer = False
                 if q13:
                     try:
                         vol_score = _to_score(q13, satisfaction_score)
                         satisfactionBySemester[semester]['volunteers'].append(vol_score)
                         volunteerSatisfaction.append(vol_score)
                         satisfactionBySemester[semester]['overall'].append(vol_score)
+                        contributes_volunteer = True
                     except:
                         satisfactionBySemester[semester]['volunteers'].append(satisfaction_score)
                         volunteerSatisfaction.append(satisfaction_score)
                         satisfactionBySemester[semester]['overall'].append(satisfaction_score)
+                        contributes_volunteer = True
                 
                 if q14:
                     try:
@@ -1354,19 +1393,22 @@ def getSatisfactionAnalytics(year=None, debug=False):
                     satisfactionBySemester[semester]['volunteers'].append(satisfaction_score)
                     volunteerSatisfaction.append(satisfaction_score)
                     satisfactionBySemester[semester]['overall'].append(satisfaction_score)
+                    contributes_volunteer = True
                 
-                # Extract issues from comments
+                # Extract dynamic "Top Issues" from low volunteer ratings and complaint text.
+                if contributes_volunteer:
+                    for field_key, label in low_rating_fields:
+                        if field_key in criteria:
+                            val = _to_score(criteria.get(field_key), 0.0)
+                            if val > 0 and val <= low_rating_threshold:
+                                issues[label] = issues.get(label, 0) + 1
+
                 eval_comment = comment or criteria.get('comment', '') or criteria.get('comments', '') or ''
-                if eval_comment:
-                    common_issues = [
-                        'communication', 'resource', 'scheduling', 'training', 'support',
-                        'accessibility', 'organization', 'time', 'venue', 'materials',
-                        'follow-up', 'feedback', 'coordination', 'preparation'
-                    ]
-                    
-                    for issue in common_issues:
-                        if issue.lower() in eval_comment.lower():
-                            issues[issue] = issues.get(issue, 0) + 1
+                if contributes_volunteer and eval_comment:
+                    text = eval_comment.lower()
+                    for issue_label, keywords in complaint_keyword_map.items():
+                        if any(keyword in text for keyword in keywords):
+                            issues[issue_label] = issues.get(issue_label, 0) + 1
                             
             except Exception as e:
                 print(f"Error processing evaluation {eval_id}: {e}")
@@ -1425,9 +1467,9 @@ def getSatisfactionAnalytics(year=None, debug=False):
         top_issues = []
         for issue, frequency in sorted(issues.items(), key=lambda x: x[1], reverse=True)[:5]:
             top_issues.append({
-                'issue': issue.replace('_', ' ').title() + ' Issues',
+                'issue': issue.replace('_', ' ').title(),
                 'frequency': frequency,
-                'category': 'volunteers' if random.random() > 0.5 else 'beneficiaries'  # Random assignment for demo
+                'category': 'volunteers'
             })
         
         _v_records = len(volunteerSatisfaction)

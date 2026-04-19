@@ -517,12 +517,12 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     `Overall Satisfaction: ${averageScore}/5.0 (${totalCount} rating${totalCount !== 1 ? 's' : ''}) — ${currentTrend} trend`,
     `Volunteers: ${
       showVolunteerAverage
-        ? `${volunteerScore}/5.0 (${volunteerCount} on record${volunteerEvaluationRecords !== undefined && volunteerEvaluationRecords > 0 && volunteerEvaluationRecords < volunteerCount ? `, ${volunteerEvaluationRecords} evaluation${volunteerEvaluationRecords !== 1 ? 's' : ''}` : ''})`
+        ? `${volunteerScore}/5.0 (${volunteerCount} respondents${volunteerEvaluationRecords !== undefined && volunteerEvaluationRecords > 0 && volunteerEvaluationRecords < volunteerCount ? `, ${volunteerEvaluationRecords} evaluations` : ''})`
         : volunteerBaselineHeadcountOnly
           ? `${volunteerCount} on record (baseline + evaluations; average after first survey)`
           : 'No ratings yet'
     }`,
-    `Beneficiaries: ${beneficiaryCount > 0 ? `${beneficiaryScore}/5.0 (${beneficiaryCount} rating${beneficiaryCount !== 1 ? 's' : ''})` : 'No ratings yet'}`
+    `Beneficiaries: ${beneficiaryCount > 0 ? `${beneficiaryScore}/5.0 (${beneficiaryCount} respondents)` : 'No ratings yet'}`
   ];
   const predictionText = `Prediction: Satisfaction expected to remain ${currentTrend.toLowerCase()} next semester.`;
 
@@ -594,7 +594,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                   : volunteerBaselineHeadcountOnly
                     ? `${volunteerCount} on record`
                     : 'No ratings yet'}
-                {volunteerCount > 0 && showVolunteerAverage && ` (${volunteerCount})`}
+                {volunteerCount > 0 && showVolunteerAverage && ` (${volunteerCount} respondents)`}
               </Typography>
               {showVolunteerAverage ? (
                 <LinearProgress 
@@ -616,7 +616,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             <Box flex={1}>
               <Typography variant="body2" fontSize="0.875rem">
                 Beneficiaries: {beneficiaryCount > 0 ? `${beneficiaryScore}/5.0` : 'No ratings yet'}
-                {beneficiaryCount > 0 && ` (${beneficiaryCount})`}
+                {beneficiaryCount > 0 && ` (${beneficiaryCount} respondents)`}
               </Typography>
               {beneficiaryCount > 0 ? (
                 <LinearProgress 
@@ -934,11 +934,11 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                     </Typography>
                     {volunteerCount > 0 && showVolunteerAverage && (
                       <Typography variant="caption" color="text.secondary" fontSize="0.75rem">
-                        {volunteerCount} on record
+                        {volunteerCount} respondents
                         {volunteerEvaluationRecords !== undefined &&
                         volunteerEvaluationRecords > 0 &&
                         volunteerEvaluationRecords < volunteerCount
-                          ? ` (${volunteerEvaluationRecords} evaluation${volunteerEvaluationRecords !== 1 ? 's' : ''})`
+                          ? ` (${volunteerEvaluationRecords} evaluations)`
                           : ''}
                       </Typography>
                     )}
@@ -967,7 +967,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                     </Typography>
                     {beneficiaryCount > 0 && (
                       <Typography variant="caption" color="text.secondary" fontSize="0.75rem">
-                        {beneficiaryCount} rating{beneficiaryCount !== 1 ? 's' : ''}
+                        {beneficiaryCount} respondents
                       </Typography>
                     )}
                   </FlexBox>
