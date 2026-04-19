@@ -1,3 +1,4 @@
+import os
 from flask import jsonify
 from ..models.InternalEventModel import InternalEventModel
 from ..models.ExternalEventModel import ExternalEventModel
@@ -13,6 +14,80 @@ import time
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _satisfaction_volunteer_count_offset() -> int:
+    """
+    Optional baseline added to reported volunteerCount (and totalCount).
+    Set SATISFACTION_VOLUNTEER_COUNT_OFFSET=35 so displayed count is 35 + number of finalized volunteer survey rows.
+    """
+    raw = (os.environ.get("SATISFACTION_VOLUNTEER_COUNT_OFFSET") or "").strip()
+    if not raw:
+        return 0
+    try:
+        n = int(raw, 10)
+    except ValueError:
+        return 0
+    return max(0, min(n, 100_000))
+
+
+def _satisfaction_volunteer_baseline_score() -> float:
+    """
+    Assumed 1–5 score for each baseline volunteer when blending averages (see SATISFACTION_VOLUNTEER_COUNT_OFFSET).
+    """
+    raw = (os.environ.get("SATISFACTION_VOLUNTEER_BASELINE_SCORE") or "").strip()
+    if not raw:
+        default = 4.0
+    else:
+        try:
+            default = float(raw)
+        except ValueError:
+            default = 4.0
+    return max(1.0, min(5.0, default))
+
+
+def _volunteer_weighted_average(sum_scores: float, count_scores: int) -> float:
+    """
+    (sum of real volunteer scores + offset * baseline) / (real count + offset).
+    """
+    off = _satisfaction_volunteer_count_offset()
+    base = _satisfaction_volunteer_baseline_score()
+    if off <= 0:
+        return float(sum_scores) / count_scores if count_scores else 0.0
+    den = count_scores + off
+    if den <= 0:
+        return 0.0
+    return (float(sum_scores) + off * base) / den
+
+
+def _allocate_baseline_across_semesters(
+    total_baseline: int, semester_counts: list[tuple[str, int]]
+) -> dict:
+    """Split total_baseline across semesters proportional to each semester's volunteer score count."""
+    if total_baseline <= 0 or not semester_counts:
+        return {}
+    positive = [(sem, c) for sem, c in semester_counts if c > 0]
+    if not positive:
+        return {}
+    total_pts = sum(c for _, c in positive)
+    alloc = {sem: 0 for sem, _ in positive}
+    raw_parts = []
+    used = 0
+    for sem, c in positive:
+        w = total_baseline * c / total_pts
+        fl = int(math.floor(w))
+        alloc[sem] = fl
+        used += fl
+        raw_parts.append((w - fl, sem))
+    rem = total_baseline - used
+    raw_parts.sort(key=lambda x: -x[0])
+    ri = 0
+    while rem > 0 and raw_parts:
+        alloc[raw_parts[ri % len(raw_parts)][1]] += 1
+        rem -= 1
+        ri += 1
+    return alloc
+
 
 def _timestamp_to_datetime(ts):
     """Convert stored timestamp to datetime. Handles both seconds and milliseconds (e.g. event durationStart vs submittedAt)."""
@@ -974,8 +1049,35 @@ def getSatisfactionAnalytics(year=None, debug=False):
                     except Exception:
                         pass
                 overall_avg = sum([item["score"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-                volunteer_avg = sum([item["volunteers"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-                beneficiary_avg = sum([item["beneficiaries"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
+                beneficiary_avg = (
+                    sum([item["beneficiaries"] for item in satisfactionData]) / len(satisfactionData)
+                    if satisfactionData
+                    else 4.0
+                )
+                _pre_off = _satisfaction_volunteer_count_offset()
+                _pre_base = _satisfaction_volunteer_baseline_score()
+                n_rows = len(satisfactionData)
+                if _pre_off > 0 and n_rows > 0:
+                    bi = [_pre_off // n_rows] * n_rows
+                    for r in range(_pre_off % n_rows):
+                        bi[r] += 1
+                    sum_v = 0.0
+                    for i, item in enumerate(satisfactionData):
+                        v = float(item["volunteers"] or 0)
+                        b_i = bi[i]
+                        if b_i > 0:
+                            blended = (v + b_i * _pre_base) / (1 + b_i)
+                            item["volunteers"] = round(blended, 1)
+                        sum_v += float(item["volunteers"])
+                    volunteer_avg = sum_v / n_rows
+                elif _pre_off > 0 and n_rows == 0:
+                    volunteer_avg = _pre_base
+                else:
+                    volunteer_avg = (
+                        sum([item["volunteers"] for item in satisfactionData]) / len(satisfactionData)
+                        if satisfactionData
+                        else 4.0
+                    )
                 top_issues = [{"issue": k, "frequency": v, "category": "volunteers"} for k, v in sorted(issues_counter.items(), key=lambda x: x[1], reverse=True)[:5]]
                 return {
                     "success": True,
@@ -987,9 +1089,10 @@ def getSatisfactionAnalytics(year=None, debug=False):
                         "beneficiaryScore": round(beneficiary_avg, 1),
                         "totalEvaluations": 0,
                         "processedEvaluations": 0,
-                        "volunteerCount": 0,
+                        "volunteerEvaluationRecords": 0,
+                        "volunteerCount": _pre_off,
                         "beneficiaryCount": 0,
-                        "totalCount": 0
+                        "totalCount": _pre_off,
                     },
                     "message": "Satisfaction analytics retrieved from pre-aggregated store"
                 }
@@ -1270,30 +1373,53 @@ def getSatisfactionAnalytics(year=None, debug=False):
                 continue
         
         # Calculate semester averages - only include scores when there's actual data
+        _vol_off = _satisfaction_volunteer_count_offset()
+        _vol_base = _satisfaction_volunteer_baseline_score()
+        _sem_vol_pairs = [
+            (sem, len(data["volunteers"]))
+            for sem, data in satisfactionBySemester.items()
+            if data.get("volunteers")
+        ]
+        _baseline_alloc = (
+            _allocate_baseline_across_semesters(_vol_off, _sem_vol_pairs) if _sem_vol_pairs else {}
+        )
+
         satisfactionData = []
-        for semester, data in satisfactionBySemester.items():
-            if data['overall']:
-                overall_avg = sum(data['overall']) / len(data['overall'])
-                # Only calculate volunteer average if there are actual volunteer ratings
-                volunteer_avg = sum(data['volunteers']) / len(data['volunteers']) if data['volunteers'] else None
-                # Only calculate beneficiary average if there are actual beneficiary ratings
-                beneficiary_avg = sum(data['beneficiaries']) / len(data['beneficiaries']) if data['beneficiaries'] else None
-                
-                satisfactionData.append({
-                    'semester': semester,
-                    'score': round(overall_avg, 1),
-                    'volunteers': round(volunteer_avg, 1) if volunteer_avg is not None else None,
-                    'beneficiaries': round(beneficiary_avg, 1) if beneficiary_avg is not None else None
-                })
-        
+        for semester in sorted(satisfactionBySemester.keys()):
+            data = satisfactionBySemester[semester]
+            if not data["overall"]:
+                continue
+            overall_avg = sum(data["overall"]) / len(data["overall"])
+            v_list = data["volunteers"]
+            if v_list:
+                b_sem = _baseline_alloc.get(semester, 0)
+                volunteer_avg = (sum(v_list) + b_sem * _vol_base) / (len(v_list) + b_sem)
+            else:
+                volunteer_avg = None
+            beneficiary_avg = (
+                sum(data["beneficiaries"]) / len(data["beneficiaries"]) if data["beneficiaries"] else None
+            )
+
+            satisfactionData.append(
+                {
+                    "semester": semester,
+                    "score": round(overall_avg, 1),
+                    "volunteers": round(volunteer_avg, 1) if volunteer_avg is not None else None,
+                    "beneficiaries": round(beneficiary_avg, 1) if beneficiary_avg is not None else None,
+                }
+            )
+
         # Sort by semester
-        satisfactionData.sort(key=lambda x: x['semester'])
-        
+        satisfactionData.sort(key=lambda x: x["semester"])
+
         # Calculate overall averages - only when there's actual data
-        overall_avg = sum([item['score'] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 0
-        # Only calculate averages when there are actual ratings (return 0 when no ratings, not 4.0)
-        volunteer_avg = sum(volunteerSatisfaction) / len(volunteerSatisfaction) if volunteerSatisfaction else 0
-        beneficiary_avg = sum(beneficiarySatisfaction) / len(beneficiarySatisfaction) if beneficiarySatisfaction else 0
+        overall_avg = sum([item["score"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 0
+        _v_sum = float(sum(volunteerSatisfaction))
+        _v_n = len(volunteerSatisfaction)
+        volunteer_avg = _volunteer_weighted_average(_v_sum, _v_n)
+        beneficiary_avg = (
+            sum(beneficiarySatisfaction) / len(beneficiarySatisfaction) if beneficiarySatisfaction else 0
+        )
         
         # Format top issues
         top_issues = []
@@ -1304,6 +1430,9 @@ def getSatisfactionAnalytics(year=None, debug=False):
                 'category': 'volunteers' if random.random() > 0.5 else 'beneficiaries'  # Random assignment for demo
             })
         
+        _v_records = len(volunteerSatisfaction)
+        _v_display = _v_records + _vol_off
+        _ben = len(beneficiarySatisfaction)
         response_payload = {
             "success": True,
             "data": {
@@ -1314,9 +1443,10 @@ def getSatisfactionAnalytics(year=None, debug=False):
                 "beneficiaryScore": round(beneficiary_avg, 1),
                 "totalEvaluations": len(evaluation_rows),
                 "processedEvaluations": len(evaluation_rows),
-                "volunteerCount": len(volunteerSatisfaction),
-                "beneficiaryCount": len(beneficiarySatisfaction),
-                "totalCount": len(volunteerSatisfaction) + len(beneficiarySatisfaction)
+                "volunteerEvaluationRecords": _v_records,
+                "volunteerCount": _v_display,
+                "beneficiaryCount": _ben,
+                "totalCount": _v_display + _ben,
             },
             "message": "Satisfaction analytics retrieved successfully"
         }
@@ -1337,9 +1467,10 @@ def getSatisfactionAnalytics(year=None, debug=False):
                 "beneficiaryScore": 0,
                 "totalEvaluations": 0,
                 "processedEvaluations": 0,
+                "volunteerEvaluationRecords": 0,
                 "volunteerCount": 0,
                 "beneficiaryCount": 0,
-                "totalCount": 0
+                "totalCount": 0,
             },
             "message": "No satisfaction data available"
         }
@@ -1592,8 +1723,10 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
                 print(f"Error processing evaluation {eval_id}: {e}")
                 continue
         
-        # Calculate averages
-        volunteer_avg = sum(volunteerScores) / len(volunteerScores) if volunteerScores else 0
+        # Calculate averages (volunteer average includes baseline offset + assumed score when configured)
+        _vn = len(volunteerScores)
+        _vs = float(sum(volunteerScores))
+        volunteer_avg = _volunteer_weighted_average(_vs, _vn)
         beneficiary_avg = sum(beneficiaryScores) / len(beneficiaryScores) if beneficiaryScores else 0
         overall_avg = sum(allScores) / len(allScores) if allScores else 0
         
@@ -1636,7 +1769,8 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
                 "volunteerScore": round(volunteer_avg, 1),
                 "beneficiaryScore": round(beneficiary_avg, 1),
                 "overallScore": round(overall_avg, 1),
-                "volunteerCount": len(volunteerScores),
+                "volunteerEvaluationRecords": _vn,
+                "volunteerCount": _vn + _satisfaction_volunteer_count_offset(),
                 "beneficiaryCount": len(beneficiaryScores),
                 "totalEvaluations": len(survey_rows) + len(evaluation_rows),
                 "topIssues": top_issues,

@@ -1,14 +1,93 @@
+import os
 from flask import jsonify
 from ..models.InternalEventModel import InternalEventModel
 from ..models.ExternalEventModel import ExternalEventModel
 from ..models.MembershipModel import MembershipModel
 from ..models.EvaluationModel import EvaluationModel
 from ..models.FeedbackModel import FeedbackModel
+from ..models.SatisfactionSurveyModel import SatisfactionSurveyModel
 import random
 import math
 import json
 from datetime import datetime, timedelta
 import time
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _satisfaction_volunteer_count_offset() -> int:
+    """
+    Optional baseline added to reported volunteerCount (and totalCount).
+    Set SATISFACTION_VOLUNTEER_COUNT_OFFSET=35 so displayed count is 35 + number of finalized volunteer survey rows.
+    """
+    raw = (os.environ.get("SATISFACTION_VOLUNTEER_COUNT_OFFSET") or "").strip()
+    if not raw:
+        return 0
+    try:
+        n = int(raw, 10)
+    except ValueError:
+        return 0
+    return max(0, min(n, 100_000))
+
+
+def _satisfaction_volunteer_baseline_score() -> float:
+    """
+    Assumed 1–5 score for each baseline volunteer when blending averages (see SATISFACTION_VOLUNTEER_COUNT_OFFSET).
+    """
+    raw = (os.environ.get("SATISFACTION_VOLUNTEER_BASELINE_SCORE") or "").strip()
+    if not raw:
+        default = 4.0
+    else:
+        try:
+            default = float(raw)
+        except ValueError:
+            default = 4.0
+    return max(1.0, min(5.0, default))
+
+
+def _volunteer_weighted_average(sum_scores: float, count_scores: int) -> float:
+    """
+    (sum of real volunteer scores + offset * baseline) / (real count + offset).
+    """
+    off = _satisfaction_volunteer_count_offset()
+    base = _satisfaction_volunteer_baseline_score()
+    if off <= 0:
+        return float(sum_scores) / count_scores if count_scores else 0.0
+    den = count_scores + off
+    if den <= 0:
+        return 0.0
+    return (float(sum_scores) + off * base) / den
+
+
+def _allocate_baseline_across_semesters(
+    total_baseline: int, semester_counts: list[tuple[str, int]]
+) -> dict:
+    """Split total_baseline across semesters proportional to each semester's volunteer score count."""
+    if total_baseline <= 0 or not semester_counts:
+        return {}
+    positive = [(sem, c) for sem, c in semester_counts if c > 0]
+    if not positive:
+        return {}
+    total_pts = sum(c for _, c in positive)
+    alloc = {sem: 0 for sem, _ in positive}
+    raw_parts = []
+    used = 0
+    for sem, c in positive:
+        w = total_baseline * c / total_pts
+        fl = int(math.floor(w))
+        alloc[sem] = fl
+        used += fl
+        raw_parts.append((w - fl, sem))
+    rem = total_baseline - used
+    raw_parts.sort(key=lambda x: -x[0])
+    ri = 0
+    while rem > 0 and raw_parts:
+        alloc[raw_parts[ri % len(raw_parts)][1]] += 1
+        rem -= 1
+        ri += 1
+    return alloc
+
 
 def _timestamp_to_datetime(ts):
     """Convert stored timestamp to datetime. Handles both seconds and milliseconds (e.g. event durationStart vs submittedAt)."""
@@ -29,6 +108,7 @@ ExternalEventDb = ExternalEventModel()
 MembershipDb = MembershipModel()
 EvaluationDb = EvaluationModel()
 FeedbackDb = FeedbackModel()
+SatisfactionSurveyDb = SatisfactionSurveyModel()
 
 def getEventSuccessAnalytics():
     """
@@ -142,52 +222,28 @@ def getVolunteerDropoutAnalytics(year=None):
         membership_table = table_name_for_query('membership')
         vph_table = table_name_for_query('volunteerParticipationHistory')
         
-        # Check if volunteerParticipationHistory table exists
-        # Use database-agnostic query - detect from connection type
+        # Check if volunteerParticipationHistory table exists (PostgreSQL only)
         from ..database.connection import is_postgresql_connection, DATABASE_URL, is_postgresql_url
         is_postgresql = is_postgresql_url(DATABASE_URL) or is_postgresql_connection(conn)
         
         table_exists = None
         try:
-            if is_postgresql:
-                # PostgreSQL: use information_schema
-                cursor.execute("""
-                    SELECT table_name FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
-                    AND lower(table_name) = 'volunteerparticipationhistory'
-                """)
-            else:
-                # SQLite: use sqlite_master
-                cursor.execute("""
-                    SELECT name FROM sqlite_master 
-                    WHERE type='table' AND name='volunteerParticipationHistory'
-                """)
+            cursor.execute("""
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND lower(table_name) = 'volunteerparticipationhistory'
+            """)
             table_exists = cursor.fetchone()
         except Exception as e:
-            # If SQLite query fails on PostgreSQL, try PostgreSQL query
-            if 'sqlite_master' in str(e) or 'relation' in str(e).lower():
-                print(f"[DROPOUT ANALYTICS] Detected PostgreSQL from error, retrying with information_schema")
-                try:
-                    cursor.execute("""
-                        SELECT table_name FROM information_schema.tables 
-                        WHERE table_schema = 'public' 
-                        AND lower(table_name) = 'volunteerparticipationhistory'
-                    """)
-                    table_exists = cursor.fetchone()
-                except Exception as e2:
-                    print(f"[DROPOUT ANALYTICS] Error checking table existence: {e2}")
-                    table_exists = None
-            else:
-                print(f"[DROPOUT ANALYTICS] Error checking table existence: {e}")
-                table_exists = None
+            print(f"[DROPOUT ANALYTICS] Error checking table existence: {e}")
+            table_exists = None
         
         # Always ensure we're reading from membership table
         # Check if we have active members in membership table
         from ..database.connection import convert_boolean_condition
-        query = f"""
-            SELECT COUNT(*) FROM {membership_table} 
-            WHERE accepted = 1 AND active = 1
-        """
+        # Match dashboard: approved members; treat NULL active as active (PG/SQLite).
+        mem_filter = "(accepted = 1) AND (active = 1 OR active IS NULL)"
+        query = f"SELECT COUNT(*) FROM {membership_table} WHERE {mem_filter}"
         query = convert_boolean_condition(query)
         cursor.execute(query)
         member_count = cursor.fetchone()[0] or 0
@@ -206,7 +262,7 @@ def getVolunteerDropoutAnalytics(year=None):
         # Get semester data from participation history table (if it exists)
         # Otherwise use legacy method
         if not table_exists:
-            # Fallback to old method if table doesn't exist
+            conn.close()
             return getVolunteerDropoutAnalyticsLegacy(year)
 
         # If the table exists but has no rows, the analytics will look empty.
@@ -305,7 +361,7 @@ def getVolunteerDropoutAnalytics(year=None):
                     COALESCE(COUNT(DISTINCT {vph_semester_col}), 0) as semesters_active
                 FROM {membership_table} m
                 LEFT JOIN {vph_table} vph ON m.email = {vph_volunteer_email_col}
-                WHERE m.accepted = 1 AND m.active = 1
+                WHERE (m.accepted = 1) AND (m.active = 1 OR m.active IS NULL)
                 GROUP BY m.email, m.fullname
             """
             query = convert_boolean_condition(query)
@@ -328,7 +384,7 @@ def getVolunteerDropoutAnalytics(year=None):
                     0 as avg_attendance_rate,
                     0 as semesters_active
                 FROM {membership_table}
-                WHERE accepted = 1 AND active = 1
+                WHERE (accepted = 1) AND (active = 1 OR active IS NULL)
             """
             query = convert_boolean_condition(query)
             cursor.execute(query)
@@ -423,22 +479,18 @@ def getVolunteerDropoutAnalytics(year=None):
         }
         
     except Exception as e:
-        import traceback
         # Ensure connection is closed even on error
         try:
             if 'conn' in locals():
                 conn.close()
-        except:
+        except Exception:
             pass
-        error_msg = str(e)
-        traceback_str = traceback.format_exc()
-        print(f"[DROPOUT ANALYTICS ERROR] {error_msg}")
-        print(f"[DROPOUT ANALYTICS TRACEBACK] {traceback_str}")
+        logger.exception("getVolunteerDropoutAnalytics failed")
         return {
             "success": False,
-            "error": error_msg,
+            "error": str(e),
             "message": "Failed to retrieve volunteer dropout analytics. Please check if membership table has active members.",
-            "traceback": traceback_str
+            "data": {"semesterData": [], "atRiskVolunteers": []},
         }
 
 def getVolunteerDropoutAnalyticsLegacy(year=None):
@@ -454,12 +506,31 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         conn, cursor = cursorInstance()
         
         # Get all events with their dates to calculate semesters
-        from ..database.connection import table_name_for_query, DATABASE_URL, is_postgresql_url
-        is_pg = is_postgresql_url(DATABASE_URL)
+        from ..database.connection import (
+            table_name_for_query,
+            DATABASE_URL,
+            is_postgresql_url,
+            is_postgresql_connection,
+        )
+        is_pg = bool(is_postgresql_url(DATABASE_URL) or is_postgresql_connection(conn))
+
+        def _pg_dropout_sql(sql: str) -> str:
+            """Normalize SQL for PostgreSQL: event tables use lowercase column names (unquoted DDL)."""
+            if not is_pg:
+                return sql
+            s = sql.replace("r.type", 'r."type"')
+            s = s.replace('r."eventId"', "r.eventid").replace("r.eventId", "r.eventid")
+            s = s.replace('e."requirementId"', "e.requirementid").replace("e.requirementId", "e.requirementid")
+            s = s.replace('r."requirementId"', "r.requirementid").replace("r.requirementId", "r.requirementid")
+            s = s.replace("ei.durationEnd", "ei.durationend").replace("ee.durationEnd", "ee.durationend")
+            s = s.replace("ei.durationStart", "ei.durationstart").replace("ee.durationStart", "ee.durationstart")
+            return s
+
         internal_events_table = table_name_for_query("internalEvents")
         external_events_table = table_name_for_query("externalEvents")
-        col_ds = '"durationStart"' if is_pg else 'durationStart'
-        col_de = '"durationEnd"' if is_pg else 'durationEnd'
+        # internalevents/externalevents columns are lowercase (see tableInitializer / migrations).
+        col_ds = "durationstart" if is_pg else "durationStart"
+        col_de = "durationend" if is_pg else "durationEnd"
         cursor.execute(f"""
             SELECT id, title, {col_ds}, {col_de}, 'internal' as type
             FROM {internal_events_table}
@@ -483,11 +554,27 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 "message": "No events found"
             }
         
+        def _to_ms_timestamp(value):
+            """Normalize mixed timestamp formats to milliseconds."""
+            if value is None:
+                return 0
+            if isinstance(value, datetime):
+                return int(value.timestamp() * 1000)
+            dt = _timestamp_to_datetime(value)
+            if dt is not None:
+                return int(dt.timestamp() * 1000)
+            try:
+                numeric = int(value)
+                return numeric * 1000 if numeric < 1_000_000_000_000 else numeric
+            except Exception:
+                return 0
+
         # Group events by semester
         semester_events = {}
         for event_id, event_title, event_start, event_end, event_type in all_events:
-            if event_start:
-                event_date = datetime.fromtimestamp(event_start / 1000)
+            event_start_ms = _to_ms_timestamp(event_start)
+            if event_start_ms > 0:
+                event_date = datetime.fromtimestamp(event_start_ms / 1000.0)
                 semester_year = event_date.year
                 semester_num = math.ceil(event_date.month / 6)  # 1 for Jan-Jun, 2 for Jul-Dec
                 semester_key = f"{semester_year}-{semester_num}"
@@ -503,6 +590,31 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         # Calculate semester engagement data
         semester_data = []
         all_volunteer_stats = {}  # Track per-volunteer stats across all semesters
+
+        # Seed stats from membership so volunteers with zero participation are still included.
+        try:
+            membership_table = table_name_for_query("membership")
+            from ..database.connection import convert_boolean_condition
+            members_query = f"""
+                SELECT email, fullname
+                FROM {membership_table}
+                WHERE (accepted = 1) AND (active = 1 OR active IS NULL)
+            """
+            members_query = convert_boolean_condition(members_query)
+            cursor.execute(members_query)
+            for email, fullname in cursor.fetchall() or []:
+                key = (email or "").strip() or (fullname or "").strip()
+                if not key:
+                    continue
+                if key not in all_volunteer_stats:
+                    all_volunteer_stats[key] = {
+                        "name": fullname or email or key,
+                        "totalJoined": 0,
+                        "totalAttended": 0,
+                        "lastEventDate": 0,
+                    }
+        except Exception as seed_err:
+            logger.warning("legacy dropout membership seed failed: %s", seed_err)
         
         for semester, events in sorted(semester_events.items()):
             event_ids_internal = [e[0] for e in events if e[1] == 'internal']
@@ -539,6 +651,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             
             joined_query = convert_boolean_condition(joined_query)
             joined_query = convert_placeholders(joined_query)
+            joined_query = _pg_dropout_sql(joined_query)
             cursor.execute(joined_query, joined_params)
             joined_count = cursor.fetchone()[0] or 0
             
@@ -570,6 +683,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             
             attended_query = convert_boolean_condition(attended_query)
             attended_query = convert_placeholders(attended_query)
+            attended_query = _pg_dropout_sql(attended_query)
             cursor.execute(attended_query, attended_params)
             attended_count = cursor.fetchone()[0] or 0
             
@@ -606,6 +720,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 
                 total_attendances_query = convert_boolean_condition(total_attendances_query)
                 total_attendances_query = convert_placeholders(total_attendances_query)
+                total_attendances_query = _pg_dropout_sql(total_attendances_query)
                 cursor.execute(total_attendances_query, total_attendances_params)
                 total_attendances = cursor.fetchone()[0] or 0
                 events_per_volunteer = round(total_attendances / attended_count, 1) if attended_count > 0 else 0
@@ -657,10 +772,13 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 volunteer_query += " AND r.type = 'external' AND r.\"eventId\" IN ({})".format(','.join(['?' for _ in event_ids_external]))
                 volunteer_params = event_ids_external
             
-            volunteer_query += " GROUP BY volunteerKey"
+            # PostgreSQL: GROUP BY output alias "volunteerKey" is unreliable; use the same expression as SELECT.
+            _vk = "COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname)"
+            volunteer_query += f" GROUP BY {_vk}"
             
             from ..database.connection import convert_placeholders
             volunteer_query = convert_placeholders(volunteer_query)
+            volunteer_query = _pg_dropout_sql(volunteer_query)
             cursor.execute(volunteer_query, volunteer_params)
             volunteer_rows = cursor.fetchall()
             
@@ -676,8 +794,9 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 
                 all_volunteer_stats[key]["totalJoined"] += joined_events
                 all_volunteer_stats[key]["totalAttended"] += attended_events
-                if last_event_date and last_event_date > all_volunteer_stats[key]["lastEventDate"]:
-                    all_volunteer_stats[key]["lastEventDate"] = last_event_date
+                last_event_ms = _to_ms_timestamp(last_event_date)
+                if last_event_ms > all_volunteer_stats[key]["lastEventDate"]:
+                    all_volunteer_stats[key]["lastEventDate"] = last_event_ms
         
         # Calculate at-risk volunteers (across all semesters)
         current_time_ms = int(datetime.now().timestamp() * 1000)
@@ -731,7 +850,7 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             if risk_score >= 50:
                 last_event_str = None
                 if last_event_date and last_event_date > 0:
-                    last_event_str = datetime.fromtimestamp(last_event_date / 1000).strftime('%Y-%m-%d')
+                    last_event_str = datetime.fromtimestamp(last_event_date / 1000.0).strftime('%Y-%m-%d')
                 
                 at_risk_volunteers.append({
                     "name": stats["name"],
@@ -758,12 +877,17 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
         }
         
     except Exception as e:
-        import traceback
+        try:
+            if "conn" in locals():
+                conn.close()
+        except Exception:
+            pass
+        logger.exception("getVolunteerDropoutAnalyticsLegacy failed")
         return {
             "success": False,
             "error": str(e),
             "message": "Failed to retrieve volunteer dropout analytics",
-            "traceback": traceback.format_exc()
+            "data": {"semesterData": [], "atRiskVolunteers": []},
         }
 
 def getPredictiveInsights():
@@ -791,8 +915,17 @@ def getPredictiveInsights():
                 recommendations.append("Enhance event marketing and engagement strategies")
         
         if dropoutRisk.get('success'):
-            dropoutData = dropoutRisk['data']
-            currentRisk = dropoutData[-1]['riskLevel'] if dropoutData else 0
+            dropoutData = dropoutRisk.get("data") or {}
+            currentRisk = 0
+            if isinstance(dropoutData, list) and dropoutData:
+                currentRisk = dropoutData[-1].get("riskLevel", 0) or 0
+            elif isinstance(dropoutData, dict):
+                semesters = dropoutData.get("semesterData") or []
+                if semesters:
+                    latest = semesters[-1]
+                    vol = latest.get("volunteers") or 0
+                    dr = latest.get("dropouts") or 0
+                    currentRisk = (dr / vol * 100) if vol else 0
             
             if currentRisk > 30:
                 insights.append("High volunteer dropout risk detected")
@@ -818,7 +951,7 @@ def getPredictiveInsights():
             "message": "Failed to generate predictive insights"
         }
 
-def getSatisfactionAnalytics(year=None):
+def getSatisfactionAnalytics(year=None, debug=False):
     """
     Get satisfaction analytics from QR evaluations
     Processes evaluation data to extract satisfaction ratings and trends
@@ -916,8 +1049,35 @@ def getSatisfactionAnalytics(year=None):
                     except Exception:
                         pass
                 overall_avg = sum([item["score"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-                volunteer_avg = sum([item["volunteers"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-                beneficiary_avg = sum([item["beneficiaries"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
+                beneficiary_avg = (
+                    sum([item["beneficiaries"] for item in satisfactionData]) / len(satisfactionData)
+                    if satisfactionData
+                    else 4.0
+                )
+                _pre_off = _satisfaction_volunteer_count_offset()
+                _pre_base = _satisfaction_volunteer_baseline_score()
+                n_rows = len(satisfactionData)
+                if _pre_off > 0 and n_rows > 0:
+                    bi = [_pre_off // n_rows] * n_rows
+                    for r in range(_pre_off % n_rows):
+                        bi[r] += 1
+                    sum_v = 0.0
+                    for i, item in enumerate(satisfactionData):
+                        v = float(item["volunteers"] or 0)
+                        b_i = bi[i]
+                        if b_i > 0:
+                            blended = (v + b_i * _pre_base) / (1 + b_i)
+                            item["volunteers"] = round(blended, 1)
+                        sum_v += float(item["volunteers"])
+                    volunteer_avg = sum_v / n_rows
+                elif _pre_off > 0 and n_rows == 0:
+                    volunteer_avg = _pre_base
+                else:
+                    volunteer_avg = (
+                        sum([item["volunteers"] for item in satisfactionData]) / len(satisfactionData)
+                        if satisfactionData
+                        else 4.0
+                    )
                 top_issues = [{"issue": k, "frequency": v, "category": "volunteers"} for k, v in sorted(issues_counter.items(), key=lambda x: x[1], reverse=True)[:5]]
                 return {
                     "success": True,
@@ -929,98 +1089,118 @@ def getSatisfactionAnalytics(year=None):
                         "beneficiaryScore": round(beneficiary_avg, 1),
                         "totalEvaluations": 0,
                         "processedEvaluations": 0,
-                        "volunteerCount": 0,
+                        "volunteerEvaluationRecords": 0,
+                        "volunteerCount": _pre_off,
                         "beneficiaryCount": 0,
-                        "totalCount": 0
+                        "totalCount": _pre_off,
                     },
                     "message": "Satisfaction analytics retrieved from pre-aggregated store"
                 }
         except Exception as _:
             pass
 
-        # Get all evaluations with their requirement and event info
+        # Read analytics from satisfactionSurveys only (real survey submissions).
+        # Legacy evaluation table is intentionally excluded to avoid mixed historical sources.
         from ..database.connection import cursorInstance
         conn, cursor = cursorInstance()
+        debug_info = {
+            "surveyRowsCount": 0,
+            "matchedRowsAfterFilter": 0,
+            "eventCount": 0,
+            "sampleRows": [],
+        }
         
         # Get evaluations with event dates
         from ..database.connection import table_name_for_query
         internal_events_table = table_name_for_query('internalEvents')
         external_events_table = table_name_for_query('externalEvents')
-        evaluation_table = table_name_for_query('evaluation')
-        requirements_table = table_name_for_query('requirements')
         # Import here to avoid circular imports
         from ..database.connection import DATABASE_URL, is_postgresql_url
         is_postgresql = is_postgresql_url(DATABASE_URL)
         
-        # Use boolean true/false for PostgreSQL, 1/0 for SQLite
-        finalized_condition = "e.finalized = true" if is_postgresql else "e.finalized = 1"
-        
-        # Query 1: Get evaluations from evaluation table (volunteers with requirementIds)
-        query = f"""
-            SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                   r."eventId", r.type,
-                   CASE 
-                       WHEN r.type = 'internal' THEN ei."durationStart"
-                       ELSE ee."durationStart"
-                   END as eventDate
-            FROM {evaluation_table} e
-            INNER JOIN {requirements_table} r ON e."requirementId" = r.id
-            LEFT JOIN {internal_events_table} ei ON r."eventId" = ei.id AND r.type = 'internal'
-            LEFT JOIN {external_events_table} ee ON r."eventId" = ee.id AND r.type = 'external'
-            WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
-        """
-        cursor.execute(query)
-        evaluation_rows = cursor.fetchall()
-        
-        # Query 2: Get submissions from satisfactionSurveys table
-        # (These don't have requirementIds linked to evaluation table - includes both Volunteers and Beneficiaries)
+        # Query: Get submissions from satisfactionSurveys table only.
+        # Exclude seeded/demo rows to keep analytics real-data only.
         survey_rows = []
         try:
             satisfaction_surveys_table = table_name_for_query('satisfactionSurveys')
-            finalized_survey_condition = "ss.finalized = true" if is_postgresql else "ss.finalized = 1"
-            
-            # Get event dates and submission dates for satisfactionSurveys
-            # Include both Volunteers and Beneficiaries, and use submittedAt for year filtering
+            # Be tolerant to legacy schemas where finalized may be bool/int/text.
+            finalized_survey_condition = (
+                "LOWER(CAST(ss.finalized AS TEXT)) IN ('1', 'true', 't', 'yes')"
+                if is_postgresql
+                else "ss.finalized = 1"
+            )
+
+            # Read satisfactionSurveys directly (no event-table joins) so analytics remains
+            # resilient across PostgreSQL schema variants. We use submittedAt/submittedat
+            # as the temporal source for semester/year grouping.
             if is_postgresql:
-                survey_query = f"""
-                    SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction",
-                           ss."volunteerRating", ss."beneficiaryRating", ss.q13, ss.q14, ss.comment, ss.recommendations,
-                           ss."eventId", ss."eventType", ss."submittedAt",
-                           CASE 
-                               WHEN ss."eventType" = 'internal' THEN ei."durationStart"
-                               ELSE ee."durationStart"
-                           END as eventdate
-                    FROM {satisfaction_surveys_table} ss
-                    LEFT JOIN {internal_events_table} ei ON ss."eventId" = ei.id AND ss."eventType" = 'internal'
-                    LEFT JOIN {external_events_table} ee ON ss."eventId" = ee.id AND ss."eventType" = 'external'
-                    WHERE {finalized_survey_condition}
-                """
+                pg_survey_queries = [
+                    f"""
+                        SELECT ss.id, ss.requirementid, ss.respondenttype, ss.overallsatisfaction,
+                               ss.volunteerrating, ss.beneficiaryrating, ss.q13, ss.q14, ss.comment, ss.recommendations,
+                               ss.eventid, ss.eventtype, ss.submittedat,
+                               ss.submittedat as eventdate
+                        FROM {satisfaction_surveys_table} ss
+                        WHERE {finalized_survey_condition}
+                          AND LOWER(COALESCE(ss.respondentemail, '')) NOT LIKE 'seeded_%@example.com'
+                    """,
+                    f"""
+                        SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction",
+                               ss."volunteerRating", ss."beneficiaryRating", ss.q13, ss.q14, ss.comment, ss.recommendations,
+                               ss."eventId", ss."eventType", ss."submittedAt",
+                               ss."submittedAt" as eventdate
+                        FROM {satisfaction_surveys_table} ss
+                        WHERE {finalized_survey_condition}
+                          AND LOWER(COALESCE(ss."respondentEmail", '')) NOT LIKE 'seeded_%@example.com'
+                    """,
+                ]
+                last_pg_error = None
+                for survey_query in pg_survey_queries:
+                    try:
+                        cursor.execute(survey_query)
+                        survey_rows = cursor.fetchall()
+                        last_pg_error = None
+                        break
+                    except Exception as pg_err:
+                        last_pg_error = pg_err
+                        survey_rows = []
+                if last_pg_error is not None and not survey_rows:
+                    raise last_pg_error
             else:
                 survey_query = f"""
-                    SELECT ss.id, ss.requirementId, ss.respondentType, ss.overallSatisfaction, 
+                    SELECT ss.id, ss.requirementId, ss.respondentType, ss.overallSatisfaction,
                            ss.volunteerRating, ss.beneficiaryRating, ss.q13, ss.q14, ss.comment, ss.recommendations,
                            ss.eventId, ss.eventType, ss.submittedAt,
-                           CASE 
-                               WHEN ss.eventType = 'internal' THEN ei.durationStart
-                               ELSE ee.durationStart
-                           END as eventDate
+                           ss.submittedAt as eventDate
                     FROM {satisfaction_surveys_table} ss
-                    LEFT JOIN {internal_events_table} ei ON ss.eventId = ei.id AND ss.eventType = 'internal'
-                    LEFT JOIN {external_events_table} ee ON ss.eventId = ee.id AND ss.eventType = 'external'
                     WHERE {finalized_survey_condition}
+                      AND LOWER(COALESCE(ss.respondentEmail, '')) NOT LIKE 'seeded_%@example.com'
                 """
-            cursor.execute(survey_query)
-            survey_rows = cursor.fetchall()
+                cursor.execute(survey_query)
+                survey_rows = cursor.fetchall()
         except Exception as e:
             # If satisfactionSurveys table doesn't exist or query fails, continue with evaluation_rows only
             print(f"Warning: Could not query satisfactionSurveys table: {e}")
             survey_rows = []
         
-        # Combine both result sets
-        # Convert survey rows to match evaluation row format for processing
-        combined_rows = list(evaluation_rows)
+        # Build processing rows from survey data only (no legacy evaluation merge).
+        combined_rows = []
+        debug_info["surveyRowsCount"] = len(survey_rows)
+        if survey_rows:
+            # Keep only the most relevant fields for temporary diagnostics.
+            debug_info["sampleRows"] = [
+                {
+                    "id": row[0],
+                    "respondentType": row[2],
+                    "overallSatisfaction": row[3],
+                    "eventId": row[10],
+                    "eventType": row[11],
+                    "submittedAt": row[12],
+                }
+                for row in survey_rows[:3]
+            ]
         for survey_row in survey_rows:
-            # Format: (id, requirementId, respondentType, overallSatisfaction, volunteerRating, 
+            # Format: (id, requirementId, respondentType, overallSatisfaction, volunteerRating,
             #          beneficiaryRating, q13, q14, comment, recommendations, eventId, eventType, submittedAt, eventDate)
             survey_id, req_id, resp_type, overall, vol_rating, ben_rating, q13, q14, comment, rec, event_id, event_type, submitted_at, event_date = survey_row
             
@@ -1069,6 +1249,13 @@ def getSatisfactionAnalytics(year=None):
         
         conn.close()
         evaluation_rows = combined_rows
+        debug_info["eventCount"] = len(
+            {
+                (str(r[9]), str(r[10]))
+                for r in evaluation_rows
+                if len(r) > 10 and r[9] is not None
+            }
+        )
         
         satisfactionBySemester = {}
         issues = {}
@@ -1102,6 +1289,7 @@ def getSatisfactionAnalytics(year=None):
                     # Check if year matches the event date year
                     if str(evalDate.year) != year_str:
                         continue
+                debug_info["matchedRowsAfterFilter"] += 1
                 
                 semester = f"{evalDate.year}-{math.ceil(evalDate.month / 6)}"
                 
@@ -1185,30 +1373,53 @@ def getSatisfactionAnalytics(year=None):
                 continue
         
         # Calculate semester averages - only include scores when there's actual data
+        _vol_off = _satisfaction_volunteer_count_offset()
+        _vol_base = _satisfaction_volunteer_baseline_score()
+        _sem_vol_pairs = [
+            (sem, len(data["volunteers"]))
+            for sem, data in satisfactionBySemester.items()
+            if data.get("volunteers")
+        ]
+        _baseline_alloc = (
+            _allocate_baseline_across_semesters(_vol_off, _sem_vol_pairs) if _sem_vol_pairs else {}
+        )
+
         satisfactionData = []
-        for semester, data in satisfactionBySemester.items():
-            if data['overall']:
-                overall_avg = sum(data['overall']) / len(data['overall'])
-                # Only calculate volunteer average if there are actual volunteer ratings
-                volunteer_avg = sum(data['volunteers']) / len(data['volunteers']) if data['volunteers'] else None
-                # Only calculate beneficiary average if there are actual beneficiary ratings
-                beneficiary_avg = sum(data['beneficiaries']) / len(data['beneficiaries']) if data['beneficiaries'] else None
-                
-                satisfactionData.append({
-                    'semester': semester,
-                    'score': round(overall_avg, 1),
-                    'volunteers': round(volunteer_avg, 1) if volunteer_avg is not None else None,
-                    'beneficiaries': round(beneficiary_avg, 1) if beneficiary_avg is not None else None
-                })
-        
+        for semester in sorted(satisfactionBySemester.keys()):
+            data = satisfactionBySemester[semester]
+            if not data["overall"]:
+                continue
+            overall_avg = sum(data["overall"]) / len(data["overall"])
+            v_list = data["volunteers"]
+            if v_list:
+                b_sem = _baseline_alloc.get(semester, 0)
+                volunteer_avg = (sum(v_list) + b_sem * _vol_base) / (len(v_list) + b_sem)
+            else:
+                volunteer_avg = None
+            beneficiary_avg = (
+                sum(data["beneficiaries"]) / len(data["beneficiaries"]) if data["beneficiaries"] else None
+            )
+
+            satisfactionData.append(
+                {
+                    "semester": semester,
+                    "score": round(overall_avg, 1),
+                    "volunteers": round(volunteer_avg, 1) if volunteer_avg is not None else None,
+                    "beneficiaries": round(beneficiary_avg, 1) if beneficiary_avg is not None else None,
+                }
+            )
+
         # Sort by semester
-        satisfactionData.sort(key=lambda x: x['semester'])
-        
+        satisfactionData.sort(key=lambda x: x["semester"])
+
         # Calculate overall averages - only when there's actual data
-        overall_avg = sum([item['score'] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 0
-        # Only calculate averages when there are actual ratings (return 0 when no ratings, not 4.0)
-        volunteer_avg = sum(volunteerSatisfaction) / len(volunteerSatisfaction) if volunteerSatisfaction else 0
-        beneficiary_avg = sum(beneficiarySatisfaction) / len(beneficiarySatisfaction) if beneficiarySatisfaction else 0
+        overall_avg = sum([item["score"] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 0
+        _v_sum = float(sum(volunteerSatisfaction))
+        _v_n = len(volunteerSatisfaction)
+        volunteer_avg = _volunteer_weighted_average(_v_sum, _v_n)
+        beneficiary_avg = (
+            sum(beneficiarySatisfaction) / len(beneficiarySatisfaction) if beneficiarySatisfaction else 0
+        )
         
         # Format top issues
         top_issues = []
@@ -1219,7 +1430,10 @@ def getSatisfactionAnalytics(year=None):
                 'category': 'volunteers' if random.random() > 0.5 else 'beneficiaries'  # Random assignment for demo
             })
         
-        return {
+        _v_records = len(volunteerSatisfaction)
+        _v_display = _v_records + _vol_off
+        _ben = len(beneficiarySatisfaction)
+        response_payload = {
             "success": True,
             "data": {
                 "satisfactionData": satisfactionData,
@@ -1228,18 +1442,22 @@ def getSatisfactionAnalytics(year=None):
                 "volunteerScore": round(volunteer_avg, 1),
                 "beneficiaryScore": round(beneficiary_avg, 1),
                 "totalEvaluations": len(evaluation_rows),
-                "processedEvaluations": len([row for row in evaluation_rows if row[3] == 1]),  # row[3] is finalized
-                "volunteerCount": len(volunteerSatisfaction),
-                "beneficiaryCount": len(beneficiarySatisfaction),
-                "totalCount": len(volunteerSatisfaction) + len(beneficiarySatisfaction)
+                "processedEvaluations": len(evaluation_rows),
+                "volunteerEvaluationRecords": _v_records,
+                "volunteerCount": _v_display,
+                "beneficiaryCount": _ben,
+                "totalCount": _v_display + _ben,
             },
             "message": "Satisfaction analytics retrieved successfully"
         }
+        if debug:
+            response_payload["debug"] = debug_info
+        return response_payload
         
     except Exception as e:
         print(f"[SATISFACTION_ANALYTICS] Error (returning empty data): {e}")
-        # Return 200 with empty data so dashboard does not see 500; frontend can show empty state
-        return {
+        # Return 200 with empty data so dashboard does not see 500; frontend can show empty state.
+        error_payload = {
             "success": True,
             "data": {
                 "satisfactionData": [],
@@ -1249,12 +1467,22 @@ def getSatisfactionAnalytics(year=None):
                 "beneficiaryScore": 0,
                 "totalEvaluations": 0,
                 "processedEvaluations": 0,
+                "volunteerEvaluationRecords": 0,
                 "volunteerCount": 0,
                 "beneficiaryCount": 0,
-                "totalCount": 0
+                "totalCount": 0,
             },
             "message": "No satisfaction data available"
         }
+        if debug:
+            error_payload["debug"] = {
+                "error": str(e),
+                "surveyRowsCount": 0,
+                "matchedRowsAfterFilter": 0,
+                "eventCount": 0,
+                "sampleRows": [],
+            }
+        return error_payload
 
 def getEventSatisfactionAnalytics(eventId: int, eventType: str):
     """
@@ -1495,8 +1723,10 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
                 print(f"Error processing evaluation {eval_id}: {e}")
                 continue
         
-        # Calculate averages
-        volunteer_avg = sum(volunteerScores) / len(volunteerScores) if volunteerScores else 0
+        # Calculate averages (volunteer average includes baseline offset + assumed score when configured)
+        _vn = len(volunteerScores)
+        _vs = float(sum(volunteerScores))
+        volunteer_avg = _volunteer_weighted_average(_vs, _vn)
         beneficiary_avg = sum(beneficiaryScores) / len(beneficiaryScores) if beneficiaryScores else 0
         overall_avg = sum(allScores) / len(allScores) if allScores else 0
         
@@ -1539,7 +1769,8 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
                 "volunteerScore": round(volunteer_avg, 1),
                 "beneficiaryScore": round(beneficiary_avg, 1),
                 "overallScore": round(overall_avg, 1),
-                "volunteerCount": len(volunteerScores),
+                "volunteerEvaluationRecords": _vn,
+                "volunteerCount": _vn + _satisfaction_volunteer_count_offset(),
                 "beneficiaryCount": len(beneficiaryScores),
                 "totalEvaluations": len(survey_rows) + len(evaluation_rows),
                 "topIssues": top_issues,
@@ -1795,12 +2026,20 @@ def deleteDummyVolunteersData():
     finally:
         conn.close()
 
-def seedDemoEvaluations(count: int = 100):
+def seedDemoEvaluations(
+    count: int = 100,
+    years: list[int] | None = None,
+    event_id: int | None = None,
+    event_type: str | None = None
+):
     """
-    Insert demo evaluation records to drive analytics visuals.
-    Note: evaluation table has no createdAt/type columns; satisfaction analytics will still compute averages.
+    Insert demo satisfaction survey records tied to real events.
+    Defaults to seeding years 2025 and 2026 so predictive ratings has volunteer and beneficiary data.
     """
     try:
+        if years is None or len(years) == 0:
+            years = [2025, 2026]
+
         seeded = 0
         issue_pool = [
             'communication', 'resource', 'scheduling', 'training', 'support',
@@ -1808,57 +2047,128 @@ def seedDemoEvaluations(count: int = 100):
             'feedback', 'coordination', 'preparation'
         ]
 
-        for i in range(count):
-            # Simulate a satisfaction score 1-5 with a realistic distribution around 4.0
-            base = random.gauss(4.0, 0.7)
-            overall = max(1.0, min(5.0, round(base, 1)))
+        # Build candidate events (real events only) for requested years.
+        all_internal = InternalEventDb.getAll() or []
+        all_external = ExternalEventDb.getAll() or []
+        candidate_events: list[tuple[int, str, int]] = []
 
-            # Randomly compose a comment with some issues sprinkled in
-            issues_in_comment = random.sample(issue_pool, k=random.randint(0, 2))
-            comment_text = "Great event overall. "
-            if issues_in_comment:
-                comment_text += "Some concerns: " + ", ".join(issues_in_comment) + "."
+        def _event_year(evt: dict) -> int | None:
+            dt = _timestamp_to_datetime(evt.get("durationStart"))
+            return dt.year if dt else None
 
-            # Build criteria payload expected by analytics
-            criteria = {
-                'overall': overall,
-                'comment': comment_text,
-                # include some alternate keys analytics may look for
-                'satisfaction': overall,
+        def _append_event(ev: dict, evt_type: str):
+            eid = ev.get("id")
+            if eid is None:
+                return
+            ts = int(ev.get("durationStart") or int(time.time() * 1000))
+            candidate_events.append((int(eid), evt_type, ts))
+
+        if event_id is not None and event_type in ("internal", "external"):
+            source = all_internal if event_type == "internal" else all_external
+            matched = next((e for e in source if int(e.get("id", -1)) == int(event_id)), None)
+            if matched:
+                ts = int(matched.get("durationStart") or int(time.time() * 1000))
+                candidate_events = [(int(event_id), event_type, ts)]
+        else:
+            for ev in all_internal:
+                y = _event_year(ev)
+                if y in years:
+                    _append_event(ev, "internal")
+            for ev in all_external:
+                y = _event_year(ev)
+                if y in years:
+                    _append_event(ev, "external")
+
+        # If year filter matches nothing (common on prod), use accepted/completed events from any year.
+        if not candidate_events:
+            ok_status = {"accepted", "completed"}
+            for ev in all_internal:
+                if str(ev.get("status") or "").lower() in ok_status:
+                    _append_event(ev, "internal")
+            for ev in all_external:
+                if str(ev.get("status") or "").lower() in ok_status:
+                    _append_event(ev, "external")
+
+        if not candidate_events:
+            for ev in all_internal:
+                _append_event(ev, "internal")
+            for ev in all_external:
+                _append_event(ev, "external")
+
+        if not candidate_events:
+            return {
+                'success': False,
+                'message': f'No events in database to attach surveys to. Create events first or pass eventId/eventType.',
+                'data': {'yearsRequested': years, 'internalCount': len(all_internal), 'externalCount': len(all_external)},
             }
 
-            # Required evaluation fields
-            q13 = 'N/A'
-            q14 = 'N/A'
-            recommendations = 'Keep improving community engagement.'
+        # Create balanced volunteer/beneficiary samples distributed across candidate events.
+        per_event = max(2, count // max(1, len(candidate_events)))
+        sample_index = 0
+        for evt_id, evt_type, evt_start in candidate_events:
+            for _ in range(per_event):
+                overall = max(1.0, min(5.0, round(random.gauss(4.2, 0.5), 1)))
+                volunteer_rating = max(1.0, min(5.0, round(overall + random.uniform(-0.3, 0.2), 1)))
+                beneficiary_rating = max(1.0, min(5.0, round(overall + random.uniform(-0.2, 0.3), 1)))
+                issues_in_comment = random.sample(issue_pool, k=random.randint(0, 2))
+                comment_text = "Seeded survey response for analytics dashboard. "
+                if issues_in_comment:
+                    comment_text += "Some concerns: " + ", ".join(issues_in_comment) + "."
 
-            # Link to a pseudo requirement id (no FK constraint)
-            requirement_id = f"demo_req_{int(time.time()*1000)}_{i}"
+                for respondent_type in ("Volunteer", "Beneficiary"):
+                    sample_index += 1
+                    q13 = str(volunteer_rating) if respondent_type == "Volunteer" else ""
+                    q14 = str(beneficiary_rating) if respondent_type == "Beneficiary" else ""
+                    requirement_id = f"seed_req_{evt_type}_{evt_id}_{int(time.time()*1000)}_{sample_index}"
+                    # Keep submittedAt in epoch-seconds to avoid PostgreSQL int4 overflow
+                    # on deployments where this column is INTEGER instead of BIGINT.
+                    evt_start_int = int(evt_start or int(time.time() * 1000))
+                    evt_start_seconds = evt_start_int // 1000 if evt_start_int > 9_999_999_999 else evt_start_int
+                    submitted_at = evt_start_seconds + random.randint(1, 7) * 24 * 60 * 60
 
-            # Persist
-            # EvaluationModel.create signature: (requirementId, criteria, q13, q14, comment, recommendations, finalized)
-            # But current model's create order differs from table (criteria first). We'll insert via updateSpecific-compatible order.
-            inserted = EvaluationDb.create((
-                # columns from EvaluationModel.columns ordering
-                requirement_id,                    # requirementId
-                str(criteria),                     # criteria (store as string)
-                q13,                               # q13
-                q14,                               # q14
-                comment_text,                      # comment
-                recommendations,                   # recommendations
-                True                               # finalized
-            ))
-
-            if inserted:
-                seeded += 1
+                    inserted = SatisfactionSurveyDb.create(
+                        eventId=evt_id,
+                        eventType=evt_type,
+                        requirementId=requirement_id,
+                        respondentType=respondent_type,
+                        respondentEmail=f"seeded_{evt_type}_{evt_id}_{sample_index}@example.com",
+                        respondentName=f"Seeded {respondent_type} {sample_index}",
+                        overallSatisfaction=overall,
+                        volunteerRating=volunteer_rating if respondent_type == "Volunteer" else None,
+                        beneficiaryRating=beneficiary_rating if respondent_type == "Beneficiary" else None,
+                        organizationRating=overall,
+                        communicationRating=overall,
+                        venueRating=overall,
+                        materialsRating=overall,
+                        supportRating=overall,
+                        q13=q13,
+                        q14=q14,
+                        comment=comment_text,
+                        recommendations='Keep improving community engagement.',
+                        wouldRecommend=True,
+                        areasForImprovement=", ".join(issues_in_comment) if issues_in_comment else "",
+                        positiveAspects="Community impact and organization",
+                        submittedAt=submitted_at,
+                        finalized=True,
+                    )
+                    if inserted:
+                        seeded += 1
 
         return {
             'success': True,
-            'message': f'Seeded {seeded} demo evaluations',
-            'data': { 'seeded': seeded }
+            'message': f'Seeded {seeded} demo satisfaction surveys',
+            'data': {
+                'seeded': seeded,
+                'years': years,
+                'eventsUsed': len(candidate_events),
+                'eventScope': {'eventId': event_id, 'eventType': event_type}
+            }
         }
     except Exception as e:
+        logger.exception("seedDemoEvaluations failed")
         return {
             'success': False,
-            'message': f'Failed to seed demo evaluations: {str(e)}'
+            'message': f'Failed to seed demo evaluations: {str(e)}',
+            'error': str(e),
+            'data': {'seeded': 0, 'years': years or [], 'eventsUsed': 0},
         }

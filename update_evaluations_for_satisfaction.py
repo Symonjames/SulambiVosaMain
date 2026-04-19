@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-Script to update existing evaluations with proper satisfaction criteria
-so they appear in predictive satisfaction analytics
-"""
 
 import sqlite3
 import os

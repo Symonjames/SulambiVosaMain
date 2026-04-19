@@ -1,16 +1,15 @@
-import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import FlexBox from '../FlexBox';
 import { Typography, Box, Chip, LinearProgress, Select, MenuItem, FormControl, InputLabel, CircularProgress, Alert, Button } from '@mui/material';
 import { TrendingUp, TrendingDown, TrendingFlat, Visibility } from '@mui/icons-material';
-import { getSatisfactionAnalytics, getEventSatisfactionAnalytics } from '../../api/analytics';
+import { getSatisfactionAnalytics } from '../../api/analytics';
+import type { EventsListPayload, SatisfactionAnalyticsPayload } from '../../api/apiTypes';
 import { getAllEvents } from '../../api/events';
-import { AccountDetailsContext } from '../../contexts/AccountDetailsProvider';
 import CurtainPanel from '../Curtain/CurtainPanel';
 import { useCachedFetch } from '../../hooks/useCachedFetch';
 import { CACHE_TIMES } from '../../utils/apiCache';
 
 const PredictiveSatisfactionRatings: React.FC = () => {
-  const { accountDetails } = useContext(AccountDetailsContext);
   const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
   const selectedYearRef = useRef(selectedYear);
   const [satisfactionData, setSatisfactionData] = useState<any[]>([]);
@@ -25,34 +24,22 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   const [volunteerScore, setVolunteerScore] = useState(0);
   const [beneficiaryScore, setBeneficiaryScore] = useState(0);
   const [volunteerCount, setVolunteerCount] = useState(0);
+  /** Survey rows used for volunteer averages; undefined if older API omitted the field. */
+  const [volunteerEvaluationRecords, setVolunteerEvaluationRecords] = useState<number | undefined>(undefined);
   const [beneficiaryCount, setBeneficiaryCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  // Store original API counts for "All Years" view
-  const [originalVolunteerCount, setOriginalVolunteerCount] = useState(0);
-  const [originalBeneficiaryCount, setOriginalBeneficiaryCount] = useState(0);
-  const [originalTotalCount, setOriginalTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Note: eventsLoading is now controlled by cached fetch
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [curtainOpen, setCurtainOpen] = useState(false);
 
-  const [eventFilter, setEventFilter] = useState<'all' | 'past' | 'recent'>('all');
   const [availableEvents, setAvailableEvents] = useState<any[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
   
-  // Check if user is admin
-  const isAdmin = accountDetails?.accountType === 'admin';
-  
-  // Event-specific analytics state
-  const [selectedEventForAnalytics, setSelectedEventForAnalytics] = useState<string>('');
-  const [eventAnalytics, setEventAnalytics] = useState<any>(null);
-  const [eventAnalyticsLoading, setEventAnalyticsLoading] = useState(false);
-
   // Removed buildFallbackData - no longer generating fake data
 
   // Use cached fetch for events - prevents reloading when navigating
-  const { data: eventsResponse, loading: eventsLoadingFromCache } = useCachedFetch({
+  const { data: eventsResponse, loading: eventsLoadingFromCache } = useCachedFetch<EventsListPayload>({
     cacheKey: 'satisfaction_events',
     fetchFn: () => getAllEvents(),
     cacheTime: CACHE_TIMES.MEDIUM,
@@ -78,40 +65,12 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         title: event.title || `Event ${event.id}`
       }));
       setAvailableEvents(events);
-      setEventsLoading(false);
     }
   }, [eventsResponse]);
-  
-  // Load event-specific analytics when event is selected
-  useEffect(() => {
-    if (selectedEventForAnalytics && isAdmin) {
-      const loadEventAnalytics = async () => {
-        try {
-          setEventAnalyticsLoading(true);
-          const [eventType, eventId] = selectedEventForAnalytics.split('-');
-          const response = await getEventSatisfactionAnalytics(parseInt(eventId), eventType);
-          
-          if (response.success && response.data) {
-            setEventAnalytics(response.data);
-          } else {
-            setEventAnalytics(null);
-          }
-        } catch (err) {
-          console.error('Error loading event analytics:', err);
-          setEventAnalytics(null);
-        } finally {
-          setEventAnalyticsLoading(false);
-        }
-      };
-      loadEventAnalytics();
-    } else {
-      setEventAnalytics(null);
-    }
-  }, [selectedEventForAnalytics, isAdmin]);
 
   // Use cached fetch for satisfaction analytics.
   // Fetch with year parameter when a specific year is selected to get accurate counts
-  const { data: satisfactionResponse, loading: satisfactionLoading, error: satisfactionError, refetch: refetchSatisfaction } = useCachedFetch({
+  const { data: satisfactionResponse, loading: satisfactionLoading, error: satisfactionError, refetch: refetchSatisfaction } = useCachedFetch<SatisfactionAnalyticsPayload>({
     cacheKey: selectedYear && selectedYear !== 'all' ? `satisfaction_analytics_${selectedYear}` : 'satisfaction_analytics_all',
     fetchFn: async () => {
       try {
@@ -254,37 +213,55 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             setSatisfactionData(enrichedData);
             setTopIssues(issues);
             // Extract counts from response data FIRST (before calculating averages)
-            const responseData = satisfactionResponse;
             let volunteerCountFromAPI = 0;
             let beneficiaryCountFromAPI = 0;
             if (responseData?.data) {
               volunteerCountFromAPI = responseData.data.volunteerCount || 0;
               beneficiaryCountFromAPI = responseData.data.beneficiaryCount || 0;
-              // Store original counts for "All Years" view
-              setOriginalVolunteerCount(volunteerCountFromAPI);
-              setOriginalBeneficiaryCount(beneficiaryCountFromAPI);
-              setOriginalTotalCount(responseData.data.totalCount || 0);
               // Set current counts (will be updated by filtered data effect if year is selected)
               setVolunteerCount(volunteerCountFromAPI);
               setBeneficiaryCount(beneficiaryCountFromAPI);
               setTotalCount(responseData.data.totalCount || 0);
+              const rec = responseData.data.volunteerEvaluationRecords;
+              setVolunteerEvaluationRecords(typeof rec === 'number' ? rec : undefined);
             }
             
             // Compute averages from enriched data for display consistency
             const avgOverall = Number((enrichedData.reduce((s: number, it: any) => s + (it.score || 0), 0) / enrichedData.length).toFixed(1));
-            // Only calculate volunteer average if there are actual volunteer ratings
-            const avgVol = volunteerCountFromAPI > 0 
-              ? Number((enrichedData.reduce((s: number, it: any) => s + (it.volunteers || 0), 0) / enrichedData.filter((it: any) => it.volunteers != null && it.volunteers !== undefined).length).toFixed(1))
-              : 0;
-            // Only calculate beneficiary average if there are actual beneficiary ratings
-            const avgBen = beneficiaryCountFromAPI > 0
-              ? Number((enrichedData.reduce((s: number, it: any) => s + (it.beneficiaries || 0), 0) / enrichedData.filter((it: any) => it.beneficiaries != null && it.beneficiaries !== undefined).length).toFixed(1))
-              : 0;
+            const volunteerDataForAvg = enrichedData.filter((it: any) => it.volunteers != null && it.volunteers !== undefined);
+            const avgVol =
+              volunteerDataForAvg.length > 0
+                ? Number(
+                    (
+                      volunteerDataForAvg.reduce((s: number, it: any) => s + (it.volunteers || 0), 0) /
+                      volunteerDataForAvg.length
+                    ).toFixed(1)
+                  )
+                : 0;
+            const beneficiaryDataForAvg = enrichedData.filter((it: any) => it.beneficiaries != null && it.beneficiaries !== undefined);
+            const avgBen =
+              beneficiaryDataForAvg.length > 0
+                ? Number(
+                    (
+                      beneficiaryDataForAvg.reduce((s: number, it: any) => s + (it.beneficiaries || 0), 0) /
+                      beneficiaryDataForAvg.length
+                    ).toFixed(1)
+                  )
+                : 0;
             
             setAverageScore(avgOverall);
-            // Only set scores when there are actual ratings (count > 0)
-            setVolunteerScore(volunteerCountFromAPI > 0 ? avgVol : 0);
-            setBeneficiaryScore(beneficiaryCountFromAPI > 0 ? avgBen : 0);
+            const apiVolunteerScore =
+              responseData?.data && typeof responseData.data.volunteerScore === 'number'
+                ? Number(responseData.data.volunteerScore)
+                : null;
+            setVolunteerScore(
+              volunteerDataForAvg.length > 0
+                ? avgVol
+                : apiVolunteerScore != null && apiVolunteerScore > 0
+                  ? apiVolunteerScore
+                  : 0
+            );
+            setBeneficiaryScore(beneficiaryDataForAvg.length > 0 ? avgBen : 0);
 
             // Extract available years from data (semester format: YYYY-#)
             const currentYear = new Date().getFullYear();
@@ -314,7 +291,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             setAvailableYears(allYears.length > 0 ? allYears : [String(currentYear)]);
             // Don't change selectedYear if user already selected one - this was causing infinite loops
           } else {
-            // No data available - show empty state but keep years available
+            // No data available - show empty state while backend seeding/refetch runs
             setSatisfactionData([]);
             setTopIssues([]);
             setAverageScore(0);
@@ -323,6 +300,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             setVolunteerCount(0);
             setBeneficiaryCount(0);
             setTotalCount(0);
+            setVolunteerEvaluationRecords(undefined);
             
             // Keep years 2025-2026 available even if no data
             const currentYear = new Date().getFullYear();
@@ -336,7 +314,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             }
           }
         } else if (responseData) {
-          // Response exists but no data - backend returned empty (could be 500 handled gracefully)
+          // Response exists but no data yet
           setSatisfactionData([]);
           setTopIssues([]);
           setAverageScore(0);
@@ -371,6 +349,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         setAverageScore(0);
         setVolunteerScore(0);
         setBeneficiaryScore(0);
+        setVolunteerEvaluationRecords(undefined);
         setError('Error processing satisfaction data. Please try again.');
       }
     };
@@ -389,7 +368,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       if (!is500Error) {
         setError('Error loading satisfaction data. Please try again.');
       } else {
-        // 500 errors are handled in fetchFn - don't show error, just show empty state
+        // 500 errors are handled in fetchFn - show empty while retry/seed may run
         setError(null);
         setSatisfactionData([]);
         setTopIssues([]);
@@ -471,18 +450,13 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       const apiVolunteerCount = responseData.data.volunteerCount || 0;
       const apiBeneficiaryCount = responseData.data.beneficiaryCount || 0;
       const apiTotalCount = responseData.data.totalCount || 0;
+      const rec = responseData.data.volunteerEvaluationRecords;
       
       // Update counts from API (these are already filtered by year if year parameter was passed)
       setVolunteerCount(apiVolunteerCount);
       setBeneficiaryCount(apiBeneficiaryCount);
       setTotalCount(apiTotalCount);
-      
-      // Store original counts for "All Years" view
-      if (!selectedYear || selectedYear === 'all') {
-        setOriginalVolunteerCount(apiVolunteerCount);
-        setOriginalBeneficiaryCount(apiBeneficiaryCount);
-        setOriginalTotalCount(apiTotalCount);
-      }
+      setVolunteerEvaluationRecords(typeof rec === 'number' ? rec : undefined);
     }
     
     if (filteredData.length > 0) {
@@ -499,8 +473,19 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         ? Number((beneficiaryData.reduce((s: number, it: any) => s + (it.beneficiaries || 0), 0) / beneficiaryData.length).toFixed(1))
         : 0;
       
+      const apiVolunteerScore =
+        responseData?.data && typeof responseData.data.volunteerScore === 'number'
+          ? Number(responseData.data.volunteerScore)
+          : null;
+      const volunteerScoreOut =
+        volunteerData.length > 0
+          ? avgVol
+          : apiVolunteerScore != null && apiVolunteerScore > 0
+            ? apiVolunteerScore
+            : 0;
+
       setAverageScore(avgOverall);
-      setVolunteerScore(avgVol);
+      setVolunteerScore(volunteerScoreOut);
       setBeneficiaryScore(avgBen);
     } else {
       // No filtered data - reset to zero
@@ -510,6 +495,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       setVolunteerCount(0);
       setBeneficiaryCount(0);
       setTotalCount(0);
+      setVolunteerEvaluationRecords(undefined);
     }
   }, [filteredData, selectedYear, satisfactionResponse]);
   
@@ -517,9 +503,25 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   const yearLabel = selectedYear && selectedYear !== 'all' ? selectedYear : 'All Years';
 
+  const showVolunteerAverage = useMemo(() => {
+    if (volunteerScore <= 0) return false;
+    if (volunteerEvaluationRecords === undefined) return volunteerCount > 0;
+    if (volunteerEvaluationRecords > 0) return true;
+    // Pre-aggregated semester store: records stay 0 but semester rows still yield an average.
+    return volunteerScore > 0;
+  }, [volunteerScore, volunteerEvaluationRecords, volunteerCount]);
+
+  const volunteerBaselineHeadcountOnly = volunteerCount > 0 && !showVolunteerAverage;
+
   const interpretationLines = [
     `Overall Satisfaction: ${averageScore}/5.0 (${totalCount} rating${totalCount !== 1 ? 's' : ''}) — ${currentTrend} trend`,
-    `Volunteers: ${volunteerCount > 0 ? `${volunteerScore}/5.0 (${volunteerCount} rating${volunteerCount !== 1 ? 's' : ''})` : 'No ratings yet'}`,
+    `Volunteers: ${
+      showVolunteerAverage
+        ? `${volunteerScore}/5.0 (${volunteerCount} on record${volunteerEvaluationRecords !== undefined && volunteerEvaluationRecords > 0 && volunteerEvaluationRecords < volunteerCount ? `, ${volunteerEvaluationRecords} evaluation${volunteerEvaluationRecords !== 1 ? 's' : ''}` : ''})`
+        : volunteerBaselineHeadcountOnly
+          ? `${volunteerCount} on record (baseline + evaluations; average after first survey)`
+          : 'No ratings yet'
+    }`,
     `Beneficiaries: ${beneficiaryCount > 0 ? `${beneficiaryScore}/5.0 (${beneficiaryCount} rating${beneficiaryCount !== 1 ? 's' : ''})` : 'No ratings yet'}`
   ];
   const predictionText = `Prediction: Satisfaction expected to remain ${currentTrend.toLowerCase()} next semester.`;
@@ -544,13 +546,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       default:
         return '#ff9800';
     }
-  };
-
-  const getComparisonTrend = (score1: number, score2: number) => {
-    const diff = score2 - score1;
-    if (diff > 0.2) return { trend: 'Improving', color: '#4caf50', icon: <TrendingUp sx={{ color: '#4caf50', fontSize: 16 }} /> };
-    if (diff < -0.2) return { trend: 'Declining', color: '#f44336', icon: <TrendingDown sx={{ color: '#f44336', fontSize: 16 }} /> };
-    return { trend: 'Stable', color: '#ff9800', icon: <TrendingFlat sx={{ color: '#ff9800', fontSize: 16 }} /> };
   };
 
   // Overview View Component
@@ -593,16 +588,25 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           <FlexBox gap={2}>
             <Box flex={1}>
               <Typography variant="body2" fontSize="0.875rem">
-                Volunteers: {volunteerCount > 0 ? `${volunteerScore}/5.0` : 'No ratings yet'}
-                {volunteerCount > 0 && ` (${volunteerCount})`}
+                Volunteers:{' '}
+                {showVolunteerAverage
+                  ? `${volunteerScore}/5.0`
+                  : volunteerBaselineHeadcountOnly
+                    ? `${volunteerCount} on record`
+                    : 'No ratings yet'}
+                {volunteerCount > 0 && showVolunteerAverage && ` (${volunteerCount})`}
               </Typography>
-              {volunteerCount > 0 ? (
+              {showVolunteerAverage ? (
                 <LinearProgress 
                   variant="determinate" 
                   value={(volunteerScore / 5) * 100} 
                   sx={{ height: 4, borderRadius: 2, backgroundColor: '#e3f2fd' }}
                   color="primary"
                 />
+              ) : volunteerBaselineHeadcountOnly ? (
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                  Includes configured baseline headcount. Average appears after volunteer evaluation forms are submitted.
+                </Typography>
               ) : (
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                   Waiting for volunteer evaluations
@@ -778,141 +782,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         </FormControl>
       </FlexBox>
       
-      {/* Event-Specific Analytics Display removed */}
-      {false && (
-        <Box textAlign="center" py={4} mb={2}>
-          <CircularProgress size={40} />
-          <Typography variant="body2" color="text.secondary" mt={2}>
-            Loading event analytics...
-          </Typography>
-        </Box>
-      )}
-      
-      {false && (
-        <Box mb={3} p={2} border="1px solid #e0e0e0" borderRadius={2} sx={{ backgroundColor: '#f9f9f9' }}>
-          <Typography variant="h6" gutterBottom fontWeight="bold">
-            {eventAnalytics.eventTitle}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" gutterBottom sx={{ display: 'block', mb: 2 }}>
-            {new Date(eventAnalytics.eventStart).toLocaleDateString()} - {new Date(eventAnalytics.eventEnd).toLocaleDateString()}
-          </Typography>
-          
-          {/* Volunteer and Beneficiary Ratings */}
-          <Box mb={2}>
-            <Typography variant="subtitle2" gutterBottom>
-              Satisfaction Ratings:
-            </Typography>
-            <FlexBox gap={2} mb={2}>
-              <Box flex={1}>
-                <Typography variant="body2" fontSize="0.875rem" gutterBottom>
-                  Volunteers: {eventAnalytics.volunteerScore}/5.0 ({eventAnalytics.volunteerCount} responses)
-                </Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(eventAnalytics.volunteerScore / 5) * 100} 
-                  sx={{ height: 6, borderRadius: 3, backgroundColor: '#e3f2fd' }}
-                  color="primary"
-                />
-              </Box>
-              <Box flex={1}>
-                <Typography variant="body2" fontSize="0.875rem" gutterBottom>
-                  Beneficiaries: {eventAnalytics.beneficiaryScore}/5.0 ({eventAnalytics.beneficiaryCount} responses)
-                </Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(eventAnalytics.beneficiaryScore / 5) * 100} 
-                  sx={{ height: 6, borderRadius: 3, backgroundColor: '#f3e5f5' }}
-                  color="secondary"
-                />
-              </Box>
-            </FlexBox>
-            <Box>
-              <Typography variant="body2" fontSize="0.875rem" gutterBottom>
-                Overall: {eventAnalytics.overallScore}/5.0 ({eventAnalytics.totalEvaluations} total evaluations)
-              </Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={(eventAnalytics.overallScore / 5) * 100} 
-                sx={{ height: 6, borderRadius: 3 }}
-              />
-            </Box>
-          </Box>
-          
-          {/* Predictive Statement */}
-          <Box mt={2} p={2} borderRadius={1} sx={{ backgroundColor: '#f4f8ff', border: '1px solid #d0e3ff' }}>
-            <Typography variant="subtitle2" gutterBottom fontWeight="bold">
-              Predictive Analysis:
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {eventAnalytics.prediction}
-            </Typography>
-          </Box>
-          
-          {/* Top Issues */}
-          {eventAnalytics.topIssues && eventAnalytics.topIssues.length > 0 && (
-            <Box mt={2}>
-              <Typography variant="subtitle2" gutterBottom>
-                Top Issues:
-              </Typography>
-              {eventAnalytics.topIssues.map((item: any, index: number) => (
-                <FlexBox key={index} justifyContent="space-between" alignItems="center" mb={0.5}>
-                  <Typography variant="body2" fontSize="0.875rem">
-                    {item.issue}
-                  </Typography>
-                  <Chip 
-                    label={`${item.frequency}`} 
-                    size="small" 
-                    variant="outlined"
-                    sx={{ fontSize: '0.7rem' }}
-                  />
-                </FlexBox>
-              ))}
-            </Box>
-          )}
-        </Box>
-      )}
-      
-      {false && (
-        <Box textAlign="center" py={4} mb={2}>
-          <Typography variant="body2" color="text.secondary">
-            No analytics data available for this event
-          </Typography>
-        </Box>
-      )}
-      
-      {/* Comparison filter removed */}
-      {false && (
-        <FlexBox
-          gap={2}
-          alignItems="center"
-          mb={2}
-          sx={{
-            flexWrap: 'wrap',
-            justifyContent: { xs: 'flex-start', md: 'flex-start' }
-          }}
-        >
-          <FormControl 
-            size="small" 
-            sx={{ 
-              minWidth: 140, 
-              '& .MuiOutlinedInput-root': { height: 36 },
-              '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0 }
-            }}
-          >
-            <InputLabel>Event Filter</InputLabel>
-            <Select
-              value={eventFilter}
-              label="Event Filter"
-              onChange={(e) => setEventFilter(e.target.value as any)}
-            >
-              <MenuItem value="all">All Events</MenuItem>
-              <MenuItem value="past">Past Events</MenuItem>
-              <MenuItem value="recent">Recent Events</MenuItem>
-            </Select>
-          </FormControl>
-        </FlexBox>
-      )}
-      
       {/* Always show Overview */}
       <OverviewView />
 
@@ -1056,21 +925,35 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                 <Box mb={1}>
                   <FlexBox justifyContent="space-between" alignItems="center" mb={0.5}>
                     <Typography variant="body2">
-                      Volunteers: {volunteerCount > 0 ? `${volunteerScore}/5.0` : 'No ratings yet'}
+                      Volunteers:{' '}
+                      {showVolunteerAverage
+                        ? `${volunteerScore}/5.0`
+                        : volunteerBaselineHeadcountOnly
+                          ? `${volunteerCount} on record`
+                          : 'No ratings yet'}
                     </Typography>
-                    {volunteerCount > 0 && (
+                    {volunteerCount > 0 && showVolunteerAverage && (
                       <Typography variant="caption" color="text.secondary" fontSize="0.75rem">
-                        {volunteerCount} rating{volunteerCount !== 1 ? 's' : ''}
+                        {volunteerCount} on record
+                        {volunteerEvaluationRecords !== undefined &&
+                        volunteerEvaluationRecords > 0 &&
+                        volunteerEvaluationRecords < volunteerCount
+                          ? ` (${volunteerEvaluationRecords} evaluation${volunteerEvaluationRecords !== 1 ? 's' : ''})`
+                          : ''}
                       </Typography>
                     )}
                   </FlexBox>
-                  {volunteerCount > 0 ? (
+                  {showVolunteerAverage ? (
                     <LinearProgress 
                       variant="determinate" 
                       value={(volunteerScore / 5) * 100} 
                       sx={{ height: 6, borderRadius: 3, backgroundColor: '#e3f2fd' }}
                       color="primary"
                     />
+                  ) : volunteerBaselineHeadcountOnly ? (
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                      Includes configured baseline headcount. Average appears after volunteer evaluation forms are submitted.
+                    </Typography>
                   ) : (
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                       Waiting for volunteer evaluations

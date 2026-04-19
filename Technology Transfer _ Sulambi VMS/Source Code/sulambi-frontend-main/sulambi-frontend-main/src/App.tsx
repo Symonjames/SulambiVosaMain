@@ -28,6 +28,7 @@ import EvaluationDemoPage from "./pages/EvaluationDemoPage";
 import AnalyticsPage from "./pages/Admin/AnalyticsPage";
 import VolunteerEvaluationPage from "./pages/VolunteerEvaluationPage";
 import BeneficiaryEvaluationPage from "./pages/BeneficiaryEvaluationPage";
+import PredictiveSatisfactionRatingsDesignPage from "./pages/PredictiveSatisfactionRatingsDesignPage";
 
 function App() {
   return (
@@ -44,7 +45,11 @@ function App() {
                     <Route path="template-forms" element={<TemplateForm />} />
                     <Route path="qr" element={<QRCode />} />
                     <Route path="evaluation-demo" element={<EvaluationDemoPage />} />
-                    
+                    <Route
+                      path="design/predictive-satisfaction"
+                      element={<PredictiveSatisfactionRatingsDesignPage />}
+                    />
+
                     {/* Separate Evaluation Forms */}
                     <Route path="volunteer-evaluation" element={<VolunteerEvaluationPage />} />
                     <Route path="beneficiary-evaluation" element={<BeneficiaryEvaluationPage />} />

@@ -24,6 +24,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   const [volunteerScore, setVolunteerScore] = useState(0);
   const [beneficiaryScore, setBeneficiaryScore] = useState(0);
   const [volunteerCount, setVolunteerCount] = useState(0);
+  /** Survey rows used for volunteer averages; undefined if older API omitted the field. */
+  const [volunteerEvaluationRecords, setVolunteerEvaluationRecords] = useState<number | undefined>(undefined);
   const [beneficiaryCount, setBeneficiaryCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -220,23 +222,46 @@ const PredictiveSatisfactionRatings: React.FC = () => {
               setVolunteerCount(volunteerCountFromAPI);
               setBeneficiaryCount(beneficiaryCountFromAPI);
               setTotalCount(responseData.data.totalCount || 0);
+              const rec = responseData.data.volunteerEvaluationRecords;
+              setVolunteerEvaluationRecords(typeof rec === 'number' ? rec : undefined);
             }
             
             // Compute averages from enriched data for display consistency
             const avgOverall = Number((enrichedData.reduce((s: number, it: any) => s + (it.score || 0), 0) / enrichedData.length).toFixed(1));
-            // Only calculate volunteer average if there are actual volunteer ratings
-            const avgVol = volunteerCountFromAPI > 0 
-              ? Number((enrichedData.reduce((s: number, it: any) => s + (it.volunteers || 0), 0) / enrichedData.filter((it: any) => it.volunteers != null && it.volunteers !== undefined).length).toFixed(1))
-              : 0;
-            // Only calculate beneficiary average if there are actual beneficiary ratings
-            const avgBen = beneficiaryCountFromAPI > 0
-              ? Number((enrichedData.reduce((s: number, it: any) => s + (it.beneficiaries || 0), 0) / enrichedData.filter((it: any) => it.beneficiaries != null && it.beneficiaries !== undefined).length).toFixed(1))
-              : 0;
+            const volunteerDataForAvg = enrichedData.filter((it: any) => it.volunteers != null && it.volunteers !== undefined);
+            const avgVol =
+              volunteerDataForAvg.length > 0
+                ? Number(
+                    (
+                      volunteerDataForAvg.reduce((s: number, it: any) => s + (it.volunteers || 0), 0) /
+                      volunteerDataForAvg.length
+                    ).toFixed(1)
+                  )
+                : 0;
+            const beneficiaryDataForAvg = enrichedData.filter((it: any) => it.beneficiaries != null && it.beneficiaries !== undefined);
+            const avgBen =
+              beneficiaryDataForAvg.length > 0
+                ? Number(
+                    (
+                      beneficiaryDataForAvg.reduce((s: number, it: any) => s + (it.beneficiaries || 0), 0) /
+                      beneficiaryDataForAvg.length
+                    ).toFixed(1)
+                  )
+                : 0;
             
             setAverageScore(avgOverall);
-            // Only set scores when there are actual ratings (count > 0)
-            setVolunteerScore(volunteerCountFromAPI > 0 ? avgVol : 0);
-            setBeneficiaryScore(beneficiaryCountFromAPI > 0 ? avgBen : 0);
+            const apiVolunteerScore =
+              responseData?.data && typeof responseData.data.volunteerScore === 'number'
+                ? Number(responseData.data.volunteerScore)
+                : null;
+            setVolunteerScore(
+              volunteerDataForAvg.length > 0
+                ? avgVol
+                : apiVolunteerScore != null && apiVolunteerScore > 0
+                  ? apiVolunteerScore
+                  : 0
+            );
+            setBeneficiaryScore(beneficiaryDataForAvg.length > 0 ? avgBen : 0);
 
             // Extract available years from data (semester format: YYYY-#)
             const currentYear = new Date().getFullYear();
@@ -275,6 +300,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             setVolunteerCount(0);
             setBeneficiaryCount(0);
             setTotalCount(0);
+            setVolunteerEvaluationRecords(undefined);
             
             // Keep years 2025-2026 available even if no data
             const currentYear = new Date().getFullYear();
@@ -323,6 +349,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         setAverageScore(0);
         setVolunteerScore(0);
         setBeneficiaryScore(0);
+        setVolunteerEvaluationRecords(undefined);
         setError('Error processing satisfaction data. Please try again.');
       }
     };
@@ -423,11 +450,13 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       const apiVolunteerCount = responseData.data.volunteerCount || 0;
       const apiBeneficiaryCount = responseData.data.beneficiaryCount || 0;
       const apiTotalCount = responseData.data.totalCount || 0;
+      const rec = responseData.data.volunteerEvaluationRecords;
       
       // Update counts from API (these are already filtered by year if year parameter was passed)
       setVolunteerCount(apiVolunteerCount);
       setBeneficiaryCount(apiBeneficiaryCount);
       setTotalCount(apiTotalCount);
+      setVolunteerEvaluationRecords(typeof rec === 'number' ? rec : undefined);
     }
     
     if (filteredData.length > 0) {
@@ -444,8 +473,19 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         ? Number((beneficiaryData.reduce((s: number, it: any) => s + (it.beneficiaries || 0), 0) / beneficiaryData.length).toFixed(1))
         : 0;
       
+      const apiVolunteerScore =
+        responseData?.data && typeof responseData.data.volunteerScore === 'number'
+          ? Number(responseData.data.volunteerScore)
+          : null;
+      const volunteerScoreOut =
+        volunteerData.length > 0
+          ? avgVol
+          : apiVolunteerScore != null && apiVolunteerScore > 0
+            ? apiVolunteerScore
+            : 0;
+
       setAverageScore(avgOverall);
-      setVolunteerScore(avgVol);
+      setVolunteerScore(volunteerScoreOut);
       setBeneficiaryScore(avgBen);
     } else {
       // No filtered data - reset to zero
@@ -455,6 +495,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       setVolunteerCount(0);
       setBeneficiaryCount(0);
       setTotalCount(0);
+      setVolunteerEvaluationRecords(undefined);
     }
   }, [filteredData, selectedYear, satisfactionResponse]);
   
@@ -462,9 +503,25 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   const yearLabel = selectedYear && selectedYear !== 'all' ? selectedYear : 'All Years';
 
+  const showVolunteerAverage = useMemo(() => {
+    if (volunteerScore <= 0) return false;
+    if (volunteerEvaluationRecords === undefined) return volunteerCount > 0;
+    if (volunteerEvaluationRecords > 0) return true;
+    // Pre-aggregated semester store: records stay 0 but semester rows still yield an average.
+    return volunteerScore > 0;
+  }, [volunteerScore, volunteerEvaluationRecords, volunteerCount]);
+
+  const volunteerBaselineHeadcountOnly = volunteerCount > 0 && !showVolunteerAverage;
+
   const interpretationLines = [
     `Overall Satisfaction: ${averageScore}/5.0 (${totalCount} rating${totalCount !== 1 ? 's' : ''}) — ${currentTrend} trend`,
-    `Volunteers: ${volunteerCount > 0 ? `${volunteerScore}/5.0 (${volunteerCount} rating${volunteerCount !== 1 ? 's' : ''})` : 'No ratings yet'}`,
+    `Volunteers: ${
+      showVolunteerAverage
+        ? `${volunteerScore}/5.0 (${volunteerCount} on record${volunteerEvaluationRecords !== undefined && volunteerEvaluationRecords > 0 && volunteerEvaluationRecords < volunteerCount ? `, ${volunteerEvaluationRecords} evaluation${volunteerEvaluationRecords !== 1 ? 's' : ''}` : ''})`
+        : volunteerBaselineHeadcountOnly
+          ? `${volunteerCount} on record (baseline + evaluations; average after first survey)`
+          : 'No ratings yet'
+    }`,
     `Beneficiaries: ${beneficiaryCount > 0 ? `${beneficiaryScore}/5.0 (${beneficiaryCount} rating${beneficiaryCount !== 1 ? 's' : ''})` : 'No ratings yet'}`
   ];
   const predictionText = `Prediction: Satisfaction expected to remain ${currentTrend.toLowerCase()} next semester.`;
@@ -531,16 +588,25 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           <FlexBox gap={2}>
             <Box flex={1}>
               <Typography variant="body2" fontSize="0.875rem">
-                Volunteers: {volunteerCount > 0 ? `${volunteerScore}/5.0` : 'No ratings yet'}
-                {volunteerCount > 0 && ` (${volunteerCount})`}
+                Volunteers:{' '}
+                {showVolunteerAverage
+                  ? `${volunteerScore}/5.0`
+                  : volunteerBaselineHeadcountOnly
+                    ? `${volunteerCount} on record`
+                    : 'No ratings yet'}
+                {volunteerCount > 0 && showVolunteerAverage && ` (${volunteerCount})`}
               </Typography>
-              {volunteerCount > 0 ? (
+              {showVolunteerAverage ? (
                 <LinearProgress 
                   variant="determinate" 
                   value={(volunteerScore / 5) * 100} 
                   sx={{ height: 4, borderRadius: 2, backgroundColor: '#e3f2fd' }}
                   color="primary"
                 />
+              ) : volunteerBaselineHeadcountOnly ? (
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                  Includes configured baseline headcount. Average appears after volunteer evaluation forms are submitted.
+                </Typography>
               ) : (
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                   Waiting for volunteer evaluations
@@ -859,21 +925,35 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                 <Box mb={1}>
                   <FlexBox justifyContent="space-between" alignItems="center" mb={0.5}>
                     <Typography variant="body2">
-                      Volunteers: {volunteerCount > 0 ? `${volunteerScore}/5.0` : 'No ratings yet'}
+                      Volunteers:{' '}
+                      {showVolunteerAverage
+                        ? `${volunteerScore}/5.0`
+                        : volunteerBaselineHeadcountOnly
+                          ? `${volunteerCount} on record`
+                          : 'No ratings yet'}
                     </Typography>
-                    {volunteerCount > 0 && (
+                    {volunteerCount > 0 && showVolunteerAverage && (
                       <Typography variant="caption" color="text.secondary" fontSize="0.75rem">
-                        {volunteerCount} rating{volunteerCount !== 1 ? 's' : ''}
+                        {volunteerCount} on record
+                        {volunteerEvaluationRecords !== undefined &&
+                        volunteerEvaluationRecords > 0 &&
+                        volunteerEvaluationRecords < volunteerCount
+                          ? ` (${volunteerEvaluationRecords} evaluation${volunteerEvaluationRecords !== 1 ? 's' : ''})`
+                          : ''}
                       </Typography>
                     )}
                   </FlexBox>
-                  {volunteerCount > 0 ? (
+                  {showVolunteerAverage ? (
                     <LinearProgress 
                       variant="determinate" 
                       value={(volunteerScore / 5) * 100} 
                       sx={{ height: 6, borderRadius: 3, backgroundColor: '#e3f2fd' }}
                       color="primary"
                     />
+                  ) : volunteerBaselineHeadcountOnly ? (
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                      Includes configured baseline headcount. Average appears after volunteer evaluation forms are submitted.
+                    </Typography>
                   ) : (
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                       Waiting for volunteer evaluations

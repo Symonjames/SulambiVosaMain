@@ -28,6 +28,12 @@ services:
         sync: false
       - key: DEBUG
         value: "False"
+      # Optional: displayed volunteer count = this number + finalized volunteer survey rows (e.g. 35 for a legacy cohort).
+      - key: SATISFACTION_VOLUNTEER_COUNT_OFFSET
+        value: "0"
+      # Assumed 1–5 score for each baseline volunteer when blending volunteer averages (default 4.0).
+      - key: SATISFACTION_VOLUNTEER_BASELINE_SCORE
+        value: "4"
 
   # Frontend Static Site (Original - Keep as-is)
   - type: web
