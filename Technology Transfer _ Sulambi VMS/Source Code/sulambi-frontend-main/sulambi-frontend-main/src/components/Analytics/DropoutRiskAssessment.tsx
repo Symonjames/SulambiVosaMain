@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import FlexBox from '../FlexBox';
 import { Typography, Box, Chip, Alert, List, ListItem, ListItemText, CircularProgress, Button } from '@mui/material';
 import { BarChart } from '@mui/x-charts';
-import { CheckCircle, TrendingDown, TrendingUp, Visibility, WarningAmber, AccessTime, ReportProblem, PanToolAlt } from '@mui/icons-material';
+import { CheckCircle, TrendingDown, TrendingUp, Visibility, WarningAmber, ReportProblem, PanToolAlt } from '@mui/icons-material';
 import { getDropoutRiskAnalytics } from '../../api/analytics';
 import CurtainPanel from '../Curtain/CurtainPanel';
 
@@ -128,9 +128,6 @@ const DropoutRiskAssessment: React.FC = () => {
   ).length;
   const hasHighRiskSignal = riskLevel === 'High' || highInactivityCount > 0;
   const statusLabel = hasHighRiskSignal ? 'High Risk' : `${riskLevel} Risk`;
-  const conditionLabel = hasHighRiskSignal
-    ? '40+ days inactive'
-    : `${capDays(averageInactivity)} days inactive`;
   const riskLabel = hasHighRiskSignal
     ? '100% dropout risk (next event)'
     : `${Math.max(0, Math.round(100 - retentionRate))}% dropout risk (next event)`;
@@ -203,27 +200,6 @@ const DropoutRiskAssessment: React.FC = () => {
         </Box>
 
         <FlexBox gap={1.5} flexWrap="wrap" mb={1.5}>
-          <Box
-            sx={{
-              flex: 1,
-              minWidth: { xs: "100%", sm: "140px" },
-              border: `1px solid ${METRIC_BORDER}`,
-              borderRadius: "10px",
-              p: 1.5,
-              bgcolor: "#faf8f5",
-            }}
-          >
-            <FlexBox alignItems="center" gap={0.75}>
-              <AccessTime sx={{ color: MAROON, fontSize: 22 }} />
-              <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.3 }}>
-                Condition
-              </Typography>
-            </FlexBox>
-            <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.35, mt: 0.75 }}>
-              {conditionLabel}
-            </Typography>
-          </Box>
-
           <Box
             sx={{
               flex: 1,

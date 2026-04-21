@@ -10,6 +10,7 @@ from ..controllers.analytics import (
     getSatisfactionAnalytics,
     getEventSatisfactionAnalytics,
     seedDemoEvaluations,
+    seedExactRespondentsPerEvent,
     clearAnalyticsData,
     deleteDummyVolunteersData
 )
@@ -228,6 +229,60 @@ def seedEvaluationsRoute():
     )
     # Always return 200 so frontend can show predictable state instead of hard failure.
     return jsonify(result), 200
+
+
+@AnalyticsBlueprint.route("/analytics/dev/seed-per-event", methods=["GET", "POST"])
+def seedRespondentsPerEventRoute():
+    """
+    Seed a fixed number of satisfaction respondents per event for the given years.
+    Defaults: 15 respondents per event for 2025.
+
+    Query params:
+      - count:           respondents per event (default 15)
+      - years:           comma-separated years (default "2025")
+      - clearExisting:   "1"/"true" (default) to wipe prior seeded rows first
+    """
+    count_param = request.args.get('count', default='15')
+    years_param = request.args.get('years', default='2025')
+    clear_param = (request.args.get('clearExisting', default='true') or '').strip().lower()
+
+    try:
+        per_event = int(count_param)
+    except Exception:
+        per_event = 15
+
+    try:
+        years = [int(y.strip()) for y in str(years_param).split(',') if str(y).strip()]
+    except Exception:
+        years = [2025]
+
+    clear_existing = clear_param not in ("0", "false", "no", "off")
+
+    try:
+        result = seedExactRespondentsPerEvent(
+            per_event=per_event,
+            years=years,
+            clear_existing=clear_existing,
+        )
+    except Exception as e:
+        logger.exception(
+            "GET /api/analytics/dev/seed-per-event failed before controller returned",
+            extra={"per_event": per_event, "years": years, "clear_existing": clear_existing},
+        )
+        result = {
+            "success": False,
+            "message": f"Failed to seed respondents per event: {str(e)}",
+            "data": {"seeded": 0, "years": years, "eventsUsed": 0, "perEvent": per_event},
+        }
+
+    logger.info(
+        "POST /api/analytics/dev/seed-per-event done success=%s seeded=%s eventsUsed=%s",
+        result.get("success"),
+        (result.get("data") or {}).get("seeded"),
+        (result.get("data") or {}).get("eventsUsed"),
+    )
+    return jsonify(result), 200
+
 
 @AnalyticsBlueprint.route("/analytics/dev/clear", methods=["POST", "OPTIONS"])
 def clearAnalyticsDataRoute():

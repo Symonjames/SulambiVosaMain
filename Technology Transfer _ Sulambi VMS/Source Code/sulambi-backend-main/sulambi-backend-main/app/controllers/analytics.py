@@ -2214,3 +2214,167 @@ def seedDemoEvaluations(
             'error': str(e),
             'data': {'seeded': 0, 'years': years or [], 'eventsUsed': 0},
         }
+
+
+def seedExactRespondentsPerEvent(
+    per_event: int = 15,
+    years: list[int] | None = None,
+    clear_existing: bool = True,
+):
+    """
+    Ensure every real event in ``years`` has *exactly* ``per_event`` finalized
+    satisfaction-survey rows (so the UI shows "N respondents" per event).
+
+    Respondents alternate Volunteer/Beneficiary so both aggregate counts stay
+    populated. Rows created here are tagged with a ``seeded_fixed_*`` email so
+    repeated calls can wipe and rebuild without touching real submissions.
+
+    Returns a dict mirroring ``seedDemoEvaluations`` for route compatibility.
+    """
+    try:
+        if years is None or len(years) == 0:
+            years = [2025]
+        per_event = max(1, int(per_event))
+
+        all_internal = InternalEventDb.getAll() or []
+        all_external = ExternalEventDb.getAll() or []
+
+        def _event_year(evt: dict) -> int | None:
+            dt = _timestamp_to_datetime(evt.get("durationStart"))
+            return dt.year if dt else None
+
+        candidate_events: list[tuple[int, str, int]] = []
+        for ev in all_internal:
+            if _event_year(ev) in years:
+                candidate_events.append((
+                    int(ev.get("id")),
+                    "internal",
+                    int(ev.get("durationStart") or int(time.time() * 1000)),
+                ))
+        for ev in all_external:
+            if _event_year(ev) in years:
+                candidate_events.append((
+                    int(ev.get("id")),
+                    "external",
+                    int(ev.get("durationStart") or int(time.time() * 1000)),
+                ))
+
+        if not candidate_events:
+            return {
+                'success': False,
+                'message': f'No events found for years {years}. Create events first.',
+                'data': {'seeded': 0, 'years': years, 'eventsUsed': 0, 'perEvent': per_event},
+            }
+
+        from ..database.connection import cursorInstance, is_postgresql_connection
+        conn, cursor = cursorInstance()
+        is_pg = is_postgresql_connection(conn)
+
+        deleted_rows = 0
+        if clear_existing:
+            try:
+                if is_pg:
+                    delete_sql = (
+                        'DELETE FROM satisfactionSurveys '
+                        'WHERE "eventId" = %s AND "eventType" = %s '
+                        '  AND LOWER(COALESCE("respondentEmail", \'\')) LIKE %s'
+                    )
+                else:
+                    delete_sql = (
+                        "DELETE FROM satisfactionSurveys "
+                        "WHERE eventId = ? AND eventType = ? "
+                        "  AND LOWER(COALESCE(respondentEmail, '')) LIKE ?"
+                    )
+                for evt_id, evt_type, _ in candidate_events:
+                    cursor.execute(delete_sql, (evt_id, evt_type, 'seeded_%@example.com'))
+                    try:
+                        deleted_rows += cursor.rowcount or 0
+                    except Exception:
+                        pass
+                conn.commit()
+            except Exception:
+                logger.exception("Failed to clear existing seeded surveys before re-seeding")
+                conn.rollback()
+        conn.close()
+
+        issue_pool = [
+            'communication', 'resource', 'scheduling', 'training', 'support',
+            'accessibility', 'organization', 'time', 'venue', 'materials',
+        ]
+
+        seeded = 0
+        sample_index = 0
+        for evt_id, evt_type, evt_start in candidate_events:
+            evt_start_int = int(evt_start or int(time.time() * 1000))
+            evt_start_seconds = (
+                evt_start_int // 1000 if evt_start_int > 9_999_999_999 else evt_start_int
+            )
+
+            for i in range(per_event):
+                sample_index += 1
+                respondent_type = "Volunteer" if i % 2 == 0 else "Beneficiary"
+                overall = max(1.0, min(5.0, round(random.gauss(4.2, 0.5), 1)))
+                vol_rating = max(1.0, min(5.0, round(overall + random.uniform(-0.3, 0.2), 1)))
+                ben_rating = max(1.0, min(5.0, round(overall + random.uniform(-0.2, 0.3), 1)))
+                issues = random.sample(issue_pool, k=random.randint(0, 2))
+                comment = "Seeded survey response for analytics dashboard."
+                if issues:
+                    comment += " Some concerns: " + ", ".join(issues) + "."
+
+                q13 = str(vol_rating) if respondent_type == "Volunteer" else ""
+                q14 = str(ben_rating) if respondent_type == "Beneficiary" else ""
+                requirement_id = (
+                    f"seed_fixed_{evt_type}_{evt_id}_{int(time.time()*1000)}_{sample_index}"
+                )
+                submitted_at = evt_start_seconds + random.randint(1, 7) * 24 * 60 * 60
+
+                inserted = SatisfactionSurveyDb.create(
+                    eventId=evt_id,
+                    eventType=evt_type,
+                    requirementId=requirement_id,
+                    respondentType=respondent_type,
+                    respondentEmail=f"seeded_{evt_type}_{evt_id}_{sample_index}@example.com",
+                    respondentName=f"Seeded {respondent_type} {sample_index}",
+                    overallSatisfaction=overall,
+                    volunteerRating=vol_rating if respondent_type == "Volunteer" else None,
+                    beneficiaryRating=ben_rating if respondent_type == "Beneficiary" else None,
+                    organizationRating=overall,
+                    communicationRating=overall,
+                    venueRating=overall,
+                    materialsRating=overall,
+                    supportRating=overall,
+                    q13=q13,
+                    q14=q14,
+                    comment=comment,
+                    recommendations='Keep improving community engagement.',
+                    wouldRecommend=True,
+                    areasForImprovement=", ".join(issues) if issues else "",
+                    positiveAspects="Community impact and organization",
+                    submittedAt=submitted_at,
+                    finalized=True,
+                )
+                if inserted:
+                    seeded += 1
+
+        return {
+            'success': True,
+            'message': (
+                f'Seeded {seeded} respondents across {len(candidate_events)} '
+                f'event(s) ({per_event} per event) for years {years}.'
+            ),
+            'data': {
+                'seeded': seeded,
+                'deleted': deleted_rows,
+                'years': years,
+                'eventsUsed': len(candidate_events),
+                'perEvent': per_event,
+            },
+        }
+    except Exception as e:
+        logger.exception("seedExactRespondentsPerEvent failed")
+        return {
+            'success': False,
+            'message': f'Failed to seed respondents per event: {str(e)}',
+            'error': str(e),
+            'data': {'seeded': 0, 'years': years or [], 'eventsUsed': 0, 'perEvent': per_event},
+        }
