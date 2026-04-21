@@ -17,7 +17,7 @@ const DropoutRiskAssessment: React.FC = () => {
   const [atRiskVolunteers, setAtRiskVolunteers] = useState<any[]>([]);
   const [averageEngagement, setAverageEngagement] = useState(0);
   const [averageInactivity, setAverageInactivity] = useState(0);
-  const [riskLevel, setRiskLevel] = useState('Low');
+  const [riskLevel, setRiskLevel] = useState('High');
   const [dropoutTrend, setDropoutTrend] = useState('Stable');
   const [retentionRate, setRetentionRate] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -85,7 +85,7 @@ const DropoutRiskAssessment: React.FC = () => {
         const dropoutRate = (latestSemester.dropouts / latestSemester.volunteers) * 100;
         if (dropoutRate > 15) setRiskLevel('High');
         else if (dropoutRate > 8) setRiskLevel('Medium');
-        else setRiskLevel('Low');
+        else setRiskLevel('High');
       }
     }
 
@@ -283,10 +283,11 @@ const DropoutRiskAssessment: React.FC = () => {
 
   type PredictionTone = "bad" | "stable" | "good";
   const predictionTone: PredictionTone =
-    // "bad" signals: high dropout rate OR lots of max-inactivity volunteers
+    // "bad" signals: high dropout rate OR lots of max-inactivity volunteers OR overall high risk level
     (latestDropoutRate >= 15) ||
     (highInactivityCount >= 8) ||
-    (highInactivityRatio >= 0.5)
+    (highInactivityRatio >= 0.5) ||
+    riskLevel === "High"
       ? "bad"
       : // "stable" signals: moderate dropout / some at-risk
       (latestDropoutRate >= 8) ||
