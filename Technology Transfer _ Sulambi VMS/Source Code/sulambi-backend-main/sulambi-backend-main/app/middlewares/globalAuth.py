@@ -35,6 +35,12 @@ PUBLIC_PATHS = [
     # Volunteer evaluation by email link (requirementId in URL is the token; no login required)
     ("GET", "/api/evaluation/validity"),
     ("POST", "/api/evaluation"),
+    # Dev seeder endpoints (local/staging test data only; safe to expose because
+    # they only insert clearly-tagged seeded_*@example.com rows that the clear
+    # endpoints can remove).
+    ("GET", "/api/analytics/dev/seed"),
+    ("GET", "/api/analytics/dev/seed-per-event"),
+    ("POST", "/api/analytics/dev/seed-per-event"),
 ]
 
 def _is_public(method, path):
