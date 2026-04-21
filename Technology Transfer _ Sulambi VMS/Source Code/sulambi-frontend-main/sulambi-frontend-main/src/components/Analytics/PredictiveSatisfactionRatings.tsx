@@ -116,6 +116,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     },
     cacheTime: CACHE_TIMES.MEDIUM,
     useMemoryCache: true,
+    // Always fetch fresh analytics so newly seeded rows appear immediately.
+    forceRefresh: true,
     enabled: true,
   });
   

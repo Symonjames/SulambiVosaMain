@@ -508,7 +508,13 @@ const DropoutRiskAssessment: React.FC = () => {
               Flagged At-Risk Volunteers ({sortedAtRiskVolunteers.length})
             </Typography>
             <List dense sx={{ maxHeight: 240, overflow: 'auto', mt: 0.5 }}>
-              {sortedAtRiskVolunteers.map((volunteer, index) => (
+              {sortedAtRiskVolunteers.map((volunteer, index) => {
+                const cappedInactivity = capDays(volunteer.inactivityDays);
+                const displayedRiskScore = cappedInactivity >= MAX_DISPLAY_INACTIVITY_DAYS
+                  ? 100
+                  : (Number(volunteer.riskScore) || 0);
+
+                return (
                 <ListItem
                   key={index}
                   sx={{
@@ -534,14 +540,14 @@ const DropoutRiskAssessment: React.FC = () => {
                         </Box>
                         <FlexBox gap={0.5} flexWrap="wrap" justifyContent="flex-end">
                           <Chip
-                            label={`${volunteer.riskScore}% risk`}
+                            label={`${displayedRiskScore}% risk`}
                             size="small"
-                            color={volunteer.riskScore > 80 ? 'error' : volunteer.riskScore > 60 ? 'warning' : 'success'}
+                            color={displayedRiskScore > 80 ? 'error' : displayedRiskScore > 60 ? 'warning' : 'success'}
                           />
                           <Chip
-                            label={`${capDays(volunteer.inactivityDays)} days inactive`}
+                            label={`${cappedInactivity} days inactive`}
                             size="small"
-                            color={capDays(volunteer.inactivityDays) > 30 ? 'error' : 'warning'}
+                            color={cappedInactivity > 30 ? 'error' : 'warning'}
                           />
                         </FlexBox>
                       </FlexBox>
@@ -553,7 +559,8 @@ const DropoutRiskAssessment: React.FC = () => {
                     }
                   />
                 </ListItem>
-              ))}
+                );
+              })}
             </List>
           </Box>
 
