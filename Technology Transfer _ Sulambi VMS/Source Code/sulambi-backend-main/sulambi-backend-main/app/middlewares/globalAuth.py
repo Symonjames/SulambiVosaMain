@@ -30,6 +30,10 @@ PUBLIC_PATHS = [
     # cross-origin dashboards where third-party cookies may be blocked.
     ("GET", "/api/analytics/satisfaction"),
     ("GET", "/api/analytics/satisfaction/event"),
+    # Dev seeding helpers (intentionally public to simplify one-click Render seeding)
+    ("GET", "/api/analytics/dev/seed"),
+    ("GET", "/api/analytics/dev/seed-per-event"),
+    ("POST", "/api/analytics/dev/seed-per-event"),
     ("POST", "/api/evaluation/beneficiary/validate-pin"),
     ("POST", "/api/evaluation/beneficiary"),
     # Volunteer evaluation by email link (requirementId in URL is the token; no login required)
