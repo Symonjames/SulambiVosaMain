@@ -2333,7 +2333,8 @@ def seedExactRespondentsPerEvent(
                     eventType=evt_type,
                     requirementId=requirement_id,
                     respondentType=respondent_type,
-                    respondentEmail=f"seeded_{evt_type}_{evt_id}_{sample_index}@example.com",
+                    # Use a non-seeded prefix so analytics includes these fixed demo rows.
+                    respondentEmail=f"demo_fixed_{evt_type}_{evt_id}_{sample_index}@example.com",
                     respondentName=f"Seeded {respondent_type} {sample_index}",
                     overallSatisfaction=overall,
                     volunteerRating=vol_rating if respondent_type == "Volunteer" else None,
