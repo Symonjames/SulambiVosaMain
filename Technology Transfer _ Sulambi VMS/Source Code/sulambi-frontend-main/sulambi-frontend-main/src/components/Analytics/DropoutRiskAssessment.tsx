@@ -510,7 +510,10 @@ const DropoutRiskAssessment: React.FC = () => {
             <List dense sx={{ maxHeight: 240, overflow: 'auto', mt: 0.5 }}>
               {sortedAtRiskVolunteers.map((volunteer, index) => {
                 const cappedInactivity = capDays(volunteer.inactivityDays);
-                const displayedRiskScore = cappedInactivity >= MAX_DISPLAY_INACTIVITY_DAYS
+                const joinedEvents = Number(volunteer.joinedEvents) || 0;
+                const attendedEvents = Number(volunteer.attendedEvents) || 0;
+                const neverJoinedOrAttended = joinedEvents <= 0 || attendedEvents <= 0;
+                const displayedRiskScore = (neverJoinedOrAttended || cappedInactivity >= MAX_DISPLAY_INACTIVITY_DAYS)
                   ? 100
                   : (Number(volunteer.riskScore) || 0);
 
