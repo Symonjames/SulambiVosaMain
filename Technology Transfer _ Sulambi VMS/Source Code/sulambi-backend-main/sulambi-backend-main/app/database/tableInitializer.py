@@ -441,7 +441,7 @@ execute_sql("""
     eventId INTEGER NOT NULL,
     activity_name TEXT NOT NULL,
     month INTEGER NOT NULL,
-    FOREIGN KEY (eventId) REFERENCES internalEvents(id)
+    FOREIGN KEY (eventId) REFERENCES "internalEvents"(id)
   )
 """)
 DEBUG and print("Done")

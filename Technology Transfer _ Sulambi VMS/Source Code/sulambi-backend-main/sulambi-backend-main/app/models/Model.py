@@ -16,6 +16,28 @@ class Model:
     self.columns = []
     self.filteredColumns = []
     self.createdAtCol = ""
+    self._postgres_column_cache = {}
+
+  def _get_postgres_table_columns(self):
+    """Return the live column names for the current table on PostgreSQL."""
+    table_name = self._get_table_name()
+    cached_columns = self._postgres_column_cache.get(table_name)
+    if cached_columns is not None:
+      return cached_columns
+
+    conn, cursor = connection.cursorInstance()
+    query = """
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ?
+      ORDER BY ordinal_position
+    """
+    query = connection.convert_placeholders(query)
+    cursor.execute(query, (table_name,))
+    columns = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    self._postgres_column_cache[table_name] = columns
+    return columns
   
   def _quote_identifier(self, identifier):
     """Normalize identifiers for PostgreSQL without quoting."""
@@ -24,9 +46,23 @@ class Model:
     return identifier
   
   def _normalize_column_name(self, column_name):
-    """Normalize column name for PostgreSQL to unquoted lowercase."""
+    """Normalize column name for PostgreSQL by matching the live table schema.
+    Fallback to case-insensitive match and finally return the original name.
+    """
     if is_postgresql:
-      return column_name.lower()
+      table_columns = self._get_postgres_table_columns()
+      # Exact match (preserve quoted/camelCase column names if present)
+      if column_name in table_columns:
+        return column_name
+
+      # Case-insensitive match (find lowercase equivalent)
+      lower_name = column_name.lower()
+      for table_column in table_columns:
+        if table_column.lower() == lower_name:
+          return table_column
+
+      # As a last resort, return the lowercase form (unquoted identifier)
+      return lower_name
     return column_name
   
   def _normalize_column_list(self, columns):
